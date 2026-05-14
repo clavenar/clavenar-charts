@@ -135,27 +135,63 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 4). Bundle mounted → engine binds
 # rustls + SPIFFE-URI allowlist on the application port; /health +
-# /readyz + /metrics move to the plain-HTTP health port. Today only
-# warden-proxy calls /evaluate; warden-console flips to mTLS on the
-# /policies/* management surface in session 5 (add its prefix here
-# when that lands).
+# /readyz + /metrics move to the plain-HTTP health port. Session 5
+# adds console to the allowlist for /policies/* CRUD.
 - name: WARDEN_POLICY_TLS_DIR
   value: {{ $mount | quote }}
 - name: WARDEN_POLICY_ALLOWED_CALLERS
-  value: "spiffe://warden.local/service/proxy"
+  value: "spiffe://warden.local/service/proxy,spiffe://warden.local/service/console"
 - name: WARDEN_POLICY_HEALTH_ADDR
   value: "0.0.0.0:9082"
 {{- end }}
 {{- end }}
+{{- if eq $name "ledger" }}
+{{- if $tlsOn }}
+# mTLS receive (B7 v1.x+2 session 5). Bundle mounted → ledger runs
+# TWO listeners. Plain HTTP on `port` (default 8083) serves the public
+# `/verify` + `/audit/{agent_id}*` read surface + `/health` + `/metrics`
+# (kubelet + Ingress reach this without a client cert). mTLS on
+# `mtlsPort` (default 8183) serves the full router; the internal write
+# + console-only read subset (`/log`, `/audit/correlation/*`,
+# `/stream/audit`, `/export*`, `/agents`) is SPIFFE-gated by the
+# allowlist. The plain HTTP router STRIPS those routes so a cluster-
+# network attacker cannot bypass mTLS by hitting `port` directly.
+#
+# Note: this chart's Service template still exposes a single port —
+# operators wanting console → ledger over mTLS must add a second
+# Service port (8183) and update WARDEN_CONSOLE_LEDGER_URL to point at
+# it. A later chart minor will add the dual-port Service block.
+- name: WARDEN_LEDGER_TLS_DIR
+  value: {{ $mount | quote }}
+- name: WARDEN_LEDGER_ALLOWED_CALLERS
+  value: "spiffe://warden.local/service/proxy,spiffe://warden.local/service/console,spiffe://warden.local/service/deep-review"
+- name: WARDEN_LEDGER_MTLS_ADDR
+  value: "0.0.0.0:8183"
+{{- end }}
+{{- end }}
 {{- if eq $name "console" }}
+# Console → backend hops (B7 v1.x+2 session 5). Ledger flips to
+# https://...:8183 when tlsBundle is set; policy-engine flips scheme
+# to https on the same port; hil + identity stay plain HTTP until
+# session 6 wires the simulator's outbound TLS.
 - name: WARDEN_CONSOLE_LEDGER_URL
-  value: "http://{{ $rel }}-ledger:8083"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
 - name: WARDEN_CONSOLE_HIL_URL
   value: "http://{{ $rel }}-hil:8084"
 - name: WARDEN_CONSOLE_POLICY_ENGINE_URL
-  value: "http://{{ $rel }}-policy-engine:8082"
+  value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082"
 - name: WARDEN_CONSOLE_IDENTITY_URL
   value: "http://{{ $rel }}-identity:8086"
+{{- if $tlsOn }}
+# Outbound mTLS — same cert bundle the proxy uses. One
+# `service-console` identity authenticates every backend hop.
+- name: WARDEN_CONSOLE_OUTBOUND_CERT_PATH
+  value: "{{ $mount }}/service-console.crt"
+- name: WARDEN_CONSOLE_OUTBOUND_KEY_PATH
+  value: "{{ $mount }}/service-console.key"
+- name: WARDEN_CONSOLE_OUTBOUND_CA_PATH
+  value: "{{ $mount }}/ca.crt"
+{{- end }}
 {{- end }}
 {{- if eq $name "deepReview" }}
 - name: WARDEN_DEEP_REVIEW_LEDGER_URL

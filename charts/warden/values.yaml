@@ -164,7 +164,18 @@ services:
     image:
       repository: warden-ledger
       tag: ""
+    # Plain HTTP listener — serves Caddy / Ingress for the public
+    # `/verify` + `/audit/{agent_id}*` browser surface, kubelet probes
+    # (`/health` + `/readyz`), and Prometheus scrapes (`/metrics`).
     port: 8083
+    # mTLS application port under TLS mode (B7 v1.x+2 session 5).
+    # `warden.backendEnvs` injects WARDEN_LEDGER_MTLS_ADDR pointing at
+    # this when tlsBundle is set; the internal write + console-only
+    # read surface lives behind rustls + SPIFFE-allowlist here. The
+    # Service template currently only exposes `port`; operators
+    # wanting console → ledger over mTLS must add a second Service
+    # entry (8183) and update the console URL env var.
+    mtlsPort: 8183
     serviceType: ClusterIP
     resources:
       requests: { cpu: 50m, memory: 64Mi }
