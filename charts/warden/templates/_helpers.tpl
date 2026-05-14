@@ -237,6 +237,20 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: WARDEN_IDENTITY_CA_DIR
   value: {{ $mount | quote }}
 {{- end }}
+{{/* NATS mTLS (B7.5 v1.x+3). When tlsBundle is set, every service that
+connects to NATS authenticates with its workload cert. Helm currently
+doesn't enumerate demo-mint or simulator; this fires for the six
+in-chart NATS-connecting services. The NATS server itself ships a
+service-nats workload cert via the same bundle but is consumed by the
+compose / chart-external NATS deployment. */}}
+{{- if and $tlsOn (has $name (list "proxy" "ledger" "hil" "identity" "policyEngine" "deepReview")) }}
+- name: NATS_TLS_CERT_PATH
+  value: "{{ $mount }}/service-{{ $name | kebabcase }}.crt"
+- name: NATS_TLS_KEY_PATH
+  value: "{{ $mount }}/service-{{ $name | kebabcase }}.key"
+- name: NATS_TLS_CA_PATH
+  value: "{{ $mount }}/ca.crt"
+{{- end }}
 {{- end -}}
 
 {{/* Pod-level Prometheus scrape annotations. Port fallback chain:
