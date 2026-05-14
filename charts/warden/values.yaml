@@ -121,7 +121,18 @@ services:
     image:
       repository: warden-policy-engine
       tag: ""
+    # Application port. Plain HTTP without tlsBundle.secretName set;
+    # rustls + SPIFFE-allowlist on the same port when the bundle is
+    # mounted. WARDEN_POLICY_TLS_DIR + ALLOWED_CALLERS env vars are
+    # auto-injected by `warden.backendEnvs` when tlsBundle is set
+    # (B7 v1.x+2 session 4).
     port: 8082
+    # Plain-HTTP /health + /readyz + /metrics under TLS mode (kubelet
+    # probes + Prometheus scrapes don't carry a client cert). Under
+    # plain HTTP mode the engine serves everything on `port`; the
+    # chart's probe helper falls back to `port` when healthPort is
+    # unused.
+    healthPort: 9082
     serviceType: ClusterIP
     resources:
       requests: { cpu: 50m, memory: 64Mi }

@@ -95,19 +95,20 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $mount := .ctx.Values.tlsBundle.mountPath -}}
 {{- $tlsOn := not (empty $tls) -}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
+{{- $policyScheme := ternary "https" "http" $tlsOn -}}
 {{- if eq $name "proxy" }}
 - name: WARDEN_BRAIN_URL
   value: "{{ $brainScheme }}://{{ $rel }}-brain:8081/inspect"
 - name: WARDEN_POLICY_URL
-  value: "http://{{ $rel }}-policy-engine:8082/evaluate"
+  value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082/evaluate"
 - name: WARDEN_HIL_URL
   value: "http://{{ $rel }}-hil:8084"
 - name: WARDEN_IDENTITY_URL
   value: "http://{{ $rel }}-identity:8086"
 {{- if $tlsOn }}
-# Outbound mTLS (B7 v1.x+2 session 3) — proxy presents service-proxy
-# cert on the brain hop today; sessions 4-5 extend to policy / hil /
-# identity / ledger as their receive sides flip.
+# Outbound mTLS (B7 v1.x+2 sessions 3-4) — proxy presents service-proxy
+# cert on brain + policy hops; sessions 5-6 extend to hil / identity /
+# ledger as their receive sides flip.
 - name: WARDEN_PROXY_OUTBOUND_CERT_PATH
   value: "{{ $mount }}/service-proxy.crt"
 - name: WARDEN_PROXY_OUTBOUND_KEY_PATH
@@ -130,6 +131,22 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "0.0.0.0:9081"
 {{- end }}
 {{- end }}
+{{- if eq $name "policyEngine" }}
+{{- if $tlsOn }}
+# mTLS receive (B7 v1.x+2 session 4). Bundle mounted → engine binds
+# rustls + SPIFFE-URI allowlist on the application port; /health +
+# /readyz + /metrics move to the plain-HTTP health port. Today only
+# warden-proxy calls /evaluate; warden-console flips to mTLS on the
+# /policies/* management surface in session 5 (add its prefix here
+# when that lands).
+- name: WARDEN_POLICY_TLS_DIR
+  value: {{ $mount | quote }}
+- name: WARDEN_POLICY_ALLOWED_CALLERS
+  value: "spiffe://warden.local/service/proxy"
+- name: WARDEN_POLICY_HEALTH_ADDR
+  value: "0.0.0.0:9082"
+{{- end }}
+{{- end }}
 {{- if eq $name "console" }}
 - name: WARDEN_CONSOLE_LEDGER_URL
   value: "http://{{ $rel }}-ledger:8083"
@@ -150,13 +167,17 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end -}}
 
-{{/* Pod-level Prometheus scrape annotations. Port fallback:
-.metrics.port (proxy uses healthPort 8080) → .port. */}}
+{{/* Pod-level Prometheus scrape annotations. Port fallback chain:
+.metrics.port → .healthPort → .port. The healthPort step matters under
+mTLS: services like brain + policy-engine flip their app port to TLS
+when the bundle is mounted, and Prometheus scrapes without a client
+cert; routing the scrape at healthPort keeps the plain-HTTP /metrics
+endpoint reachable. */}}
 {{- define "warden.metricsAnnotations" -}}
 {{- $svcCfg := .svcCfg -}}
 {{- $metrics := default dict $svcCfg.metrics -}}
 {{- if $metrics.enabled -}}
-{{- $port := default $svcCfg.port $metrics.port -}}
+{{- $port := default $svcCfg.port (default $svcCfg.healthPort $metrics.port) -}}
 {{- $path := default "/metrics" $metrics.path }}
 prometheus.io/scrape: "true"
 prometheus.io/path: {{ $path | quote }}
@@ -167,14 +188,16 @@ prometheus.io/port: {{ $port | quote }}
 {{- end -}}
 {{- end -}}
 
-{{/* `kind` is "liveness"/"readiness". Port fallback: .probes.port
-(proxy targets healthPort) → .port. */}}
+{{/* `kind` is "liveness"/"readiness". Port fallback chain:
+.probes.port → .healthPort → .port. Same rationale as the metrics
+helper above — kubelet probes don't carry a client cert, so they have
+to land on the plain-HTTP health port under mTLS mode. */}}
 {{- define "warden.probe" -}}
 {{- $ctx := .ctx -}}
 {{- $svcCfg := .svcCfg -}}
 {{- $kind := .kind -}}
 {{- $defaults := index $ctx.Values.probeDefaults $kind -}}
-{{- $probePort := default $svcCfg.port $svcCfg.probes.port -}}
+{{- $probePort := default $svcCfg.port (default $svcCfg.healthPort $svcCfg.probes.port) -}}
 initialDelaySeconds: {{ $defaults.initialDelaySeconds }}
 periodSeconds: {{ $defaults.periodSeconds }}
 timeoutSeconds: {{ $defaults.timeoutSeconds }}
