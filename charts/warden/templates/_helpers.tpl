@@ -91,15 +91,44 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- define "warden.backendEnvs" -}}
 {{- $rel := .ctx.Release.Name -}}
 {{- $name := .service -}}
+{{- $tls := .ctx.Values.tlsBundle.secretName -}}
+{{- $mount := .ctx.Values.tlsBundle.mountPath -}}
+{{- $tlsOn := not (empty $tls) -}}
+{{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- if eq $name "proxy" }}
 - name: WARDEN_BRAIN_URL
-  value: "http://{{ $rel }}-brain:8081/inspect"
+  value: "{{ $brainScheme }}://{{ $rel }}-brain:8081/inspect"
 - name: WARDEN_POLICY_URL
   value: "http://{{ $rel }}-policy-engine:8082/evaluate"
 - name: WARDEN_HIL_URL
   value: "http://{{ $rel }}-hil:8084"
 - name: WARDEN_IDENTITY_URL
   value: "http://{{ $rel }}-identity:8086"
+{{- if $tlsOn }}
+# Outbound mTLS (B7 v1.x+2 session 3) — proxy presents service-proxy
+# cert on the brain hop today; sessions 4-5 extend to policy / hil /
+# identity / ledger as their receive sides flip.
+- name: WARDEN_PROXY_OUTBOUND_CERT_PATH
+  value: "{{ $mount }}/service-proxy.crt"
+- name: WARDEN_PROXY_OUTBOUND_KEY_PATH
+  value: "{{ $mount }}/service-proxy.key"
+- name: WARDEN_PROXY_OUTBOUND_CA_PATH
+  value: "{{ $mount }}/ca.crt"
+{{- end }}
+{{- end }}
+{{- if eq $name "brain" }}
+{{- if $tlsOn }}
+# mTLS receive (B7 v1.x+2 session 3). Bundle mounted → brain binds
+# rustls + SPIFFE-URI allowlist on the application port; /health +
+# /readyz + /metrics move to the plain-HTTP health port so kubelet
+# probes don't need a client cert.
+- name: WARDEN_BRAIN_TLS_DIR
+  value: {{ $mount | quote }}
+- name: WARDEN_BRAIN_ALLOWED_CALLERS
+  value: "spiffe://warden.local/service/proxy"
+- name: WARDEN_BRAIN_HEALTH_ADDR
+  value: "0.0.0.0:9081"
+{{- end }}
 {{- end }}
 {{- if eq $name "console" }}
 - name: WARDEN_CONSOLE_LEDGER_URL
@@ -117,7 +146,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- if eq $name "identity" }}
 - name: WARDEN_IDENTITY_CA_DIR
-  value: {{ .ctx.Values.tlsBundle.mountPath | quote }}
+  value: {{ $mount | quote }}
 {{- end }}
 {{- end -}}
 

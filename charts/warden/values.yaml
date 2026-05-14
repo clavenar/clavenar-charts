@@ -87,7 +87,18 @@ services:
     image:
       repository: warden-brain
       tag: ""
+    # Application port. Plain HTTP without tlsBundle.secretName set;
+    # rustls + SPIFFE-allowlist on the same port when the bundle is
+    # mounted. WARDEN_BRAIN_TLS_DIR + ALLOWED_CALLERS env vars are
+    # auto-injected by `warden.backendEnvs` when tlsBundle is set
+    # (B7 v1.x+2 session 3).
     port: 8081
+    # Plain-HTTP /health + /readyz + /metrics under TLS mode so
+    # kubelet probes and Prometheus scrapes don't need a client cert.
+    # Probes auto-aim at healthPort (see _helpers.tpl). Under plain
+    # HTTP mode brain serves everything on `port`; the chart's probe
+    # helper falls back to `port` when healthPort is unused.
+    healthPort: 9081
     serviceType: ClusterIP
     resources:
       requests: { cpu: 100m, memory: 128Mi }
