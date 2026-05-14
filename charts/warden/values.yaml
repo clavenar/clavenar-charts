@@ -1,0 +1,339 @@
+# Skeleton chart: 1 replica per service, no infra bundled, /health +
+# /readyz probes on every service. Override per-service under
+# `services.<svc>`.
+
+# Tag fallback chain: services.<svc>.image.tag → imageTag → appVersion.
+imageRegistry: ghcr.io/vanteguardlabs
+imageTag: ""
+imagePullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Operator brings their own NATS + Vault.
+nats:
+  # Injected as NATS_URL into every service.
+  url: nats://nats:4222
+
+vault:
+  # VAULT_ADDR for proxy + identity. Empty disables Vault wiring.
+  addr: ""
+  # k8s Secret holding `token` key for VAULT_TOKEN. Empty disables.
+  tokenSecretName: ""
+
+# Drain cap in seconds. Set as WARDEN_GRACEFUL_DRAIN_SECS;
+# terminationGracePeriodSeconds = drainCapSecs + 5 so kubelet SIGKILL
+# fires after the in-process watchdog has had its window.
+drainCapSecs: 30
+
+# Every service Dockerfile ships USER 65532 (Google distroless nonroot).
+# fsGroup remounts PVCs so SQLite writes work on ledger/hil/identity.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# Prometheus scrape: pod-level annotations only (no ServiceMonitor/
+# PodMonitor CRD) so this works with vanilla Prometheus + the
+# de-facto `prometheus.io/scrape` discovery rule. Cardinality is
+# bounded in-process — no per-agent labels. Disable per-service via
+# `services.<svc>.metrics.enabled: false`; layer extra annotations
+# via `services.<svc>.metrics.extraAnnotations`.
+
+probeDefaults:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 2
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+services:
+  proxy:
+    enabled: true
+    replicas: 1
+    image:
+      repository: warden-proxy
+      tag: ""
+    port: 8443        # mTLS surface — Service exposes this for agents
+    healthPort: 8080  # plain-HTTP /health + /readyz — kubelet probes this
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+      # Proxy's main port is mTLS-gated; probes target healthPort.
+      port: 8080
+    extraEnv:
+      - name: WARDEN_PROXY_HEALTH_ADDR
+        value: 0.0.0.0:8080
+    # Metrics on the plain-HTTP port so vanilla Prometheus pods can
+    # scrape without a client cert.
+    metrics:
+      enabled: true
+      port: 8080
+
+  brain:
+    enabled: true
+    replicas: 1
+    image:
+      repository: warden-brain
+      tag: ""
+    port: 8081
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    # mock-key keeps the chart usable out-of-box; prod overrides via
+    # --set or secretKeyRef.
+    extraEnv:
+      - name: ANTHROPIC_API_KEY
+        value: mock-key
+    metrics:
+      enabled: true
+
+  policyEngine:
+    enabled: true
+    replicas: 1
+    image:
+      repository: warden-policy-engine
+      tag: ""
+    port: 8082
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 250m, memory: 256Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    extraEnv: []
+    metrics:
+      enabled: true
+
+  ledger:
+    enabled: true
+    # SQLite mode (the default below) is pinned to replicas: 1.
+    # Concurrent writers across replicas corrupt the SQLite file even
+    # on a shared RWX PVC, and SQLite's WAL doesn't help across hosts.
+    #
+    # Postgres mode lifts that pin. Set:
+    #   WARDEN_LEDGER_BACKEND: "postgres"
+    #   WARDEN_LEDGER_PG_URL: "postgres://user:pass@host:5432/warden"
+    # and the ledger pool can scale to N replicas (Postgres serializes
+    # the chain append on a UNIQUE(seq) constraint; deadpool sizes
+    # the per-pod pool). Cold-tier export, regulatory bundles,
+    # Iceberg metadata, and the egress sweeper are SQLite-only and
+    # return 503 under Postgres mode — wire your SIEM ingest directly
+    # against the Postgres chain table instead. See HA_RUNBOOK.md.
+    replicas: 1
+    image:
+      repository: warden-ledger
+      tag: ""
+    port: 8083
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    # SQLite default. To use Postgres, drop WARDEN_LEDGER_DB, add
+    # `WARDEN_LEDGER_BACKEND=postgres` + `WARDEN_LEDGER_PG_URL=…`,
+    # and bump `replicas`.
+    extraEnv:
+      - name: WARDEN_LEDGER_DB
+        value: /var/lib/warden/ledger.db
+    metrics:
+      enabled: true
+
+  hil:
+    enabled: true
+    # SQLite-backed; pin replicas to 1. No Postgres backend planned
+    # for hil in v1 — multi-replica HIL is gated on the storage
+    # trait migration spreading from ledger to hil + identity.
+    replicas: 1
+    image:
+      repository: warden-hil
+      tag: ""
+    port: 8084
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 250m, memory: 256Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    extraEnv:
+      - name: WARDEN_HIL_DB
+        value: /var/lib/warden/hil.db
+    metrics:
+      enabled: true
+
+  identity:
+    enabled: true
+    # SQLite-backed (agents table + agent_ledger lifecycle chain).
+    # Pin replicas to 1 — same SQLite-on-shared-PVC constraint as
+    # ledger and hil.
+    replicas: 1
+    image:
+      repository: warden-identity
+      tag: ""
+    port: 8086
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 250m, memory: 256Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    extraEnv:
+      - name: WARDEN_IDENTITY_DB
+        value: /var/lib/warden/identity.db
+    metrics:
+      enabled: true
+
+  # Forensic-tier async auditor. Subscribes to warden.forensic, samples,
+  # runs the configured LLM against the bundle. Pairs with brain (fast,
+  # in-band) as the slow-but-deep tier. Spec §"Forensic-tier deep review".
+  # Singleton like brain — no PVC; per-agent history rides NATS, daily
+  # budget is per-pod (operator runs one replica, scales the cap not the
+  # pods).
+  deepReview:
+    enabled: true
+    replicas: 1
+    image:
+      repository: warden-deep-review
+      tag: ""
+    # /metrics + /health scrape port. 8087 because identity owns 8086.
+    port: 8087
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 100m, memory: 128Mi }
+      limits:   { cpu: 500m, memory: 512Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    # mock-key default keeps the chart usable without an Anthropic
+    # account. Prod overrides via --set or secretKeyRef. Daily token
+    # cap matches the demo-VPS pin — bump for real-traffic operators.
+    extraEnv:
+      - name: WARDEN_DEEP_REVIEW_ANTHROPIC_API_KEY
+        value: mock-key
+      - name: WARDEN_DEEP_REVIEW_DAILY_TOKEN_CAP
+        value: "200000"
+      - name: WARDEN_DEEP_REVIEW_SAMPLE_RATE_GREEN
+        value: "0.01"
+    metrics:
+      enabled: true
+
+  # Operator UI. Read-only against ledger + HIL + policy-engine +
+  # identity (proxy to its own data-plane is via SDK). Three auth modes:
+  # `oidc` (prod default), `basic-admin` (single-operator), `disabled`
+  # (demo VPS — synthetic Admin every request; refuse non-loopback
+  # binds unless ALLOW_DISABLED_NETWORK is true). Defaults below mirror
+  # the prod compose stack's `oidc` posture; flip to `disabled` only
+  # for demo/eval clusters.
+  console:
+    enabled: true
+    replicas: 1
+    image:
+      repository: warden-console
+      tag: ""
+    port: 8085
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 250m, memory: 256Mi }
+    probes:
+      type: httpGet
+      health: /health
+      ready: /readyz
+    # Backend URLs are derived from .Release.Name + service names via
+    # the helper. Override via --set if you front the stack with a
+    # service mesh that renames Services.
+    extraEnv:
+      - name: WARDEN_CONSOLE_BIND
+        value: 0.0.0.0
+      - name: WARDEN_CONSOLE_AUTH
+        value: oidc
+    metrics:
+      enabled: true
+
+# Persistence — SQLite-backed services only. Mounts at /var/lib/warden
+# (matches WARDEN_*_DB defaults). Disable for emptyDir.
+persistence:
+  ledger:
+    enabled: true
+    size: 5Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  hil:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+  identity:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+
+# Proxy mTLS cert mount. The proxy panics at boot without CA + server +
+# client certs in /certs (recurring-gotchas: tls.rs panics on missing
+# cert file). Operator-supplied k8s Secret with the four PEMs +
+# `ca.pem` keys gets mounted on the proxy Deployment when this is set.
+# Identity also mounts it read-only (signs SVIDs with the same CA root).
+#
+# Generate locally with `warden-proxy/scripts/gen_certs.sh --env prod`,
+# then `kubectl create secret generic warden-proxy-certs --from-file=certs/`
+# under the same namespace as the release.
+#
+# Empty → no mount; proxy + identity Deployments will fail to start.
+# Required for any non-trivial deploy.
+proxyTls:
+  secretName: ""
+  mountPath: /certs
+
+# NetworkPolicy gating. Spec §"Threat model" §"Cross-cutting" treats
+# k8s NetworkPolicy as the deployment perimeter. With this on, the
+# backend services (brain/policy-engine/hil/ledger/identity) accept
+# ingress only from proxy + console + deep-review. Proxy stays open
+# (it's the agent-facing surface). Default off so a CNI without
+# NetworkPolicy support (calico off, flannel without policy) still
+# renders cleanly.
+networkPolicy:
+  enabled: false
+  # Allow Prometheus to scrape /metrics on every pod. Set to the
+  # namespace label selector your scraper runs in. Empty → no
+  # additional ingress allowance beyond the proxy/console/deep-review
+  # mesh.
+  prometheusNamespaceLabel: ""
+
+# PodDisruptionBudget. Only emitted for services where replicas > 1
+# (SQLite-pinned services skip this naturally). minAvailable defaults
+# to ceil(replicas/2) so a rolling node drain takes at most half a
+# service down.
+podDisruptionBudget:
+  enabled: true
+
+# Vault token Secret. When .vault.addr is set, the proxy and identity
+# pods need VAULT_TOKEN. Operator provides a Secret with key `token`
+# and points .vault.tokenSecretName at it.
+# Already covered by .vault.tokenSecretName above.

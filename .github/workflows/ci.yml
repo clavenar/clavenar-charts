@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  helm:
+    name: helm lint + template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.3
+
+      - name: helm lint
+        working-directory: charts/warden
+        run: helm lint .
+
+      - name: helm template — default values
+        working-directory: charts/warden
+        run: helm template smoke . > /tmp/default.yaml
+
+      - name: helm template — all-on combo
+        working-directory: charts/warden
+        run: |
+          helm template smoke . \
+            --set proxyTls.secretName=warden-certs \
+            --set vault.addr=http://vault:8200 \
+            --set vault.tokenSecretName=warden-vault \
+            --set networkPolicy.enabled=true \
+            --set networkPolicy.prometheusNamespaceLabel=monitoring \
+            --set services.brain.replicas=3 \
+            --set services.policyEngine.replicas=2 \
+            > /tmp/all-on.yaml
+
+      - name: helm template — postgres ledger mode
+        working-directory: charts/warden
+        run: |
+          helm template smoke . \
+            --set services.ledger.replicas=3 \
+            --set persistence.ledger.enabled=false \
+            --set services.ledger.extraEnv[0].name=WARDEN_LEDGER_BACKEND \
+            --set services.ledger.extraEnv[0].value=postgres \
+            > /tmp/postgres.yaml
+
+      # Quick sanity: each render must produce at least the eight
+      # Deployments. Catches a regression where a service template
+      # silently stops emitting one.
+      - name: smoke-check kind counts
+        run: |
+          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml; do
+            n=$(grep -c '^kind: Deployment' "$f" || true)
+            if [ "$n" -lt 8 ]; then
+              echo "::error::$f rendered only $n Deployments (expected 8)"
+              exit 1
+            fi
+          done
+
+      # kubeconform validates the rendered manifests against the
+      # upstream k8s schemas — catches typos like `protcol` or
+      # missing required fields without a live cluster.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: install kubeconform
+        run: go install github.com/yannh/kubeconform/cmd/kubeconform@latest
+      - name: kubeconform — default
+        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/default.yaml
+      - name: kubeconform — all-on
+        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/all-on.yaml
+      - name: kubeconform — postgres
+        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/postgres.yaml

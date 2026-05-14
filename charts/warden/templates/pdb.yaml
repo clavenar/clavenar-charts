@@ -1,0 +1,28 @@
+{{/*
+PodDisruptionBudget — only emitted when services.<name>.replicas > 1.
+SQLite-pinned services (ledger/hil/identity in SQLite mode) keep
+replicas: 1 and skip naturally; once an operator flips ledger to
+Postgres mode + replicas: 3, a PDB lands automatically with
+minAvailable = ceil(replicas / 2).
+
+Disable the whole feature via .Values.podDisruptionBudget.enabled=false.
+*/}}
+{{- if .Values.podDisruptionBudget.enabled }}
+{{- range $name, $cfg := .Values.services }}
+{{- if and $cfg.enabled (gt (int $cfg.replicas) 1) }}
+{{- $minAvailable := div (add (int $cfg.replicas) 1) 2 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}
+  labels:
+    {{- include "warden.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+spec:
+  minAvailable: {{ $minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
+{{- end }}
+{{- end }}
+{{- end }}

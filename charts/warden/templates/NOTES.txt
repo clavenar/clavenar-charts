@@ -1,0 +1,59 @@
+Agent Warden installed as release: {{ .Release.Name }}
+
+The eight services live behind ClusterIP — by default not exposed
+outside the cluster. Forward them locally:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-proxy 8443:8443
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-brain 8081:8081
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-policy-engine 8082:8082
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-ledger 8083:8083
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-hil 8084:8084
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-console 8085:8085
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-identity 8086:8086
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-deep-review 8087:8087
+
+Health/readiness:
+
+  curl localhost:8081/health   # brain
+  curl localhost:8081/readyz
+  curl localhost:8082/readyz   # policy-engine
+  curl localhost:8083/readyz   # ledger
+  curl localhost:8084/readyz   # hil
+  curl localhost:8085/readyz   # console
+  curl localhost:8086/readyz   # identity
+  curl localhost:8087/readyz   # deep-review
+
+Proxy serves /mcp + /metrics on its mTLS port (8443) only. /health
+and /readyz are *also* on a non-mTLS health listener (8080 by default,
+container-port only — not published by the Service). Kubelet probes
+target 8080. To exercise the mTLS path locally, point a client with
+valid certs at https://localhost:8443/ per warden-proxy/README.md.
+
+{{- if not .Values.proxyTls.secretName }}
+
+WARNING: proxyTls.secretName is empty.
+
+The proxy panics at boot without /certs mounted (see warden-proxy
+recurring-gotchas in CLAUDE.md). Generate a cert bundle with
+`warden-proxy/scripts/gen_certs.sh --env prod` then:
+
+  kubectl -n {{ .Release.Namespace }} create secret generic warden-certs \
+    --from-file=warden-proxy/certs/
+
+  helm upgrade {{ .Release.Name }} . --reuse-values \
+    --set proxyTls.secretName=warden-certs
+{{- end }}
+
+{{- if not .Values.networkPolicy.enabled }}
+
+NOTE: NetworkPolicy is disabled. Spec §"Threat model" §"Cross-cutting"
+treats k8s NetworkPolicy as the deployment perimeter. Enable when
+your CNI supports it:
+
+  helm upgrade {{ .Release.Name }} . --reuse-values \
+    --set networkPolicy.enabled=true
+{{- end }}
+
+Chart layout: 8 services, 3 PVCs (ledger / hil / identity SQLite mode),
+NetworkPolicy + PDB opt-in. See charts/warden/README.md for the full
+values reference.

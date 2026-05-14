@@ -1,0 +1,65 @@
+{{/*
+NetworkPolicy gating. Spec §"Threat model" §"Cross-cutting" treats
+the k8s NetworkPolicy as the deployment perimeter — once enabled, the
+backend services accept ingress only from proxy + console + deep-review
+(the legitimate in-stack callers).
+
+Disabled by default so CNIs without policy support still render
+cleanly. Required for the perimeter claim in the threat model.
+*/}}
+{{- if .Values.networkPolicy.enabled }}
+{{- $front := dict "proxy" true "console" true }}
+{{- range $name, $cfg := .Values.services }}
+{{- if $cfg.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}
+  labels:
+    {{- include "warden.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    {{- if hasKey $front $name }}
+    # Front-door service: open to anything in the namespace + cluster
+    # (mTLS gates the proxy traffic; auth gates the console).
+    - {}
+    {{- else }}
+    # Backend service: only the in-stack callers can reach it. Match
+    # both selector labels via the same release-instance to avoid
+    # bleed across overlapping releases in the same namespace.
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: proxy
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: console
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: deep-review
+    {{- end }}
+    {{- if $.Values.networkPolicy.prometheusNamespaceLabel }}
+    # Scrape allowance for Prometheus running in a labelled namespace.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.prometheusNamespaceLabel | quote }}
+      ports:
+        - protocol: TCP
+          port: {{ default $cfg.port (default dict $cfg.metrics).port }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

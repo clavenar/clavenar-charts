@@ -1,0 +1,38 @@
+apiVersion: v2
+name: warden
+description: |
+  Agent Warden — Rust security pipeline for AI agents. Deploys the
+  eight-service stack (proxy, brain, policy-engine, ledger, hil,
+  identity, deep-review, console) as Deployments + Services with
+  /health + /readyz probes wired to the operational endpoints,
+  PVCs for SQLite-backed services, optional NetworkPolicy perimeter,
+  and PodDisruptionBudgets when replicas > 1.
+
+  NATS and Vault are NOT bundled — operators bring their own and
+  set `nats.url` / `vault.addr`. Images are pulled from
+  ghcr.io/vanteguardlabs by default.
+type: application
+version: 0.2.0
+appVersion: "0.7.0"
+keywords:
+  - security
+  - agent
+  - mtls
+  - mcp
+  - audit
+  - ai
+  - llm
+home: https://github.com/vanteguardlabs/warden-charts
+sources:
+  - https://github.com/vanteguardlabs/warden-proxy
+  - https://github.com/vanteguardlabs/warden-brain
+  - https://github.com/vanteguardlabs/warden-policy-engine
+  - https://github.com/vanteguardlabs/warden-ledger
+  - https://github.com/vanteguardlabs/warden-hil
+  - https://github.com/vanteguardlabs/warden-identity
+  - https://github.com/vanteguardlabs/warden-deep-review
+  - https://github.com/vanteguardlabs/warden-console
+maintainers:
+  - name: VanteguardLabs
+    url: https://github.com/vanteguardlabs
+icon: https://warden.vanteguardlabs.com/favicon.svg
