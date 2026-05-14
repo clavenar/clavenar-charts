@@ -102,13 +102,13 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: WARDEN_POLICY_URL
   value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082/evaluate"
 - name: WARDEN_HIL_URL
-  value: "http://{{ $rel }}-hil:8084"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
 - name: WARDEN_IDENTITY_URL
-  value: "http://{{ $rel }}-identity:8086"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
 {{- if $tlsOn }}
-# Outbound mTLS (B7 v1.x+2 sessions 3-4) — proxy presents service-proxy
-# cert on brain + policy hops; sessions 5-6 extend to hil / identity /
-# ledger as their receive sides flip.
+# Outbound mTLS (B7 v1.x+2 sessions 3-6) — service-proxy cert covers
+# brain, policy, hil, identity, and the HIL poll path. One bundle, four
+# downstream listeners.
 - name: WARDEN_PROXY_OUTBOUND_CERT_PATH
   value: "{{ $mount }}/service-proxy.crt"
 - name: WARDEN_PROXY_OUTBOUND_KEY_PATH
@@ -145,6 +145,42 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "0.0.0.0:9082"
 {{- end }}
 {{- end }}
+{{- if eq $name "hil" }}
+{{- if $tlsOn }}
+# mTLS receive (B7 v1.x+2 session 6). Single-mode listener — port 8084
+# becomes rustls when the bundle is mounted; only callers presenting a
+# workload cert from the allowlist are accepted. Health + /metrics move
+# to `services.hil.healthPort` (default 9084) so kubelet + Prometheus
+# can reach the plain-HTTP surface without a client cert.
+- name: WARDEN_HIL_TLS_DIR
+  value: {{ $mount | quote }}
+- name: WARDEN_HIL_ALLOWED_CALLERS
+  value: "spiffe://warden.local/service/proxy,spiffe://warden.local/service/console,spiffe://warden.local/service/simulator"
+- name: WARDEN_HIL_HEALTH_ADDR
+  value: "0.0.0.0:9084"
+{{- end }}
+{{- end }}
+{{- if eq $name "identity" }}
+{{- if $tlsOn }}
+# mTLS receive (B7 v1.x+2 session 6). Dual-listener:
+#   * plain HTTP on `services.identity.port` (default 8086) — public
+#     subset (`/stats`, `/jwks.json`, `/.well-known/spiffe-bundle`,
+#     health). Internal routes are STRIPPED on this port.
+#   * mTLS on `services.identity.mtlsPort` (default 8186) — full surface
+#     including `/svid`, `/grant`, `/revoke`, `/sign`, `/actor-token*`,
+#     `/agents*`. SPIFFE allowlist gates every internal route.
+#
+# Same Service-template caveat as ledger: this chart still exposes a
+# single port. Operators wanting in-cluster console/proxy → identity
+# over mTLS must add an 8186 port (covered by a later chart minor).
+- name: WARDEN_IDENTITY_TLS_DIR
+  value: {{ $mount | quote }}
+- name: WARDEN_IDENTITY_ALLOWED_CALLERS
+  value: "spiffe://warden.local/service/proxy,spiffe://warden.local/service/console,spiffe://warden.local/service/simulator"
+- name: WARDEN_IDENTITY_MTLS_ADDR
+  value: "0.0.0.0:8186"
+{{- end }}
+{{- end }}
 {{- if eq $name "ledger" }}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 5). Bundle mounted → ledger runs
@@ -170,18 +206,18 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "console" }}
-# Console → backend hops (B7 v1.x+2 session 5). Ledger flips to
-# https://...:8183 when tlsBundle is set; policy-engine flips scheme
-# to https on the same port; hil + identity stay plain HTTP until
-# session 6 wires the simulator's outbound TLS.
+# Console → backend hops (B7 v1.x+2 sessions 5-6). All four hops flip
+# to https when the bundle is mounted: ledger on :8183 (mTLS listener),
+# policy-engine on :8082 (single-port mTLS), hil on :8084 (single-mode
+# mTLS), identity on :8186 (mTLS listener).
 - name: WARDEN_CONSOLE_LEDGER_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
 - name: WARDEN_CONSOLE_HIL_URL
-  value: "http://{{ $rel }}-hil:8084"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
 - name: WARDEN_CONSOLE_POLICY_ENGINE_URL
   value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082"
 - name: WARDEN_CONSOLE_IDENTITY_URL
-  value: "http://{{ $rel }}-identity:8086"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
 {{- if $tlsOn }}
 # Outbound mTLS — same cert bundle the proxy uses. One
 # `service-console` identity authenticates every backend hop.

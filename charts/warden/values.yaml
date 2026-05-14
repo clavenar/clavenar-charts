@@ -203,6 +203,10 @@ services:
       repository: warden-hil
       tag: ""
     port: 8084
+    # Plain-HTTP /health + /readyz + /metrics under mTLS receive
+    # (session 6). Kubelet + Prometheus scrape here; the application
+    # port (8084) is rustls-gated when tlsBundle.secretName is set.
+    healthPort: 9084
     serviceType: ClusterIP
     resources:
       requests: { cpu: 50m, memory: 64Mi }
@@ -227,6 +231,14 @@ services:
       repository: warden-identity
       tag: ""
     port: 8086
+    # Dual-listener under mTLS receive (session 6). Plain HTTP on
+    # `port` serves the public subset + /stats + JWKS + health; mTLS
+    # on `mtlsPort` carries the internal /svid + /grant + /sign +
+    # /actor-token + /agents surface. Service template still exposes
+    # one port today — operators wiring console/proxy → identity over
+    # mTLS in-cluster must add a second Service port until the
+    # dual-port template lands (later chart minor).
+    mtlsPort: 8186
     serviceType: ClusterIP
     resources:
       requests: { cpu: 50m, memory: 64Mi }
