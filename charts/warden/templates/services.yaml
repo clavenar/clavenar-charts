@@ -65,7 +65,7 @@ spec:
             {{- include "warden.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- $mountsCert := and $.Values.proxyTls.secretName (or (eq $name "proxy") (eq $name "identity")) }}
+          {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- if or $persist.enabled $mountsCert }}
           volumeMounts:
             {{- if $persist.enabled }}
@@ -74,7 +74,7 @@ spec:
             {{- end }}
             {{- if $mountsCert }}
             - name: certs
-              mountPath: {{ $.Values.proxyTls.mountPath }}
+              mountPath: {{ $.Values.tlsBundle.mountPath }}
               readOnly: true
             {{- end }}
           {{- end }}
@@ -88,13 +88,41 @@ spec:
         {{- if $mountsCert }}
         - name: certs
           secret:
-            secretName: {{ $.Values.proxyTls.secretName }}
+            secretName: {{ $.Values.tlsBundle.secretName }}
             # 0644 on the key files — warden services run as nonroot
             # UID 65532, and `gen_certs.sh` chmods to the same mode on
             # the host. k8s Secret mounts default to 0644 anyway, but
             # pinning is explicit so a re-mode by a downstream patch
-            # doesn't lock out the proxy at next pod boot.
+            # doesn't lock out the pod at next boot.
             defaultMode: 0644
+            # Per-pod projection: each backend mounts only ca.crt +
+            # its own service-<name>.{crt,key}, so a compromised pod
+            # cannot read another service's private key. Proxy +
+            # identity additionally mount server.{crt,key} (proxy's
+            # agent-facing mTLS server cert) and client.{crt,key}
+            # (legacy starter-agent client cert).
+            #
+            # `items:` is build with the helper to keep the projection
+            # consistent with the per-service naming. A missing key
+            # in the Secret silently omits the mount entry; the pod
+            # then panics at boot per the recurring-gotcha note.
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: service-{{ $name | kebabcase }}.crt
+                path: service-{{ $name | kebabcase }}.crt
+              - key: service-{{ $name | kebabcase }}.key
+                path: service-{{ $name | kebabcase }}.key
+              {{- if eq $name "proxy" }}
+              - key: server.crt
+                path: server.crt
+              - key: server.key
+                path: server.key
+              - key: client.crt
+                path: client.crt
+              - key: client.key
+                path: client.key
+              {{- end }}
         {{- end }}
       {{- end }}
 ---

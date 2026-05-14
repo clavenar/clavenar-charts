@@ -87,7 +87,7 @@ in the same env list).
 Proxy → brain + policy + hil + identity
 Console → ledger + hil + policy-engine + identity
 Deep-review → ledger
-Identity → CA dir (cert mount lives at proxyTls.mountPath, fixed /certs) */}}
+Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- define "warden.backendEnvs" -}}
 {{- $rel := .ctx.Release.Name -}}
 {{- $name := .service -}}
@@ -117,7 +117,7 @@ Identity → CA dir (cert mount lives at proxyTls.mountPath, fixed /certs) */}}
 {{- end }}
 {{- if eq $name "identity" }}
 - name: WARDEN_IDENTITY_CA_DIR
-  value: {{ .ctx.Values.proxyTls.mountPath | quote }}
+  value: {{ .ctx.Values.tlsBundle.mountPath | quote }}
 {{- end }}
 {{- end -}}
 

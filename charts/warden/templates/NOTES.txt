@@ -29,9 +29,9 @@ container-port only — not published by the Service). Kubelet probes
 target 8080. To exercise the mTLS path locally, point a client with
 valid certs at https://localhost:8443/ per warden-proxy/README.md.
 
-{{- if not .Values.proxyTls.secretName }}
+{{- if not .Values.tlsBundle.secretName }}
 
-WARNING: proxyTls.secretName is empty.
+WARNING: tlsBundle.secretName is empty.
 
 The proxy panics at boot without /certs mounted (see warden-proxy
 recurring-gotchas in CLAUDE.md). Generate a cert bundle with
@@ -41,7 +41,7 @@ recurring-gotchas in CLAUDE.md). Generate a cert bundle with
     --from-file=warden-proxy/certs/
 
   helm upgrade {{ .Release.Name }} . --reuse-values \
-    --set proxyTls.secretName=warden-certs
+    --set tlsBundle.secretName=warden-certs
 {{- end }}
 
 {{- if not .Values.networkPolicy.enabled }}

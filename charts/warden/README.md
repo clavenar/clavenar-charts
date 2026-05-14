@@ -20,7 +20,7 @@ helm install my-warden . --namespace warden --create-namespace --dry-run
 # Real install
 helm install my-warden . --namespace warden --create-namespace \
   --set nats.url=nats://my-nats:4222 \
-  --set proxyTls.secretName=warden-certs \
+  --set tlsBundle.secretName=warden-certs \
   --set services.brain.extraEnv[0].name=ANTHROPIC_API_KEY \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.name=anthropic \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.key=key
@@ -59,12 +59,15 @@ helm install my-warden . --namespace warden --create-namespace \
   `replicas > 1`. SQLite-pinned services (`replicas: 1`) skip
   naturally; once an operator flips ledger to Postgres mode +
   `replicas: 3`, a PDB lands with `minAvailable = ceil(replicas/2)`.
-- **Proxy mTLS cert mount** — when `proxyTls.secretName` is set,
-  a k8s Secret with the four PEMs (ca.pem, server.pem, server.key,
-  client.pem, client.key) gets mounted read-only at `/certs` on
-  both proxy and identity pods. Generate the bundle with
+- **TLS bundle mount** — when `tlsBundle.secretName` is set, a k8s
+  Secret carrying the warden CA + per-service workload certs gets
+  mounted read-only at `/certs`. Each pod sees only what it needs:
+  `ca.crt` + its own `service-<name>.{crt,key}`. Proxy additionally
+  mounts `server.{crt,key}` (agent-facing mTLS) and `client.{crt,key}`
+  (legacy starter-agent client). No pod can read another service's
+  private key. Generate the bundle with
   `warden-proxy/scripts/gen_certs.sh --env prod` then
-  `kubectl create secret generic warden-certs --from-file=certs/`.
+  `kubectl create secret generic warden-tls --from-file=warden-proxy/certs/`.
 - **Deep-review** singleton — same posture as brain. Per-agent
   history rides NATS, daily token budget is per-pod (scale the
   cap, not the pods).
@@ -121,7 +124,7 @@ persistence:
   hil:      { enabled: true, size: 1Gi, ... }
   identity: { enabled: true, size: 1Gi, ... }
 
-proxyTls:
+tlsBundle:
   secretName: ""                         # Required for any non-trivial deploy
   mountPath: /certs
 
@@ -178,7 +181,7 @@ helm template my-warden . --debug      # dump rendered YAML + see template error
 
 # With everything on:
 helm template my-warden . \
-  --set proxyTls.secretName=warden-certs \
+  --set tlsBundle.secretName=warden-certs \
   --set vault.addr=http://vault:8200 \
   --set vault.tokenSecretName=warden-vault \
   --set networkPolicy.enabled=true \

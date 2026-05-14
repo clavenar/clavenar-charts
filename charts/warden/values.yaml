@@ -295,19 +295,30 @@ persistence:
     storageClass: ""
     accessMode: ReadWriteOnce
 
-# Proxy mTLS cert mount. The proxy panics at boot without CA + server +
-# client certs in /certs (recurring-gotchas: tls.rs panics on missing
-# cert file). Operator-supplied k8s Secret with the four PEMs +
-# `ca.pem` keys gets mounted on the proxy Deployment when this is set.
-# Identity also mounts it read-only (signs SVIDs with the same CA root).
+# Cert bundle mount. Single k8s Secret carries the warden CA + per-service
+# workload certs (B7 v1.x+2). Generate with
+# `warden-proxy/scripts/gen_certs.sh --env prod` then
+# `kubectl create secret generic warden-tls --from-file=warden-proxy/certs/`.
 #
-# Generate locally with `warden-proxy/scripts/gen_certs.sh --env prod`,
-# then `kubectl create secret generic warden-proxy-certs --from-file=certs/`
-# under the same namespace as the release.
+# Files expected in the Secret:
+#   ca.crt                       — CA root, mounted on every pod
+#   server.crt + server.key      — proxy's agent-facing server cert (proxy only)
+#   client.crt + client.key      — agent client cert (legacy / starter agent)
+#   service-<name>.crt + .key    — per-service workload identity with SAN URI
+#                                  spiffe://warden.local/service/<name>;
+#                                  one pair per backend service.
 #
-# Empty → no mount; proxy + identity Deployments will fail to start.
-# Required for any non-trivial deploy.
-proxyTls:
+# Per-pod projection: each Deployment mounts only ca.crt + its own
+# service-<name>.{crt,key} (proxy also gets server.{crt,key} + client.*).
+# No pod can read another service's private key.
+#
+# Empty → no mount; proxy + identity pods will panic at boot
+# (recurring-gotchas: tls.rs panics on missing cert file). Required for
+# any non-trivial deploy.
+#
+# `proxyTls.secretName` was the v0.2.0 spelling; renamed to
+# `tlsBundle.secretName` in v0.3.0 as part of the B7 v1.x+2 scaffold.
+tlsBundle:
   secretName: ""
   mountPath: /certs
 
