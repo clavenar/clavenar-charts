@@ -28,7 +28,7 @@ jobs:
         working-directory: charts/warden
         run: |
           helm template smoke . \
-            --set proxyTls.secretName=warden-certs \
+            --set tlsBundle.secretName=warden-certs \
             --set vault.addr=http://vault:8200 \
             --set vault.tokenSecretName=warden-vault \
             --set networkPolicy.enabled=true \
