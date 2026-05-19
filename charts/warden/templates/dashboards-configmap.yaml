@@ -1,0 +1,27 @@
+{{- /*
+Bundled Grafana dashboards (overview + brain cost).
+
+Operators running the Helm chart alongside the kube-prometheus-stack
+(or any Grafana with the sidecar dashboard loader enabled) get the
+dashboards auto-imported via the `grafana_dashboard: "1"` label.
+Disable by setting `dashboards.enabled: false` in values; bump the
+chart's version when iterating dashboard JSON so the sidecar reloads.
+
+The JSON lives in this chart at `dashboards/`. `tpl` is intentionally
+NOT applied to the file bodies — they're literal Grafana JSON and any
+Helm template token would break the dashboard load.
+*/}}
+{{- if .Values.dashboards.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "warden.fullname" . }}-dashboards
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" "dashboards") | nindent 4 }}
+    grafana_dashboard: "1"
+data:
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

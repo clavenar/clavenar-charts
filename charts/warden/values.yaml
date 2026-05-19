@@ -24,6 +24,15 @@ vault:
 # fires after the in-process watchdog has had its window.
 drainCapSecs: 30
 
+# Grafana dashboard ConfigMaps. Bundles warden-overview + warden-cost
+# (the two dashboards shipped under charts/warden/dashboards/). The
+# kube-prometheus-stack Grafana sidecar discovers them via the
+# `grafana_dashboard: "1"` label. Disable if your Grafana isn't running
+# the sidecar — operators can still import the JSON manually from
+# the chart source.
+dashboards:
+  enabled: true
+
 # Every service Dockerfile ships USER 65532 (Google distroless nonroot).
 # fsGroup remounts PVCs so SQLite writes work on ledger/hil/identity.
 podSecurityContext:

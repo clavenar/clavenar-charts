@@ -1,0 +1,194 @@
+{
+  "annotations": {"list": []},
+  "description": "Brain provider spend: token rate by (provider, model, kind), estimated $/hr, cache hit rate. Spend uses warden_brain_cost_estimated_usd_micros_total (USD * 1e6); panels divide by 1e6 in expr.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10},
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (provider, kind) (rate(warden_brain_tokens_total[5m]))",
+          "legendFormat": "{{provider}} / {{kind}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Token rate by provider × kind (tok/s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10},
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (provider, model) (rate(warden_brain_cost_estimated_usd_micros_total[5m])) * 3600 / 1000000",
+          "legendFormat": "{{provider}} / {{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Estimated spend per hour ($/hr)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "continuous-GrYlRd"},
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "area", "textMode": "value_and_name"},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "topk(3, sum by (model) (increase(warden_brain_cost_estimated_usd_micros_total[24h])) / 1000000)",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Top-3 models by 24h spend",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "yellow", "value": 0.3},
+              {"color": "green", "value": 0.6}
+            ]
+          },
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 8},
+      "id": 4,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (rate(warden_brain_tokens_total{kind=\"cache_read\"}[5m])) / (sum (rate(warden_brain_tokens_total{kind=\"cache_read\"}[5m])) + sum (rate(warden_brain_tokens_total{kind=\"input\"}[5m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Cache hit rate (Anthropic only)",
+      "description": "OpenAI/Google/Bedrock/Vertex don't currently expose cache markers — panel reflects Anthropic activity. Empty when no cache_read tokens have been observed.",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "continuous-BlPu"},
+          "unit": "currencyUSD"
+        }
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 8},
+      "id": 5,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "colorMode": "value"},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (increase(warden_brain_cost_estimated_usd_micros_total[24h])) / 1000000",
+          "legendFormat": "24h",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (increase(warden_brain_cost_estimated_usd_micros_total[7d])) / 1000000",
+          "legendFormat": "7d",
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (increase(warden_brain_cost_estimated_usd_micros_total[30d])) / 1000000",
+          "legendFormat": "30d",
+          "refId": "C"
+        }
+      ],
+      "title": "Spend over time (24h / 7d / 30d)",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10},
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 13},
+      "id": 6,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (provider, outcome) (rate(warden_brain_requests_total{outcome!=\"success\"}[5m])) / ignoring(outcome) group_left sum by (provider) (rate(warden_brain_requests_total[5m]))",
+          "legendFormat": "{{provider}} / {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Brain provider error rate by outcome",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["warden", "cost"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+        "hide": 0,
+        "label": "Prometheus",
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Warden — Brain Cost",
+  "uid": "warden-cost",
+  "version": 1,
+  "weekStart": ""
+}

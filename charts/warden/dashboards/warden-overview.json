@@ -1,0 +1,204 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "description": "Per-service request rate, latency, and error counts across the warden stack. Ships in-tree with the chart; operators can import into any Grafana via the ${DS_PROMETHEUS} datasource var.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"axisLabel": "req/s", "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2},
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (job) (rate(warden_proxy_request_total[1m]))",
+          "legendFormat": "proxy",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (rate(warden_brain_inspect_total[1m]))",
+          "legendFormat": "brain /inspect",
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (rate(warden_policy_engine_evaluate_total[1m]))",
+          "legendFormat": "policy /evaluate",
+          "refId": "C"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum (rate(warden_ledger_log_total[1m]))",
+          "legendFormat": "ledger /log",
+          "refId": "D"
+        }
+      ],
+      "title": "Request rate by service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 2},
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_proxy_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "proxy p95",
+          "refId": "A"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_brain_inspect_duration_seconds_bucket[5m])))",
+          "legendFormat": "brain p95",
+          "refId": "B"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_policy_engine_evaluate_duration_seconds_bucket[5m])))",
+          "legendFormat": "policy p95",
+          "refId": "C"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_ledger_log_duration_seconds_bucket[5m])))",
+          "legendFormat": "ledger p95",
+          "refId": "D"
+        }
+      ],
+      "title": "p95 latency by service",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "red", "value": 1}
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 8},
+      "id": 3,
+      "options": {"legend": {"displayMode": "list"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (detector, outcome) (rate(warden_brain_requests_total{outcome!=\"success\"}[5m]))",
+          "legendFormat": "brain {{detector}} / {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Brain detector errors by outcome (last 5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "bars", "lineWidth": 0, "fillOpacity": 90},
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {"h": 6, "w": 12, "x": 0, "y": 14},
+      "id": 4,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (persona) (rate(warden_simulator_requests_total[1m]))",
+          "legendFormat": "{{persona}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Simulator traffic by persona",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          },
+          "unit": "short",
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "paused"}, "1": {"text": "running"}}}
+          ]
+        }
+      },
+      "gridPos": {"h": 6, "w": 12, "x": 12, "y": 14},
+      "id": 5,
+      "options": {"colorMode": "background", "graphMode": "none", "textMode": "value"},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "warden_simulator_running",
+          "refId": "A"
+        }
+      ],
+      "title": "Simulator state",
+      "type": "stat"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "tags": ["warden", "overview"],
+  "templating": {
+    "list": [
+      {
+        "current": {"selected": false, "text": "Prometheus", "value": "Prometheus"},
+        "hide": 0,
+        "label": "Prometheus",
+        "name": "DS_PROMETHEUS",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "Warden — Overview",
+  "uid": "warden-overview",
+  "version": 1,
+  "weekStart": ""
+}
