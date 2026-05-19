@@ -24,7 +24,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (job) (rate(warden_proxy_request_total[1m]))",
+          "expr": "sum (rate(warden_proxy_requests_total[1m]))",
           "legendFormat": "proxy",
           "refId": "A"
         },
@@ -42,8 +42,8 @@
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (rate(warden_ledger_log_total[1m]))",
-          "legendFormat": "ledger /log",
+          "expr": "sum (rate(warden_ledger_nats_events_total[1m]))",
+          "legendFormat": "ledger writes",
           "refId": "D"
         }
       ],
@@ -65,25 +65,25 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_proxy_request_duration_seconds_bucket[5m])))",
+          "expr": "max (warden_proxy_request_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "proxy p95",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_brain_inspect_duration_seconds_bucket[5m])))",
+          "expr": "max (warden_brain_inspect_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "brain p95",
           "refId": "B"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_policy_engine_evaluate_duration_seconds_bucket[5m])))",
+          "expr": "max (warden_policy_engine_evaluate_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "policy p95",
           "refId": "C"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(warden_ledger_log_duration_seconds_bucket[5m])))",
+          "expr": "max (warden_ledger_log_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "ledger p95",
           "refId": "D"
         }
