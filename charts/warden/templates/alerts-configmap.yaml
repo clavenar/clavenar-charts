@@ -1,0 +1,27 @@
+{{- /*
+Prometheus alerting rules (warden.critical + warden.warning).
+
+Operators running the Helm chart alongside the kube-prometheus-stack
+get the rules auto-loaded via the `prometheus_rule: "1"` label that
+the kube-prometheus Operator's PrometheusRule sidecar discovers (the
+same shape as `grafana_dashboard: "1"` for dashboards). Disable by
+setting `alerting.enabled: false` in values.
+
+The rule YAML lives in this chart at `alerts/`. `tpl` is intentionally
+NOT applied — the rule expressions contain `{{`/`}}` annotations for
+Alertmanager template substitution that Helm must not consume.
+*/}}
+{{- if .Values.alerting.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "warden.fullname" . }}-alerts
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" "alerts") | nindent 4 }}
+    prometheus_rule: "1"
+data:
+{{- range $path, $_ := .Files.Glob "alerts/*.yaml" }}
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
+{{- end }}

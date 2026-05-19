@@ -1,0 +1,208 @@
+groups:
+  - name: warden.critical
+    interval: 30s
+    rules:
+      - alert: LedgerChainCorrupted
+        expr: warden_ledger_chain_valid == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: ledger
+        annotations:
+          summary: "Ledger hash-chain failed verification"
+          description: |
+            warden_ledger_chain_valid is 0 — the most recent /verify walk
+            detected a chain break. Investigate immediately:
+              1. Curl GET /verify on the ledger pod for the failing seq.
+              2. Inspect the last successful R2 snapshot for the gap.
+              3. Quarantine the ledger volume before any chain-mutating ops.
+
+      - alert: BrainMockModeInProd
+        expr: warden_brain_mock_mode{env="prod"} == 1
+        for: 5m
+        labels:
+          severity: critical
+          component: brain
+        annotations:
+          summary: "Brain is running in mock mode in prod"
+          description: |
+            warden_brain_mock_mode=1 means every detector returns the
+            heuristic fallback verdict — no LLM dispatch happens. In prod
+            this almost certainly means the API key env var was lost on
+            redeploy. Fix WARDEN_BRAIN_MOCK_MODE=false +
+            WARDEN_BRAIN_ANTHROPIC_API_KEY then restart brain.
+
+      - alert: ProxyDown
+        expr: up{job="proxy"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: proxy
+        annotations:
+          summary: "Proxy is not responding to scrapes"
+          description: |
+            Prometheus has been unable to scrape warden-proxy for 2m.
+            Agents are likely seeing connection refused — the proxy is
+            the only agent-facing surface.
+
+      - alert: LedgerDown
+        expr: up{job="ledger"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: ledger
+        annotations:
+          summary: "Ledger is not responding to scrapes"
+          description: |
+            Forensic writes are queueing on NATS but no consumer is
+            draining them. Risk: NATS JetStream backlog hits its
+            retention cap and drops events. Check ledger logs + the
+            SQLite WAL state.
+
+      - alert: HilDown
+        expr: up{job="hil"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: hil
+        annotations:
+          summary: "HIL is not responding to scrapes"
+          description: |
+            Yellow-tier pendings cannot be created or polled. Proxy
+            requests landing in the Review verdict will hang their
+            long-poll until timeout and the agent will retry.
+
+      - alert: SvidIssuanceFailing
+        expr: rate(warden_identity_svid_issue_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: identity
+        annotations:
+          summary: "SVID issuance is returning errors"
+          description: |
+            Identity service is failing to mint new SVIDs (label
+            {{ $labels.reason }}). Agent rotation will stall and
+            freshly-spawned agents cannot authenticate.
+
+      - alert: ProxyErrorRateHigh
+        expr: |
+          sum(rate(warden_proxy_requests_total{outcome=~"server_error|timeout"}[5m]))
+          /
+          sum(rate(warden_proxy_requests_total[5m]))
+          > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          component: proxy
+        annotations:
+          summary: "Proxy server-side error rate > 1%"
+          description: |
+            More than 1% of /mcp requests have failed with 5xx or
+            timeout for the last 5m. Pipeline failure or downstream
+            (brain/policy/hil) outage likely.
+
+      - alert: ProxyLatencyP95High
+        expr: max(warden_proxy_request_duration_seconds{quantile="0.95"}) > 1
+        for: 10m
+        labels:
+          severity: critical
+          component: proxy
+        annotations:
+          summary: "Proxy p95 latency > 1s"
+          description: |
+            /mcp p95 has exceeded 1s for 10m. Agents will start
+            timing out client-side.
+
+      - alert: BrainDetectorFailing
+        expr: |
+          sum(rate(warden_brain_requests_total{outcome!="success"}[5m]))
+          /
+          sum(rate(warden_brain_requests_total[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: brain
+        annotations:
+          summary: "Brain detector failure rate > 5%"
+          description: |
+            More than 5% of provider calls are failing
+            (transport_error/parse_error/empty). Likely an upstream
+            LLM provider outage or expired credentials.
+
+  - name: warden.warning
+    interval: 1m
+    rules:
+      - alert: BrainCostRunaway
+        expr: |
+          (sum(rate(warden_brain_cost_estimated_usd_micros_total[5m])) * 3600)
+          / 1e6
+          > 50
+        for: 15m
+        labels:
+          severity: warning
+          component: brain
+        annotations:
+          summary: "Brain spend > $50/hour"
+          description: |
+            Estimated spend is exceeding $50/hr over the last 15m.
+            Inspect the offending agent_id via the cost dashboard.
+
+      - alert: ProxyCertExpiringSoon
+        expr: min(warden_proxy_cert_expiry_seconds) < 7 * 86400
+        for: 5m
+        labels:
+          severity: warning
+          component: proxy
+        annotations:
+          summary: "Proxy mTLS cert expires in < 7 days"
+          description: |
+            The agent-facing server cert at $WARDEN_CERT_DIR/server.crt
+            expires soon. Run warden-proxy/scripts/gen_certs.sh and
+            force-recreate the proxy container.
+
+      - alert: LedgerDiskLow
+        expr: |
+          node_filesystem_avail_bytes{mountpoint=~".*ledger.*"}
+          /
+          node_filesystem_size_bytes{mountpoint=~".*ledger.*"}
+          < 0.10
+        for: 5m
+        labels:
+          severity: warning
+          component: ledger
+        annotations:
+          summary: "Ledger volume < 10% free"
+          description: |
+            Ledger PVC is filling up. Cold-tier export to Parquet is
+            the long-term mitigation; in the short term, free space
+            by running the vacuum cursor.
+
+      - alert: VerifySlow
+        expr: |
+          warden_ledger_verify_duration_seconds{quantile="0.95",env="prod"}
+          > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: ledger
+        annotations:
+          summary: "/verify p95 > 5s in prod"
+          description: |
+            Chain verification is taking >5s at p95. Likely the chain
+            has grown past the working-set ceiling; consider exporting
+            the cold tier and resetting the vacuum cursor.
+
+      - alert: SimulatorRunningTooLong
+        expr: min_over_time(warden_simulator_running{env="prod"}[24h]) == 1
+        labels:
+          severity: warning
+          component: simulator
+        annotations:
+          summary: "Demo simulator has been running for >24h on prod"
+          description: |
+            The traffic simulator was un-paused on prod >24h ago and
+            never paused. It is generating continuous LLM cost via
+            brain. Pause it from console /sim or set
+            SIM_START_RUNNING=false on the next redeploy.
