@@ -10,6 +10,13 @@ make sense.
 
 NATS and Vault are not bundled. Operators bring their own.
 
+Sequence diagrams for the six primary flows — `helm install` render +
+apply, pod boot under `tlsBundle.secretName`, cross-service backend URL
+wiring under TLS, Prometheus scrape + Grafana sidecar discovery, the
+alert fan-out via Alertmanager, and the NetworkPolicy ingress check —
+plus a chart render decision tree, live in
+[`docs/SEQUENCES.md`](docs/SEQUENCES.md).
+
 ## Layout
 
 ```
