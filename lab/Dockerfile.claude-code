@@ -10,10 +10,14 @@
 FROM rust:1-bookworm AS wardenctl-builder
 
 # Path-deps: warden-ctl pulls warden-sdk by relative path. Mirror the
-# workspace tree inside the builder so cargo resolves both.
+# workspace tree inside the builder so cargo resolves both. The Rego
+# templates subtree is `include_str!`'d into wardenctl's `policy`
+# subcommand at compile time (warden-ctl/src/cmd/policy.rs) — only the
+# templates/ subtree is needed, not the whole policy-engine repo.
 WORKDIR /workspace
-COPY warden-ctl   ./warden-ctl
-COPY warden-sdk   ./warden-sdk
+COPY warden-ctl                       ./warden-ctl
+COPY warden-sdk                       ./warden-sdk
+COPY warden-policy-engine/policies    ./warden-policy-engine/policies
 
 WORKDIR /workspace/warden-ctl
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
