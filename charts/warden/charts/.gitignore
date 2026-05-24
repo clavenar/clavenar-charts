@@ -1,5 +1,0 @@
-# Subchart tarballs are materialised by `helm dep update` against
-# Chart.lock. CI re-fetches them in the helm job; release packages
-# (`helm package`) include them. Keep the lockfile in git, not the
-# tarballs.
-*.tgz

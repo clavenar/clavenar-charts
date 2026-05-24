@@ -1,0 +1,10 @@
+# Subchart tarballs materialised by `helm dep update` from
+# `charts/warden/Chart.lock`. CI re-fetches them on every run;
+# `helm package` includes them in the release tarball. Keep the
+# lockfile in git, not the tarballs.
+#
+# This lives at repo root (not under `charts/warden/charts/`) so
+# `helm dep update`'s walk over `charts/` doesn't trip on a
+# non-tgz file with `Could not verify ... for deletion: file ...
+# does not appear to be a gzipped archive`.
+charts/warden/charts/*.tgz
