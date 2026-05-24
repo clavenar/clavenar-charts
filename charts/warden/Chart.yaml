@@ -15,8 +15,11 @@ description: |
   the warden services in a single `helm install`. Images are pulled
   from ghcr.io/vanteguardlabs by default.
 type: application
-version: 0.8.0
-appVersion: "0.8.4"
+version: 0.8.1
+# Tracks warden-specs/VERSION — the stack-wide truth that
+# warden-e2e's deploy.sh promotes into the website's /version.json
+# after every redeploy. Bump in lockstep when ship a new image build.
+appVersion: "0.37.7"
 dependencies:
   - name: nats
     version: "1.2.5"
