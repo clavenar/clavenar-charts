@@ -22,9 +22,13 @@ SERVICES=(
     "warden-console"
     "warden-deep-review"
     "warden-identity"
+    # warden-simulator ships the warden-upstream-stub binary the chart's
+    # bundled-lab upstreamStub Deployment runs. Operators enabling
+    # upstreamStub.enabled need this image at the chart's appVersion.
+    "warden-simulator"
 )
 
-# Six of the eight Dockerfiles `COPY --from=<name>` source from sibling
+# Seven of the nine Dockerfiles `COPY --from=<name>` source from sibling
 # library repos via BuildKit named contexts. Resolves them to the local
 # checkouts under WORKSPACE_ROOT — without these flags docker tries to
 # pull `docker.io/library/<name>` and fails.
@@ -35,6 +39,7 @@ declare -A EXTRA_CONTEXTS=(
     [warden-ledger]="warden-workload-identity"
     [warden-console]="warden-sdk warden-workload-identity"
     [warden-identity]="warden-workload-identity"
+    [warden-simulator]="warden-workload-identity"
 )
 
 ALLOW_DIRTY=0
