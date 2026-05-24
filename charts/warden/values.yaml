@@ -442,6 +442,37 @@ persistence:
 tlsBundle:
   secretName: ""
   mountPath: /certs
+  # Auto-mint the bundle into `secretName` via a pre-install +
+  # pre-upgrade Helm hook Job. Generates a self-signed CA root,
+  # proxy server cert + client cert, and per-service workload certs
+  # (one pair per name in `bundleServices`, with SPIFFE URI SANs).
+  # The Job is idempotent — it skips if the target Secret already
+  # carries `ca.crt`. Production deployments should leave this off
+  # and supply the bundle from a managed PKI instead.
+  autoMint: false
+  # Workload names that get a per-service cert. The 8 default
+  # warden services live here; "nats" is auto-appended by
+  # `warden.bundleServices` when `nats.bundled.enabled`.
+  bundleServices:
+    - proxy
+    - brain
+    - policy-engine
+    - ledger
+    - hil
+    - identity
+    - deep-review
+    - console
+  # SPIFFE trust domain stamped into each workload cert's SAN URI
+  # (URI:spiffe://<domain>/service/<name>). Matches the compose
+  # stack's `warden.local`. Change only if you've adjusted the
+  # `WARDEN_*_ALLOWED_CALLERS` allowlists on the consuming services.
+  spiffeTrustDomain: warden.local
+  # Image used by the auto-mint Job. `alpine/k8s` ships bash +
+  # openssl + kubectl in a single small image.
+  autoMintImage:
+    repository: alpine/k8s
+    tag: "1.30.0"
+    pullPolicy: IfNotPresent
 
 # NetworkPolicy gating. Spec §"Threat model" §"Cross-cutting" treats
 # k8s NetworkPolicy as the deployment perimeter. With this on, the

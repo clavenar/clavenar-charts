@@ -1,0 +1,101 @@
+{{/*
+ConfigMap carrying the bash script that mints the warden TLS bundle.
+Loaded as a `helm.sh/hook: pre-install,pre-upgrade` resource so the
+hook Job (tls-automint-job.yaml) can mount it; deleted after the Job
+succeeds via hook-delete-policy.
+
+The script mirrors `warden-proxy/scripts/gen_certs.sh` — CA root +
+proxy server cert + agent client cert + per-service workload certs
+with SPIFFE URI SANs — and writes the result as a single k8s Secret
+under .Values.tlsBundle.secretName. Idempotent: re-runs are no-ops
+when the Secret already carries `ca.crt`.
+*/}}
+{{- if .Values.tlsBundle.autoMint }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-tls-automint
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-15"
+    helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
+data:
+  mint.sh: |
+    #!/bin/bash
+    # Auto-mint the warden TLS bundle into a single k8s Secret. Idempotent.
+    set -euo pipefail
+
+    : "${TLS_SECRET_NAME:?must be set}"
+    : "${POD_NAMESPACE:?must be set}"
+    : "${SPIFFE_TRUST_DOMAIN:?must be set}"
+    : "${BUNDLE_SERVICES:?must be set}"
+
+    cd /work
+
+    if kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
+         -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
+        echo "Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} already carries ca.crt; skipping mint"
+        exit 0
+    fi
+    echo "Minting fresh bundle into ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
+
+    # 1. CA root. 1-year lifetime mirrors gen_certs.sh.
+    openssl genrsa -out ca.key 2048 2>/dev/null
+    openssl req -new -x509 -days 365 -key ca.key -out ca.crt \
+        -subj "/CN=AgentWardenCA" 2>/dev/null
+
+    # 2. Proxy's agent-facing server cert. SAN list matches the
+    # compose stack (localhost + proxy + proxy.warden.local) so the
+    # same script can serve out-of-cluster reach via NodePort, too.
+    openssl genrsa -out server.key 2048 2>/dev/null
+    openssl req -new -key server.key -out server.csr \
+        -subj "/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.warden.local" \
+        2>/dev/null
+    openssl x509 -req -days 365 -in server.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial \
+        -copy_extensions copy -out server.crt 2>/dev/null
+
+    # 3. Generic agent starter client cert (CN=agent-001).
+    openssl genrsa -out client.key 2048 2>/dev/null
+    openssl req -new -key client.key -out client.csr \
+        -subj "/CN=agent-001" 2>/dev/null
+    openssl x509 -req -days 365 -in client.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial \
+        -out client.crt 2>/dev/null
+
+    # 4. Per-service workload certs. SPIFFE URI SAN + DNS SAN so
+    # rustls accepts the in-cluster Service DNS as the hostname.
+    for svc in ${BUNDLE_SERVICES}; do
+        openssl genrsa -out "service-${svc}.key" 2048 2>/dev/null
+        openssl req -new -key "service-${svc}.key" \
+            -out "service-${svc}.csr" \
+            -subj "/CN=warden-${svc}" \
+            -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${svc},DNS:${svc},DNS:localhost" \
+            2>/dev/null
+        openssl x509 -req -days 365 \
+            -in "service-${svc}.csr" \
+            -CA ca.crt -CAkey ca.key -CAcreateserial \
+            -copy_extensions copy \
+            -out "service-${svc}.crt" 2>/dev/null
+    done
+
+    rm -f ./*.csr ca.srl
+
+    # 5. Apply the Secret. dry-run + apply gives create-or-replace
+    # semantics, and the Job's RBAC has both verbs.
+    args="--from-file=ca.crt --from-file=server.crt --from-file=server.key"
+    args="${args} --from-file=client.crt --from-file=client.key"
+    for svc in ${BUNDLE_SERVICES}; do
+        args="${args} --from-file=service-${svc}.crt --from-file=service-${svc}.key"
+    done
+    # shellcheck disable=SC2086
+    kubectl -n "${POD_NAMESPACE}" create secret generic "${TLS_SECRET_NAME}" \
+        ${args} \
+        --dry-run=client -o yaml \
+        | kubectl -n "${POD_NAMESPACE}" apply -f -
+
+    echo "Bundle written to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
+{{- end }}

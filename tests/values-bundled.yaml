@@ -38,7 +38,9 @@ vault:
   injector:
     enabled: false
 
-# mTLS is left disabled in this fixture so the bundled stack comes up
-# end-to-end with plain HTTP between services on a fresh kind cluster.
-# A later phase adds the auto-mint pre-install Job; flip
-# `tlsBundle.secretName` + `tlsBundle.autoMint` on once that lands.
+tlsBundle:
+  # Pre-install Job mints CA + per-service workload certs into this
+  # Secret. Job is idempotent — re-running on an existing bundle is a
+  # no-op (script gates on `ca.crt`).
+  secretName: smoke-tls
+  autoMint: true

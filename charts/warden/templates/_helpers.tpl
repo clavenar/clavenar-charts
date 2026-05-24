@@ -92,6 +92,20 @@ mode autogenerates `<release>-vault-token`; BYO mode honors
 {{- end -}}
 {{- end -}}
 
+{{/* Workload names that need a per-service cert. Always includes
+the 8 in-chart warden services from .Values.tlsBundle.bundleServices;
+"nats" is appended when nats.bundled.enabled so the bundled NATS
+StatefulSet (which mounts the same Secret for TLS) finds its own
+keypair. Emits a space-separated list — consumed by the auto-mint
+Job's env. */}}
+{{- define "warden.bundleServices" -}}
+{{- $services := default (list) .Values.tlsBundle.bundleServices -}}
+{{- if .Values.nats.bundled.enabled -}}
+{{- $services = append $services "nats" -}}
+{{- end -}}
+{{ join " " $services }}
+{{- end -}}
+
 {{/* Shared NATS + drain-cap envs, then per-component back-end URLs,
 then per-service extraEnv. Pass `service` so the back-end-URL helper
 knows the component. */}}
