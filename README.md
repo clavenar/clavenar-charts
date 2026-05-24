@@ -41,18 +41,20 @@ and how to flip the ledger to Postgres mode.
 
 ## Publishing images to GHCR
 
-Image versions live in `VERSION` at this repo's root — a single semver
-line, the source of truth for the tag pushed to
+Image versions are tracked by `VERSION` at this repo's root — a single
+semver line that reflects the **latest image set already published to**
 `ghcr.io/vanteguardlabs/<service>`. `charts/warden/Chart.yaml`
-`appVersion` mirrors this file so a fresh `helm install` pulls tags
-that actually exist on GHCR. The version is independent of
-`warden-specs/VERSION` (which tracks the demo VPS deploy, not the
-chart's published image set).
+`appVersion` mirrors `VERSION` so a fresh `helm install` pulls tags
+that actually exist on GHCR. Independent of `warden-specs/VERSION`
+(which tracks the demo VPS deploy, not the chart's published image
+set).
 
-`scripts/push-images.sh` builds all 8 services from their sibling
-repos under `../warden-<name>/`, pushes both `:<VERSION>` and
-`:latest` to GHCR, then bumps the VERSION patch + `Chart.appVersion`
-atomically and auto-commits the result.
+`scripts/push-images.sh` reads `VERSION`, computes the next patch as
+the target, builds all 8 services from their sibling repos under
+`../warden-<name>/`, pushes both `:<target>` and `:latest` to GHCR,
+then writes the new tag back into `VERSION` + `Chart.appVersion`
+atomically and auto-commits. Failed pushes leave `VERSION` untouched
+— it always reflects what is actually live on GHCR.
 
 ```bash
 # One-time: log root's docker into ghcr.io (the script uses sudo -n docker)
