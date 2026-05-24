@@ -1,0 +1,75 @@
+# Interactive Claude Code agent pod. Operator drives it via:
+#   kubectl exec -it claude-code-agent -- claude
+#
+# Mounts:
+#   /certs — warden tlsBundle Secret (chart-auto-minted CA + starter
+#            client cert + key). Read-only.
+#   /home/agent/.claude.json — MCP config ConfigMap. Tells Claude Code
+#            to launch wardenctl mcp-bridge with the proxy URL + certs.
+#   ANTHROPIC_API_KEY — operator-provided Secret. Create it with
+#            `kubectl create secret generic claude-code-agent-anthropic
+#             --from-literal=ANTHROPIC_API_KEY=sk-ant-...`.
+#
+# The image needs to exist at the tagged path — see
+# lab/scripts/build-agent-image.sh. The release name placeholder
+# `my-warden` appears in two spots (image tag's appVersion + proxy URL
+# in the ConfigMap); change both before applying for a non-default
+# release.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: claude-code-agent
+  labels:
+    app.kubernetes.io/name: warden-lab
+    app.kubernetes.io/component: claude-code-agent
+spec:
+  restartPolicy: Always
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: agent
+      image: ghcr.io/vanteguardlabs/warden-claude-code-agent:latest
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: claude-code-agent-anthropic
+              key: ANTHROPIC_API_KEY
+        # Claude Code reads ~/.claude.json by default; we mount the
+        # ConfigMap there directly. HOME is set on the user so no env
+        # override is needed.
+      volumeMounts:
+        - name: certs
+          mountPath: /certs
+          readOnly: true
+        - name: mcp-config
+          mountPath: /home/agent/.claude.json
+          subPath: .claude.json
+          readOnly: true
+      resources:
+        requests: { cpu: 100m, memory: 256Mi }
+        limits:   { cpu: 1000m, memory: 1Gi }
+  volumes:
+    - name: certs
+      secret:
+        # Matches the chart's `tlsBundle.secretName`. The tests/values-
+        # bundled.yaml ships `smoke-tls`; override here if your release
+        # used a different Secret name.
+        secretName: smoke-tls
+        defaultMode: 0644
+        items:
+          - key: ca.crt
+            path: ca.crt
+          - key: client.crt
+            path: client.crt
+          - key: client.key
+            path: client.key
+    - name: mcp-config
+      configMap:
+        name: claude-code-agent-mcp-config

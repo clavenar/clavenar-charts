@@ -1,0 +1,103 @@
+{{/*
+Post-install + post-upgrade Job that seeds Vault with a stub api_key
+for the lab agent (default `agent-001`, matching the CN of the
+auto-mint starter client cert). The warden-proxy returns 403
+"No credentials found for agent <id>" on every request until a
+KV entry exists at `secret/data/agents/<id>` — see
+repos/warden-ctl/docs/clients/README.md "Shared prerequisites".
+
+Gated on BOTH `agentVaultSeed.enabled` AND `vault.bundled.enabled` —
+without the bundled Vault the Job has nothing to talk to, and BYO
+Vault deployments seed their own per-agent credentials. Mirrors the
+shape of vault-bootstrap-job.yaml (transit engine seeder); both run
+as post-install/post-upgrade hooks so they wait for the Vault
+Service to be reachable.
+
+The api_key value is opaque to the proxy — it only checks presence,
+not value — so the literal here is a marker. Real agents source
+real per-agent credentials from their own Vault policies; this Job
+exists for lab evaluations only.
+*/}}
+{{- if and .Values.agentVaultSeed.enabled .Values.vault.bundled.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-vault-agent-seed
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    # Runs after vault-bootstrap (weight 0) so the transit engine is
+    # already up. Not strictly required (this Job only touches the kv
+    # mount), but keeps logs in a sensible order.
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" "vault-agent-seed") | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "warden.selectorLabels" (dict "ctx" . "service" "vault-agent-seed") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: seed
+          {{- $serverImg := default dict (default dict .Values.vault.server).image -}}
+          {{- $repo := default "hashicorp/vault" $serverImg.repository -}}
+          {{- $tag := default "1.17.2" $serverImg.tag }}
+          image: "{{ $repo }}:{{ $tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "Waiting for ${VAULT_ADDR}..."
+              for i in $(seq 1 60); do
+                  if vault status >/dev/null 2>&1; then
+                      echo "Vault reachable"
+                      break
+                  fi
+                  sleep 2
+              done
+              if ! vault status; then
+                  echo "Vault never became reachable at ${VAULT_ADDR}" >&2
+                  exit 1
+              fi
+
+              # Enable the default kv-v2 mount if it isn't already.
+              # Dev-mode Vault enables `secret/` as kv-v2 automatically,
+              # but the tolerate-on-error pattern matches
+              # vault-bootstrap-job.yaml in case a future upgrade
+              # changes the default.
+              vault secrets enable -path=secret -version=2 kv 2>/dev/null || true
+
+              # Idempotent: kv put overwrites in place. The proxy gates
+              # on presence at the `secret/data/agents/<id>` path; the
+              # api_key value itself is opaque.
+              vault kv put "secret/agents/${AGENT_ID}" \
+                  api_key="${STUB_API_KEY}"
+
+              # Post-condition: the entry must be readable.
+              vault kv get "secret/agents/${AGENT_ID}" >/dev/null
+              echo "Seeded secret/data/agents/${AGENT_ID} at ${VAULT_ADDR}"
+          env:
+            - name: VAULT_ADDR
+              value: {{ include "warden.vaultAddr" . | quote }}
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "warden.vaultTokenSecretName" . }}
+                  key: token
+            - name: AGENT_ID
+              value: {{ .Values.agentVaultSeed.agentId | quote }}
+            - name: STUB_API_KEY
+              value: {{ .Values.agentVaultSeed.stubApiKey | quote }}
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+{{- end }}

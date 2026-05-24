@@ -62,6 +62,51 @@ vault:
       # the identity-side env explicitly.
       keyName: warden-identity
 
+# Bundled lab-only echo MCP server. The warden-proxy forwards every
+# approved tool call to WARDEN_UPSTREAM_URL; production deploys point
+# this at a real MCP server (filesystem-MCP, GitHub-MCP, etc.). Setting
+# `upstreamStub.enabled=true` instead deploys the `warden-upstream-stub`
+# binary (shipped inside the warden-simulator image) as a sidecar
+# Deployment + Service in the release and auto-wires
+# `WARDEN_UPSTREAM_URL=http://<release>-upstream-stub:9000/mcp` on the
+# proxy. The stub echoes every MCP frame back verbatim — handy for
+# proving the Brain + Policy + HIL + ledger path end-to-end without
+# bringing up a real MCP server. Not for production use.
+#
+# Pairs with `agentVaultSeed.enabled` (below) so the chart-deployed
+# Vault carries the `agent-001` stub credential the proxy gates on.
+upstreamStub:
+  enabled: false
+  image:
+    # The simulator image ships `warden-upstream-stub` as a secondary
+    # binary alongside the main simulator. Same image, command override
+    # below selects the stub binary.
+    repository: ghcr.io/vanteguardlabs/warden-simulator
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 9000
+
+# One-shot Job that seeds Vault with a stub api_key for agent-001 (the
+# CN baked into the auto-mint starter `client.crt`). The proxy refuses
+# every request with `403 No credentials found for agent <id>` until a
+# Vault entry exists at `secret/data/agents/<id>`. The Job is opt-in;
+# operators using BYO Vault must seed the entry themselves (see
+# `lab/README.md` for the curl).
+#
+# Gated on BOTH `agentVaultSeed.enabled` AND `vault.bundled.enabled` —
+# without the bundled Vault, there's nothing for the Job to talk to.
+agentVaultSeed:
+  enabled: false
+  # The agent_id the proxy will see on inbound mTLS connections. Matches
+  # the CN in the auto-mint starter client cert. Change only if you've
+  # supplied a custom tlsBundle Secret with a different starter CN.
+  agentId: agent-001
+  # The opaque value stored under `secret/data/agents/<agentId>`. The
+  # proxy only checks for *presence*, not value, so the literal here is
+  # a marker. Production deployments source real per-agent credentials
+  # from their own Vault policies — this Job is lab-only.
+  stubApiKey: stub-key
+
 # Drain cap in seconds. Set as WARDEN_GRACEFUL_DRAIN_SECS;
 # terminationGracePeriodSeconds = drainCapSecs + 5 so kubelet SIGKILL
 # fires after the in-process watchdog has had its window.

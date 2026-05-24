@@ -165,6 +165,16 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
 - name: WARDEN_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+{{- if .ctx.Values.upstreamStub.enabled }}
+# Bundled echo-MCP target. Opt-in via upstreamStub.enabled. Operator
+# extraEnv setting WARDEN_UPSTREAM_URL still wins — Kubernetes applies
+# duplicate env entries last-write-wins and warden.commonEnv emits
+# .svcCfg.extraEnv AFTER this block. Production deploys leave
+# upstreamStub off and set WARDEN_UPSTREAM_URL via
+# services.proxy.extraEnv pointing at a real MCP server.
+- name: WARDEN_UPSTREAM_URL
+  value: "http://{{ $rel }}-upstream-stub:{{ .ctx.Values.upstreamStub.port }}/mcp"
+{{- end }}
 {{- if $tlsOn }}
 # Outbound mTLS (B7 v1.x+2 sessions 3-6) — service-proxy cert covers
 # brain, policy, hil, identity, and the HIL poll path. One bundle, four

@@ -57,8 +57,19 @@ helm install my-warden . --namespace warden --create-namespace \
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
+| Upstream MCP target | `warden-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `WARDEN_UPSTREAM_URL` at a real MCP server |
+| Agent Vault credential | Stub `secret/data/agents/agent-001` seeded by post-install Job when `agentVaultSeed.enabled=true` | Operator seeds per-agent entries against their own Vault |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
 | State durability | Vault loses state on pod restart (re-bootstrapped) | Whatever your external Vault does |
+
+### Lab agent (interactive Claude Code in-cluster)
+
+After the chart is up, an optional scaffold under `warden-charts/lab/`
+drops an actual Claude Code CLI pod into the same namespace, routed
+through warden-proxy. Useful for evaluating the full Brain + Policy +
+HIL + ledger pipeline against real agent traffic without leaving the
+cluster. See [`lab/README.md`](../../lab/README.md) for the build +
+apply walkthrough.
 
 ## What's wired
 

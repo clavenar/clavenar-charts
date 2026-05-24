@@ -1,0 +1,97 @@
+{{/*
+Optional echo MCP server bundled with the chart. Gated on
+`upstreamStub.enabled` — production deploys leave this off and point
+WARDEN_UPSTREAM_URL at a real MCP server via
+`services.proxy.extraEnv`. When enabled, this template emits a
+Deployment + Service running the `warden-upstream-stub` binary
+(shipped alongside the main simulator inside the warden-simulator
+image). The binary echoes every MCP frame; useful for proving the
+Brain + Policy + HIL + ledger path end-to-end before bringing up a
+real tool server.
+
+The proxy's env wiring (in services.yaml) auto-injects
+`WARDEN_UPSTREAM_URL=http://<release>-upstream-stub:9000/mcp` when
+this is enabled and the operator hasn't supplied their own
+WARDEN_UPSTREAM_URL via services.proxy.extraEnv.
+*/}}
+{{- if .Values.upstreamStub.enabled }}
+{{- $name := "upstream-stub" }}
+{{- $fullname := printf "%s-%s" .Release.Name $name }}
+{{- $tag := default .Values.imageTag .Values.upstreamStub.image.tag }}
+{{- if not $tag }}{{ $tag = .Chart.AppVersion }}{{ end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" $name) | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "warden.selectorLabels" (dict "ctx" . "service" $name) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "warden.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
+    spec:
+      terminationGracePeriodSeconds: {{ include "warden.terminationGrace" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $name }}
+          image: "{{ .Values.upstreamStub.image.repository }}:{{ $tag }}"
+          imagePullPolicy: {{ .Values.upstreamStub.image.pullPolicy }}
+          # The simulator image bundles three binaries; select the
+          # upstream-stub explicitly. Keeps us from shipping a second
+          # image purely for the echo server.
+          command: ["warden-upstream-stub"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.upstreamStub.port }}
+              protocol: TCP
+          env:
+            - name: WARDEN_UPSTREAM_STUB_PORT
+              value: {{ .Values.upstreamStub.port | quote }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.upstreamStub.port }}
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.upstreamStub.port }}
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 25m, memory: 32Mi }
+            limits:   { cpu: 100m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" $name) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.upstreamStub.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "warden.selectorLabels" (dict "ctx" . "service" $name) | nindent 4 }}
+{{- end }}

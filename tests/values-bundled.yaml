@@ -68,3 +68,16 @@ tlsBundle:
   # no-op (script gates on `ca.crt`).
   secretName: smoke-tls
   autoMint: true
+
+# Bundled echo-MCP target. Deploys warden-upstream-stub as a sidecar
+# Deployment + Service and auto-wires WARDEN_UPSTREAM_URL on the
+# proxy. Pairs with agentVaultSeed below — without the stub credential
+# in Vault, the proxy 403s every request.
+upstreamStub:
+  enabled: true
+
+# Seed Vault with a stub api_key for the auto-mint starter cert's
+# CN (`agent-001`). Required for the proxy to accept agent traffic
+# in the lab evaluation flow.
+agentVaultSeed:
+  enabled: true

@@ -1,0 +1,54 @@
+# Lab-only image: Claude Code CLI + wardenctl, bundled so the agent
+# pod can `claude mcp list` and route every tool call through the
+# warden-proxy via `wardenctl mcp-bridge`. Not for production —
+# operators running real agents externally don't need this image.
+#
+# Build context is the workspace root (the parent of warden-charts).
+# `lab/scripts/build-agent-image.sh` handles the cd + tag.
+
+# ───── Stage 1: build wardenctl from sibling repos ───────────────────
+FROM rust:1-bookworm AS wardenctl-builder
+
+# Path-deps: warden-ctl pulls warden-sdk by relative path. Mirror the
+# workspace tree inside the builder so cargo resolves both.
+WORKDIR /workspace
+COPY warden-ctl   ./warden-ctl
+COPY warden-sdk   ./warden-sdk
+
+WORKDIR /workspace/warden-ctl
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/workspace/warden-ctl/target \
+    cargo build --release --bin wardenctl && \
+    cp target/release/wardenctl /usr/local/bin/wardenctl
+
+# ───── Stage 2: runtime image with Claude Code + wardenctl ───────────
+FROM node:20-bookworm-slim AS runtime
+
+# ca-certificates so wardenctl mcp-bridge can validate the proxy's
+# server cert against the in-cluster CA mount. tini for proper PID 1
+# under `kubectl exec` so Ctrl-C in a session reaps cleanly.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates tini && \
+    rm -rf /var/lib/apt/lists/*
+
+# Claude Code CLI. Pin once a stable version is in use; "latest" is
+# fine for the initial lab walkthrough.
+RUN npm install -g @anthropic-ai/claude-code@latest && \
+    npm cache clean --force
+
+COPY --from=wardenctl-builder /usr/local/bin/wardenctl /usr/local/bin/wardenctl
+
+# Nonroot UID matches the warden services' convention (Google distroless
+# nonroot). Pod's tlsBundle Secret is chmod 644 on the keys, so reading
+# /certs/{ca,client.crt,client.key} works.
+RUN groupadd --gid 65532 agent && \
+    useradd --uid 65532 --gid 65532 --shell /bin/bash --home-dir /home/agent --create-home agent
+
+USER 65532:65532
+WORKDIR /workspace
+
+# Default to sleeping so the operator drives the pod via `kubectl
+# exec -it ... -- claude`. Override `command:` in the manifest for
+# non-interactive variants.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["sleep", "infinity"]

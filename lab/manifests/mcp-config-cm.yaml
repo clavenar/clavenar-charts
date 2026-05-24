@@ -1,0 +1,35 @@
+# Claude Code MCP config. Loaded as the agent pod's `~/.claude.json`.
+#
+# The args array mirrors repos/warden-ctl/docs/clients/claude-code.md
+# verbatim — only the cert paths change to the in-cluster mount
+# (/certs from the tlsBundle Secret) and the proxy URL points at the
+# in-cluster Service DNS.
+#
+# RELEASE placeholder in --url: the build-agent-image.sh helper does
+# not template this. Operators applying the manifest substitute via
+# `sed` or `envsubst`. Default value below is `my-warden` (matches the
+# README walkthrough); change to your release name before applying.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-code-agent-mcp-config
+  labels:
+    app.kubernetes.io/name: warden-lab
+    app.kubernetes.io/component: claude-code-agent
+data:
+  .claude.json: |
+    {
+      "mcpServers": {
+        "warden": {
+          "command": "/usr/local/bin/wardenctl",
+          "args": [
+            "mcp-bridge",
+            "--url",   "https://my-warden-proxy:8443/mcp",
+            "--cert",  "/certs/client.crt",
+            "--key",   "/certs/client.key",
+            "--ca",    "/certs/ca.crt",
+            "--client-hint", "claude-code"
+          ]
+        }
+      }
+    }
