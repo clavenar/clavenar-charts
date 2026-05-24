@@ -22,6 +22,19 @@ SERVICES=(
     "warden-identity"
 )
 
+# Six of the eight Dockerfiles `COPY --from=<name>` source from sibling
+# library repos via BuildKit named contexts. Resolves them to the local
+# checkouts under WORKSPACE_ROOT — without these flags docker tries to
+# pull `docker.io/library/<name>` and fails.
+declare -A EXTRA_CONTEXTS=(
+    [warden-proxy]="warden-sandbox"
+    [warden-brain]="warden-workload-identity"
+    [warden-policy-engine]="warden-workload-identity"
+    [warden-ledger]="warden-workload-identity"
+    [warden-console]="warden-sdk warden-workload-identity"
+    [warden-identity]="warden-workload-identity"
+)
+
 ALLOW_DIRTY=0
 NO_BUMP=0
 DRY_RUN=0
@@ -125,14 +138,18 @@ fi
 # working tree, so published images correspond to an actual commit.
 check_sibling_clean() {
     violators=()
+    targets_plus_aux=("${TARGETS[@]}")
+    # Only enforce on aux repos actually pulled in by the selected
+    # targets (so --only doesn't trip on an aux dir it never touches).
     for svc in "${TARGETS[@]}"; do
-        repo="$WORKSPACE_ROOT/$svc"
+        for ctx in ${EXTRA_CONTEXTS[$svc]:-}; do
+            targets_plus_aux+=("$ctx")
+        done
+    done
+    for repo_name in "${targets_plus_aux[@]}"; do
+        repo="$WORKSPACE_ROOT/$repo_name"
         if [ ! -d "$repo" ]; then
             echo "missing sibling repo: $repo" >&2
-            exit 1
-        fi
-        if [ ! -f "$repo/Dockerfile" ]; then
-            echo "missing Dockerfile: $repo/Dockerfile" >&2
             exit 1
         fi
         branch="$(git -C "$repo" branch --show-current 2>/dev/null || echo '')"
@@ -143,7 +160,14 @@ check_sibling_clean() {
             dirty="no"
         fi
         if [ "$branch" != "main" ] || [ -n "$porcelain" ]; then
-            violators+=("$svc (branch=$branch, dirty=$dirty)")
+            violators+=("$repo_name (branch=$branch, dirty=$dirty)")
+        fi
+    done
+    # Also check service Dockerfiles exist (aux repos don't have one).
+    for svc in "${TARGETS[@]}"; do
+        if [ ! -f "$WORKSPACE_ROOT/$svc/Dockerfile" ]; then
+            echo "missing Dockerfile: $WORKSPACE_ROOT/$svc/Dockerfile" >&2
+            exit 1
         fi
     done
     if [ "${#violators[@]}" -gt 0 ]; then
@@ -175,9 +199,18 @@ echo
 for svc in "${TARGETS[@]}"; do
     repo="$WORKSPACE_ROOT/$svc"
     rev="$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo 'unknown')"
-    echo "→ build $svc (rev=$rev)"
+    ctx_args=()
+    for ctx in ${EXTRA_CONTEXTS[$svc]:-}; do
+        ctx_args+=(--build-context "$ctx=$WORKSPACE_ROOT/$ctx")
+    done
+    if [ "${#ctx_args[@]}" -gt 0 ]; then
+        echo "→ build $svc (rev=$rev, ctx=${EXTRA_CONTEXTS[$svc]})"
+    else
+        echo "→ build $svc (rev=$rev)"
+    fi
     run sudo -n docker build \
         --platform=linux/amd64 \
+        "${ctx_args[@]}" \
         --label "org.opencontainers.image.source=https://github.com/vanteguardlabs/$svc" \
         --label "org.opencontainers.image.version=$VERSION" \
         --label "org.opencontainers.image.revision=$rev" \
