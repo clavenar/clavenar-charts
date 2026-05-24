@@ -47,22 +47,27 @@ does not deploy this pod.
 
 ## Apply
 
+The ConfigMap dials the proxy as bare `https://proxy:8443/mcp` —
+release-name-agnostic, because the chart's auto-mint script stamps
+the proxy cert SAN as `DNS:proxy, DNS:proxy.warden.local,
+DNS:localhost` (no `<release>-proxy` entry). Bare `proxy` resolves
+within the warden namespace, which is where the agent pod lives.
+
 ```bash
-# 1. Adjust manifests/mcp-config-cm.yaml so the proxy URL matches your
-#    release name. Default is `my-warden`; change to whatever you used
-#    for `helm install <release> ...`.
-sed -i 's|my-warden-proxy|<your-release>-proxy|' \
-  lab/manifests/mcp-config-cm.yaml
+# 1. Override the smoke-tls Secret name in manifests/agent-pod.yaml
+#    only if your release set a different tlsBundle.secretName.
 
-# 2. Same for the smoke-tls Secret name in manifests/agent-pod.yaml if
-#    your release set a different tlsBundle.secretName.
-
-# 3. Apply.
+# 2. Apply.
 kubectl -n warden apply -f lab/manifests/mcp-config-cm.yaml
 kubectl -n warden apply -f lab/manifests/agent-pod.yaml
 
 kubectl -n warden wait --for=condition=Ready pod/claude-code-agent --timeout=120s
 ```
+
+For an agent pod in a **different namespace** than the warden release,
+either fully-qualify the URL (`https://proxy.warden.svc.cluster.local:8443/mcp`)
+AND add that DNS to the auto-mint SAN list (chart-side change), or run
+the agent in the same namespace as the release.
 
 ## Smoke
 

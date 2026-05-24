@@ -5,10 +5,15 @@
 # (/certs from the tlsBundle Secret) and the proxy URL points at the
 # in-cluster Service DNS.
 #
-# RELEASE placeholder in --url: the build-agent-image.sh helper does
-# not template this. Operators applying the manifest substitute via
-# `sed` or `envsubst`. Default value below is `my-warden` (matches the
-# README walkthrough); change to your release name before applying.
+# URL uses the BARE Service name (`proxy`), not `<release>-proxy`,
+# because the chart's auto-mint script stamps the proxy's server cert
+# SAN with `DNS:proxy, DNS:proxy.warden.local, DNS:localhost` — no
+# `<release>-proxy` entry. Bare `proxy` resolves within the same
+# namespace as the agent pod (apply this ConfigMap into the warden
+# namespace alongside the release). For cross-namespace agents, use
+# the fully-qualified `proxy.<namespace>.svc.cluster.local` and add
+# that DNS to the auto-mint SAN list (chart change, not a manifest
+# tweak).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -24,7 +29,7 @@ data:
           "command": "/usr/local/bin/wardenctl",
           "args": [
             "mcp-bridge",
-            "--url",   "https://my-warden-proxy:8443/mcp",
+            "--url",   "https://proxy:8443/mcp",
             "--cert",  "/certs/client.crt",
             "--key",   "/certs/client.key",
             "--ca",    "/certs/ca.crt",
