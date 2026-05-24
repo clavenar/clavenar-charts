@@ -132,6 +132,15 @@ spec:
               - key: client.key
                 path: client.key
               {{- end }}
+              {{- if eq $name "identity" }}
+              # Identity roots the trust chain and reads ca.key to mint
+              # SVIDs / delegation grants. Only identity's pod opts into
+              # this projection — every other service's /certs omits
+              # ca.key, so a compromised brain/policy/hil/ledger pod
+              # cannot read the CA private key from disk.
+              - key: ca.key
+                path: ca.key
+              {{- end }}
         {{- end }}
       {{- end }}
 ---

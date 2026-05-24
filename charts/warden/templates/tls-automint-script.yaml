@@ -113,9 +113,15 @@ data:
     : "${POD_NAMESPACE:?must be set}"
     : "${BUNDLE_SERVICES:?must be set}"
 
-    # Bump this string whenever the mint.sh SAN/extension shape changes.
-    # release-prefixed-v1 = ca.crt + ca-stable + DNS:${svc} + DNS:${RELEASE_NAME}-${svc} + DNS:localhost + URI:spiffe://...
-    EXPECTED_SAN_SCHEME="release-prefixed-v1"
+    # Bump this string whenever the mint.sh SAN/extension shape OR
+    # the on-cluster bundle layout changes.
+    #   v1 = ca.crt + DNS:${svc} only
+    #   v2 = + DNS:${RELEASE_NAME}-${svc} + ca.key (mounted only in
+    #         identity's pod via the per-pod items: projection in
+    #         services.yaml — every other service's /certs still
+    #         omits ca.key, so a compromised brain/policy/hil/ledger
+    #         pod cannot read the CA private key from disk).
+    EXPECTED_SAN_SCHEME="release-prefixed-v2"
 
     cd /work
 
@@ -135,8 +141,11 @@ data:
     echo "Writing fresh bundle to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
 
     # dry-run + apply gives create-or-replace semantics, and the
-    # Job's RBAC has both verbs.
-    args="--from-file=ca.crt --from-file=server.crt --from-file=server.key"
+    # Job's RBAC has both verbs. ca.key is in the bundle but only
+    # identity's per-pod items: projection (services.yaml) opts in to
+    # mounting it — no other pod sees ca.key on disk.
+    args="--from-file=ca.crt --from-file=ca.key"
+    args="${args} --from-file=server.crt --from-file=server.key"
     args="${args} --from-file=client.crt --from-file=client.key"
     for svc in $BUNDLE_SERVICES; do
         args="${args} --from-file=service-${svc}.crt --from-file=service-${svc}.key"
