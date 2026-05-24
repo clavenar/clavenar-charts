@@ -47,27 +47,31 @@ does not deploy this pod.
 
 ## Apply
 
-The ConfigMap dials the proxy as bare `https://proxy:8443/mcp` —
-release-name-agnostic, because the chart's auto-mint script stamps
-the proxy cert SAN as `DNS:proxy, DNS:proxy.warden.local,
-DNS:localhost` (no `<release>-proxy` entry). Bare `proxy` resolves
-within the warden namespace, which is where the agent pod lives.
+The ConfigMap dials the proxy as bare `https://proxy:8443/mcp`. The
+chart's auto-mint script stamps the proxy cert SAN as `DNS:proxy,
+DNS:proxy.warden.local, DNS:localhost` (no `<release>-proxy` entry),
+so the bridge has to present `proxy` as the TLS SNI for the handshake
+to validate. The real k8s Service is `<release>-proxy`, so
+`proxy-alias-svc.yaml` adds an ExternalName CNAME from `proxy` to the
+real Service — DNS resolves, SNI matches, handshake passes.
 
 ```bash
 # 1. Override the smoke-tls Secret name in manifests/agent-pod.yaml
 #    only if your release set a different tlsBundle.secretName.
+# 2. Edit proxy-alias-svc.yaml's `externalName:` if your release name
+#    is not `my-warden`.
 
-# 2. Apply.
+kubectl -n warden apply -f lab/manifests/proxy-alias-svc.yaml
 kubectl -n warden apply -f lab/manifests/mcp-config-cm.yaml
 kubectl -n warden apply -f lab/manifests/agent-pod.yaml
 
 kubectl -n warden wait --for=condition=Ready pod/claude-code-agent --timeout=120s
 ```
 
-For an agent pod in a **different namespace** than the warden release,
-either fully-qualify the URL (`https://proxy.warden.svc.cluster.local:8443/mcp`)
-AND add that DNS to the auto-mint SAN list (chart-side change), or run
-the agent in the same namespace as the release.
+The alias Service is a lab workaround. The right long-term fix is a
+chart-side patch to the auto-mint script that also stamps
+`DNS:<release>-proxy` (and ideally `DNS:proxy.<namespace>.svc.cluster.local`)
+into the SAN list — at which point this alias Service can be deleted.
 
 ## Smoke
 

@@ -1,0 +1,33 @@
+# DNS alias so the agent pod (and the wardenctl mcp-bridge it spawns)
+# can dial bare `https://proxy:8443/mcp`. The chart's auto-mint script
+# stamps the proxy server cert SAN as `DNS:proxy, DNS:proxy.warden.local,
+# DNS:localhost` — no `<release>-proxy` entry — so the bridge needs to
+# present "proxy" as its TLS SNI for the handshake to validate.
+#
+# The actual k8s Service the chart creates is `<release>-proxy`
+# (e.g. `my-warden-proxy`), which doesn't match the SAN. This
+# ExternalName CNAMEs `proxy` to the real Service so:
+#   - DNS lookup for "proxy" resolves to the real backend
+#   - TLS SNI on the URL "https://proxy:8443" still sends "proxy"
+#   - server cert SAN includes DNS:proxy → handshake passes
+#
+# Substitute `my-warden` below if your release name is different.
+# Apply this in the SAME namespace as the warden release.
+#
+# Longer-term: patch the chart's auto-mint script to also include
+# DNS:<release>-proxy in the SAN list, and this alias disappears.
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy
+  labels:
+    app.kubernetes.io/name: warden-lab
+    app.kubernetes.io/component: proxy-alias
+spec:
+  type: ExternalName
+  externalName: my-warden-proxy.warden.svc.cluster.local
+  ports:
+    - name: mtls
+      port: 8443
+      targetPort: 8443
+      protocol: TCP
