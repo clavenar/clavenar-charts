@@ -467,9 +467,18 @@ tlsBundle:
   # stack's `warden.local`. Change only if you've adjusted the
   # `WARDEN_*_ALLOWED_CALLERS` allowlists on the consuming services.
   spiffeTrustDomain: warden.local
-  # Image used by the auto-mint Job. `alpine/k8s` ships bash +
-  # openssl + kubectl in a single small image.
-  autoMintImage:
+  # Auto-mint Job runs two containers sharing an emptyDir:
+  #   mintImage  — openssl-only, generates CA + per-service certs
+  #                into /work. alpine/openssl is ~10MB.
+  #   applyImage — kubectl-only, writes /work to a k8s Secret.
+  # Splitting lets both run under the chart-wide nonroot
+  # podSecurityContext (UID 65532) — neither container needs root,
+  # and there is no apk-at-runtime install.
+  mintImage:
+    repository: alpine/openssl
+    tag: "3.3.2"
+    pullPolicy: IfNotPresent
+  applyImage:
     repository: alpine/k8s
     tag: "1.30.0"
     pullPolicy: IfNotPresent

@@ -1,14 +1,17 @@
 {{/*
-ConfigMap carrying the bash script that mints the warden TLS bundle.
-Loaded as a `helm.sh/hook: pre-install,pre-upgrade` resource so the
-hook Job (tls-automint-job.yaml) can mount it; deleted after the Job
-succeeds via hook-delete-policy.
+ConfigMap carrying the two shell scripts that mint + apply the warden
+TLS bundle. Loaded as a `helm.sh/hook: pre-install,pre-upgrade`
+resource so the hook Job (tls-automint-job.yaml) can mount it;
+deleted after the Job succeeds via hook-delete-policy.
 
-The script mirrors `warden-proxy/scripts/gen_certs.sh` — CA root +
-proxy server cert + agent client cert + per-service workload certs
-with SPIFFE URI SANs — and writes the result as a single k8s Secret
-under .Values.tlsBundle.secretName. Idempotent: re-runs are no-ops
-when the Secret already carries `ca.crt`.
+mint.sh runs in the openssl initContainer (alpine/openssl) and
+generates CA root + proxy server cert + agent client cert + per-
+service workload certs with SPIFFE URI SANs into a shared emptyDir.
+
+apply.sh runs in the kubectl main container (alpine/k8s) and writes
+the bundle into a single k8s Secret. Idempotent: re-runs are no-ops
+when the Secret already carries `ca.crt`, which keeps the CA stable
+across helm upgrades.
 */}}
 {{- if .Values.tlsBundle.autoMint }}
 apiVersion: v1
@@ -23,23 +26,16 @@ metadata:
     {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
 data:
   mint.sh: |
-    #!/bin/bash
-    # Auto-mint the warden TLS bundle into a single k8s Secret. Idempotent.
-    set -euo pipefail
+    #!/bin/sh
+    # Generate the warden TLS material into /work. Runs in the
+    # openssl-only initContainer. apply.sh later decides whether to
+    # ship it to the cluster.
+    set -eu
 
-    : "${TLS_SECRET_NAME:?must be set}"
-    : "${POD_NAMESPACE:?must be set}"
     : "${SPIFFE_TRUST_DOMAIN:?must be set}"
     : "${BUNDLE_SERVICES:?must be set}"
 
     cd /work
-
-    if kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
-         -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
-        echo "Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} already carries ca.crt; skipping mint"
-        exit 0
-    fi
-    echo "Minting fresh bundle into ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
 
     # 1. CA root. 1-year lifetime mirrors gen_certs.sh.
     openssl genrsa -out ca.key 2048 2>/dev/null
@@ -68,7 +64,7 @@ data:
 
     # 4. Per-service workload certs. SPIFFE URI SAN + DNS SAN so
     # rustls accepts the in-cluster Service DNS as the hostname.
-    for svc in ${BUNDLE_SERVICES}; do
+    for svc in $BUNDLE_SERVICES; do
         openssl genrsa -out "service-${svc}.key" 2048 2>/dev/null
         openssl req -new -key "service-${svc}.key" \
             -out "service-${svc}.csr" \
@@ -83,12 +79,33 @@ data:
     done
 
     rm -f ./*.csr ca.srl
+    echo "Bundle generated into /work"
 
-    # 5. Apply the Secret. dry-run + apply gives create-or-replace
-    # semantics, and the Job's RBAC has both verbs.
+  apply.sh: |
+    #!/bin/sh
+    # Write the bundle in /work to a single k8s Secret. Runs in the
+    # kubectl-only main container. Idempotent: skips when the Secret
+    # already carries ca.crt so the CA does not rotate on upgrade.
+    set -eu
+
+    : "${TLS_SECRET_NAME:?must be set}"
+    : "${POD_NAMESPACE:?must be set}"
+    : "${BUNDLE_SERVICES:?must be set}"
+
+    cd /work
+
+    if kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
+         -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
+        echo "Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} already carries ca.crt; skipping apply"
+        exit 0
+    fi
+    echo "Writing fresh bundle to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
+
+    # dry-run + apply gives create-or-replace semantics, and the
+    # Job's RBAC has both verbs.
     args="--from-file=ca.crt --from-file=server.crt --from-file=server.key"
     args="${args} --from-file=client.crt --from-file=client.key"
-    for svc in ${BUNDLE_SERVICES}; do
+    for svc in $BUNDLE_SERVICES; do
         args="${args} --from-file=service-${svc}.crt --from-file=service-${svc}.key"
     done
     # shellcheck disable=SC2086
