@@ -80,9 +80,16 @@ upstreamStub:
   image:
     # The simulator image ships `warden-upstream-stub` as a secondary
     # binary alongside the main simulator. Same image, command override
-    # below selects the stub binary.
+    # in templates/upstream-stub.yaml selects the stub binary.
     repository: ghcr.io/vanteguardlabs/warden-simulator
-    tag: ""
+    # Pinned to 0.1.2 (MCP-protocol-compliant stub: real initialize +
+    # tools/list + tools/call shapes) rather than tracking
+    # Chart.appVersion. The stub binary's protocol level is independent
+    # of the rest of the warden stack — operators bumping the chart
+    # appVersion shouldn't accidentally roll back to the earlier echo-
+    # only stub (warden-simulator:0.1.1) that doesn't complete an MCP
+    # handshake.
+    tag: "0.1.2"
     pullPolicy: IfNotPresent
   port: 9000
 
