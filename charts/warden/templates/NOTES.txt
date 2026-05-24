@@ -29,19 +29,59 @@ container-port only — not published by the Service). Kubelet probes
 target 8080. To exercise the mTLS path locally, point a client with
 valid certs at https://localhost:8443/ per warden-proxy/README.md.
 
-{{- if not .Values.tlsBundle.secretName }}
+{{- if and (not .Values.tlsBundle.secretName) (not .Values.tlsBundle.autoMint) }}
 
 WARNING: tlsBundle.secretName is empty.
 
 The proxy panics at boot without /certs mounted (see warden-proxy
-recurring-gotchas in CLAUDE.md). Generate a cert bundle with
-`warden-proxy/scripts/gen_certs.sh --env prod` then:
+recurring-gotchas in CLAUDE.md). Three ways forward:
 
-  kubectl -n {{ .Release.Namespace }} create secret generic warden-certs \
-    --from-file=warden-proxy/certs/
+  1. Auto-mint inside the cluster (quickstart path):
 
-  helm upgrade {{ .Release.Name }} . --reuse-values \
-    --set tlsBundle.secretName=warden-certs
+       helm upgrade {{ .Release.Name }} . --reuse-values \
+         --set tlsBundle.autoMint=true \
+         --set tlsBundle.secretName=warden-certs
+
+  2. Mint locally and project as a Secret:
+
+       warden-proxy/scripts/gen_certs.sh --env prod
+       kubectl -n {{ .Release.Namespace }} create secret generic warden-certs \
+         --from-file=warden-proxy/certs/
+       helm upgrade {{ .Release.Name }} . --reuse-values \
+         --set tlsBundle.secretName=warden-certs
+
+  3. Reuse an existing bundle Secret your PKI already publishes.
+{{- end }}
+
+{{- if and .Values.tlsBundle.autoMint .Values.tlsBundle.secretName }}
+
+Auto-mint mode: a pre-install Job populates the Secret
+`{{ .Release.Namespace }}/{{ .Values.tlsBundle.secretName }}` with a
+self-signed CA + per-service workload certs. Use this for evaluation
+clusters only — production deployments should ship a bundle from a
+managed PKI (set `tlsBundle.autoMint=false` and provide
+`tlsBundle.secretName` from an existing Secret).
+{{- end }}
+
+{{- if .Values.nats.bundled.enabled }}
+
+Bundled NATS: the upstream nats-io/nats subchart is installed as
+`{{ .Release.Name }}-nats`. JetStream persistence (when enabled in
+your values) lands on a PVC. `helm.url` is auto-overridden to
+`nats://{{ .Release.Name }}-nats:4222` for in-stack reach.
+{{- end }}
+
+{{- if .Values.vault.bundled.enabled }}
+
+Bundled Vault (DEV MODE): the upstream hashicorp/vault subchart is
+installed at `{{ .Release.Name }}-vault` with a known root token
+({{ .Values.vault.bundled.devToken }}) and no persistence. A
+post-install hook Job enables the transit engine and creates the
+`{{ .Values.vault.bundled.transit.keyName }}` key. Dev-mode Vault
+loses state on pod restart; the hook re-runs on every chart upgrade
+and re-provisions the key. Do not use this configuration for
+production — flip `vault.bundled.enabled=false` and supply your own
+Vault via `vault.addr` + `vault.tokenSecretName`.
 {{- end }}
 
 {{- if not .Values.networkPolicy.enabled }}

@@ -15,7 +15,7 @@ description: |
   the warden services in a single `helm install`. Images are pulled
   from ghcr.io/vanteguardlabs by default.
 type: application
-version: 0.7.1
+version: 0.8.0
 appVersion: "0.8.4"
 dependencies:
   - name: nats

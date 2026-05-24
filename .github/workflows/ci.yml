@@ -54,12 +54,21 @@ jobs:
             --set services.ledger.extraEnv[0].value=postgres \
             > /tmp/postgres.yaml
 
+      # Bundled mode: nats + vault subcharts on, auto-mint TLS Job
+      # emitted. The fixture lives outside the chart dir so it can
+      # also drive a `kind` smoke test from a release tarball.
+      - name: helm template — bundled mode
+        working-directory: charts/warden
+        run: |
+          helm template smoke . -f ../../tests/values-bundled.yaml \
+            > /tmp/bundled.yaml
+
       # Quick sanity: each render must produce at least the eight
       # Deployments. Catches a regression where a service template
       # silently stops emitting one.
       - name: smoke-check kind counts
         run: |
-          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml; do
+          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml /tmp/bundled.yaml; do
             n=$(grep -c '^kind: Deployment' "$f" || true)
             if [ "$n" -lt 8 ]; then
               echo "::error::$f rendered only $n Deployments (expected 8)"
@@ -81,3 +90,5 @@ jobs:
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/all-on.yaml
       - name: kubeconform — postgres
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/postgres.yaml
+      - name: kubeconform — bundled
+        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/bundled.yaml

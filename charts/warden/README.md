@@ -9,22 +9,56 @@ only and will not receive new features.
 
 ## Quickstart
 
+Two paths — pick by what's already in your cluster.
+
+### Bundled (evaluation / kind / dev cluster)
+
+One `helm install` brings the warden stack **plus** NATS + Vault +
+auto-minted mTLS bundle:
+
+```bash
+# From the repo root
+helm dep update charts/warden
+helm install my-warden charts/warden \
+  --namespace warden --create-namespace \
+  -f tests/values-bundled.yaml
+```
+
+`tests/values-bundled.yaml` enables `nats.bundled` + `vault.bundled`
+(dev-mode) + `tlsBundle.autoMint`. Reasonable for an evaluation
+cluster; **not** for production.
+
+### BYO (production)
+
+Operator brings their own NATS + Vault + PKI bundle:
+
 ```bash
 # From the chart root (warden-charts/charts/warden)
 helm lint .
 helm template my-warden . | less
 
-# Dry install against the current kube context
-helm install my-warden . --namespace warden --create-namespace --dry-run
-
 # Real install
 helm install my-warden . --namespace warden --create-namespace \
   --set nats.url=nats://my-nats:4222 \
+  --set vault.addr=https://vault.internal:8200 \
+  --set vault.tokenSecretName=warden-vault-token \
   --set tlsBundle.secretName=warden-certs \
   --set services.brain.extraEnv[0].name=ANTHROPIC_API_KEY \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.name=anthropic \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.key=key
 ```
+
+### Bundled vs BYO matrix
+
+| Concern | Bundled (`*.bundled.enabled=true`) | BYO (default) |
+|---|---|---|
+| NATS deployment | Subchart `nats-io/nats` installed by the release | External, operator-managed |
+| JetStream persistence | 5Gi PVC (configure under `nats.config.jetstream.fileStore.pvc.size`) | Whatever your external NATS does |
+| Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
+| Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
+| mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
+| Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
+| State durability | Vault loses state on pod restart (re-bootstrapped) | Whatever your external Vault does |
 
 ## What's wired
 
@@ -74,8 +108,10 @@ helm install my-warden . --namespace warden --create-namespace \
 
 ## What's not wired
 
-- **No NATS / Vault subcharts.** Operators bring their own — set
-  `nats.url` and `vault.addr` to match.
+- **No production Vault.** The bundled Vault path runs dev mode only
+  (in-memory, root token, no Raft, no auto-unseal). Production
+  deployments must turn `vault.bundled.enabled` off and point at an
+  externally-managed Vault via `vault.addr` + `vault.tokenSecretName`.
 - **No ingress / TLS termination.** Add an Ingress, Gateway, or
   service-mesh layer downstream of this chart. The proxy's mTLS
   port (8443) typically faces agents directly via LoadBalancer;
