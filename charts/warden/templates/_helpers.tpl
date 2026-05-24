@@ -292,6 +292,16 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if eq $name "deepReview" }}
 - name: WARDEN_DEEP_REVIEW_LEDGER_URL
   value: "http://{{ $rel }}-ledger:8083"
+# Deep-review is the only service that namespaces its NATS URL with
+# the service prefix — every other warden binary reads bare NATS_URL.
+# Mirror the helper-computed value (tls:// vs nats://) into the
+# service-prefixed name so the bundled/mTLS path works without a
+# deep-review code change.
+- name: WARDEN_DEEP_REVIEW_NATS_URL
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "warden.fullname" .ctx }}-config
+      key: NATS_URL
 {{- end }}
 {{- if eq $name "identity" }}
 - name: WARDEN_IDENTITY_CA_DIR
