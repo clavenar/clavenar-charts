@@ -4,8 +4,12 @@
 # Mounts:
 #   /certs — warden tlsBundle Secret (chart-auto-minted CA + starter
 #            client cert + key). Read-only.
-#   /home/agent/.claude.json — MCP config ConfigMap. Tells Claude Code
-#            to launch wardenctl mcp-bridge with the proxy URL + certs.
+#   /home/agent — writable emptyDir. An initContainer copies the
+#            mcp-config ConfigMap to /home/agent/.claude.json so Claude
+#            Code can update its own onboarding state / telemetry
+#            counters in place. Mounting the ConfigMap directly with
+#            subPath makes the file read-only and hangs the first-run
+#            wizard on a write that silently fails.
 #   ANTHROPIC_API_KEY — operator-provided Secret. Create it with
 #            `kubectl create secret generic claude-code-agent-anthropic
 #             --from-literal=ANTHROPIC_API_KEY=sk-ant-...`.
@@ -31,6 +35,25 @@ spec:
     fsGroup: 65532
     seccompProfile:
       type: RuntimeDefault
+  initContainers:
+    - name: prime-home
+      image: ghcr.io/vanteguardlabs/warden-claude-code-agent:latest
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eu
+          cp /config/.claude.json /home/agent/.claude.json
+          # Claude Code creates ~/.claude during first run; pre-create
+          # the dir so the runtime container doesn't race on it.
+          mkdir -p /home/agent/.claude
+      volumeMounts:
+        - name: home
+          mountPath: /home/agent
+        - name: mcp-config-src
+          mountPath: /config
+          readOnly: true
   containers:
     - name: agent
       image: ghcr.io/vanteguardlabs/warden-claude-code-agent:latest
@@ -41,17 +64,12 @@ spec:
             secretKeyRef:
               name: claude-code-agent-anthropic
               key: ANTHROPIC_API_KEY
-        # Claude Code reads ~/.claude.json by default; we mount the
-        # ConfigMap there directly. HOME is set on the user so no env
-        # override is needed.
       volumeMounts:
         - name: certs
           mountPath: /certs
           readOnly: true
-        - name: mcp-config
-          mountPath: /home/agent/.claude.json
-          subPath: .claude.json
-          readOnly: true
+        - name: home
+          mountPath: /home/agent
       resources:
         requests: { cpu: 100m, memory: 256Mi }
         limits:   { cpu: 1000m, memory: 1Gi }
@@ -70,6 +88,8 @@ spec:
             path: client.crt
           - key: client.key
             path: client.key
-    - name: mcp-config
+    - name: home
+      emptyDir: {}
+    - name: mcp-config-src
       configMap:
         name: claude-code-agent-mcp-config
