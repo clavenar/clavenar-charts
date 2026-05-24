@@ -355,10 +355,14 @@ services:
     resources:
       requests: { cpu: 100m, memory: 128Mi }
       limits:   { cpu: 500m, memory: 512Mi }
+    # Deep-review's axum router only mounts /health (not /readyz like
+    # the other services); pointing readiness at /health avoids the
+    # 404 that would otherwise hold the pod NotReady forever. Worth
+    # adding a real /readyz to warden-deep-review as a follow-up.
     probes:
       type: httpGet
       health: /health
-      ready: /readyz
+      ready: /health
     # mock-key default keeps the chart usable without an Anthropic
     # account. Prod overrides via --set or secretKeyRef. Daily token
     # cap matches the demo-VPS pin — bump for real-traffic operators.
