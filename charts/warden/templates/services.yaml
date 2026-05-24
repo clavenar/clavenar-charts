@@ -68,6 +68,28 @@ spec:
                   name: {{ $vaultTokenSecret }}
                   key: token
             {{- end }}
+            {{- if or (eq $name "hil") (eq $name "console") }}
+            # WARDEN_HIL_DECIDE_TOKEN: shared bearer for the
+            # console → HIL /decide hop. HIL rejects /decide without
+            # a matching bearer when console runs in oidc/disabled
+            # mode; console panics at boot if the env is empty.
+            - name: WARDEN_HIL_DECIDE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-shared-tokens
+                  key: hil-decide-token
+            {{- end }}
+            {{- if eq $name "hil" }}
+            # WARDEN_HIL_SESSION_KEY: HIL session-cookie HMAC key
+            # (64-char hex). HIL auto-mints an ephemeral key when unset,
+            # which would invalidate every session on pod restart — pin
+            # it to the chart-managed Secret so HIL is restart-safe.
+            - name: WARDEN_HIL_SESSION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Release.Name }}-shared-tokens
+                  key: hil-session-key
+            {{- end }}
           livenessProbe:
             {{- include "warden.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "liveness") | nindent 12 }}
           readinessProbe:
