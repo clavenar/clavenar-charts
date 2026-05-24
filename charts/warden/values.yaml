@@ -400,8 +400,15 @@ services:
     extraEnv:
       - name: WARDEN_CONSOLE_BIND
         value: 0.0.0.0
+      # Auth mode default is `disabled` so a fresh install boots
+      # without operator OIDC/SAML config. Other modes (oidc,
+      # webauthn, basic-admin, saml) require additional env that
+      # operators set via --set or a values overlay; see
+      # warden-console/src/auth_session.rs for the per-mode
+      # required env. Decide-token is wired regardless (the
+      # shared-tokens Secret) — every mode requires it.
       - name: WARDEN_CONSOLE_AUTH
-        value: oidc
+        value: disabled
     metrics:
       enabled: true
 

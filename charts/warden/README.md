@@ -153,7 +153,7 @@ services:
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
   identity:     { ... }            # replicas: 1 (SQLite-pinned)
   deepReview:   { ... }            # singleton; daily token budget is per-pod
-  console:      { ... }            # WARDEN_CONSOLE_AUTH=oidc by default
+  console:      { ... }            # WARDEN_CONSOLE_AUTH=disabled by default (lab); flip to oidc/webauthn/etc. for prod
 
 persistence:
   ledger:   { enabled: true, size: 5Gi, ... }
