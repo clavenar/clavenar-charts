@@ -19,7 +19,7 @@ version: 0.8.10
 # Mirrors warden-charts/VERSION — the latest image set published to
 # ghcr.io/vanteguardlabs by scripts/push-images.sh. Independent of
 # warden-specs/VERSION (which tracks the demo VPS deploy, not GHCR).
-appVersion: "0.1.3"
+appVersion: "0.1.4"
 dependencies:
   - name: nats
     version: "1.2.5"
