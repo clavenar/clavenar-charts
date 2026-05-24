@@ -1,0 +1,9 @@
+dependencies:
+- name: nats
+  repository: https://nats-io.github.io/k8s/helm/charts/
+  version: 1.2.5
+- name: vault
+  repository: https://helm.releases.hashicorp.com
+  version: 0.28.1
+digest: sha256:f1e37e9419c9327e59487f3ff2a57d9466f35d47332ad0db18f9e5842d853a11
+generated: "2026-05-24T01:36:01.179113516Z"

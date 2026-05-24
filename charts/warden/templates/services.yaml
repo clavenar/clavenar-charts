@@ -52,11 +52,12 @@ spec:
             {{- end }}
           env:
             {{- include "warden.commonEnv" (dict "ctx" $ "svcCfg" $cfg "service" $name) | nindent 12 }}
-            {{- if and $.Values.vault.tokenSecretName (or (eq $name "proxy") (eq $name "identity")) }}
+            {{- $vaultTokenSecret := include "warden.vaultTokenSecretName" $ }}
+            {{- if and $vaultTokenSecret (or (eq $name "proxy") (eq $name "identity")) }}
             - name: VAULT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Values.vault.tokenSecretName }}
+                  name: {{ $vaultTokenSecret }}
                   key: token
             {{- end }}
           livenessProbe:

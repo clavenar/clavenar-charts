@@ -8,12 +8,26 @@ description: |
   PVCs for SQLite-backed services, optional NetworkPolicy perimeter,
   and PodDisruptionBudgets when replicas > 1.
 
-  NATS and Vault are NOT bundled — operators bring their own and
-  set `nats.url` / `vault.addr`. Images are pulled from
-  ghcr.io/vanteguardlabs by default.
+  NATS and Vault are not bundled by default — operators bring their
+  own and set `nats.url` / `vault.addr`. Set `nats.bundled.enabled` or
+  `vault.bundled.enabled` to true to have the chart install the
+  upstream `nats-io/nats` and `hashicorp/vault` subcharts alongside
+  the warden services in a single `helm install`. Images are pulled
+  from ghcr.io/vanteguardlabs by default.
 type: application
 version: 0.7.1
 appVersion: "0.8.4"
+dependencies:
+  - name: nats
+    version: "1.2.5"
+    repository: https://nats-io.github.io/k8s/helm/charts/
+    condition: nats.bundled.enabled
+    alias: nats
+  - name: vault
+    version: "0.28.1"
+    repository: https://helm.releases.hashicorp.com
+    condition: vault.bundled.enabled
+    alias: vault
 keywords:
   - security
   - agent

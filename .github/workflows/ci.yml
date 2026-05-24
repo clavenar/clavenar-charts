@@ -16,6 +16,13 @@ jobs:
         with:
           version: v3.16.3
 
+      # Materialize subchart tarballs from Chart.lock (nats, vault).
+      # Tarballs are gitignored; this step replaces the manual
+      # `helm dep update` an operator would run before `helm install`.
+      - name: helm dep update
+        working-directory: charts/warden
+        run: helm dep update .
+
       - name: helm lint
         working-directory: charts/warden
         run: helm lint .

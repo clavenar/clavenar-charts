@@ -1,7 +1,10 @@
 {{/*
 Shared env. Per-service `extraEnv` is appended via warden.commonEnv.
-Vault wiring lands in service-specific env when .Values.vault.addr is set.
+Vault wiring lands in service-specific env when VAULT_ADDR resolves
+to a non-empty string — either via .Values.vault.addr (BYO) or via
+the in-cluster service DNS when .Values.vault.bundled.enabled.
 */}}
+{{- $vaultAddr := include "warden.vaultAddr" . -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -9,8 +12,8 @@ metadata:
   labels:
     {{- include "warden.labels" (dict "ctx" . "service" "config") | nindent 4 }}
 data:
-  NATS_URL: {{ .Values.nats.url | quote }}
+  NATS_URL: {{ include "warden.natsUrl" . | quote }}
   WARDEN_GRACEFUL_DRAIN_SECS: {{ .Values.drainCapSecs | quote }}
-  {{- if .Values.vault.addr }}
-  VAULT_ADDR: {{ .Values.vault.addr | quote }}
+  {{- if $vaultAddr }}
+  VAULT_ADDR: {{ $vaultAddr | quote }}
   {{- end }}

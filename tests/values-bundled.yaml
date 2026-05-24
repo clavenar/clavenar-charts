@@ -1,0 +1,44 @@
+# Canonical bundled-mode test fixture. Used by CI (helm template +
+# kubeconform) and by `helm install -f tests/values-bundled.yaml`
+# for local kind smoke tests. Mirrors the docker-compose stack
+# shape: single-node NATS with JetStream, dev-mode Vault, mTLS
+# wired through the auto-mint pre-install Job.
+
+nats:
+  bundled:
+    enabled: true
+  # Pass-through to the nats-io/nats subchart (v1.2.5). Enables
+  # JetStream with a 5Gi PVC; single-replica matches the compose
+  # default. HA (3-node Raft) flips `cluster.enabled` upstream.
+  config:
+    jetstream:
+      enabled: true
+      fileStore:
+        enabled: true
+        pvc:
+          size: 5Gi
+  # nats-box is a debugging helper; not needed for the warden stack.
+  natsBox:
+    enabled: false
+
+vault:
+  bundled:
+    enabled: true
+  # Pass-through to the hashicorp/vault subchart (v0.28.1). Dev
+  # server mode mirrors compose: in-memory, auto-unsealed, root
+  # token = `root`.
+  server:
+    dev:
+      enabled: true
+      devRootToken: root
+  # Agent-injector adds a cluster-wide MutatingWebhookConfiguration
+  # and an extra Deployment to sidecar-inject Vault secrets into
+  # arbitrary pods. We use a static-token Secret instead, so disable
+  # the injector entirely.
+  injector:
+    enabled: false
+
+# mTLS is left disabled in this fixture so the bundled stack comes up
+# end-to-end with plain HTTP between services on a fresh kind cluster.
+# A later phase adds the auto-mint pre-install Job; flip
+# `tlsBundle.secretName` + `tlsBundle.autoMint` on once that lands.

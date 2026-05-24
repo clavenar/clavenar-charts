@@ -58,6 +58,40 @@ app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
 {{- add (int .Values.drainCapSecs) 5 -}}
 {{- end -}}
 
+{{/* NATS URL: bundled mode forces the in-cluster service DNS; BYO
+mode honors the operator-supplied .Values.nats.url. The upstream
+nats-io/nats subchart names its Service `<release>-nats` so the
+helper composes that directly. */}}
+{{- define "warden.natsUrl" -}}
+{{- if .Values.nats.bundled.enabled -}}
+nats://{{ .Release.Name }}-nats:4222
+{{- else -}}
+{{ .Values.nats.url }}
+{{- end -}}
+{{- end -}}
+
+{{/* VAULT_ADDR: bundled mode points at the in-cluster service;
+BYO mode honors .Values.vault.addr (empty string disables Vault
+wiring entirely — configmap.yaml gates the env emission on this). */}}
+{{- define "warden.vaultAddr" -}}
+{{- if .Values.vault.bundled.enabled -}}
+http://{{ .Release.Name }}-vault:8200
+{{- else -}}
+{{ .Values.vault.addr }}
+{{- end -}}
+{{- end -}}
+
+{{/* k8s Secret name holding the Vault token (key `token`). Bundled
+mode autogenerates `<release>-vault-token`; BYO mode honors
+.Values.vault.tokenSecretName. */}}
+{{- define "warden.vaultTokenSecretName" -}}
+{{- if .Values.vault.bundled.enabled -}}
+{{ .Release.Name }}-vault-token
+{{- else -}}
+{{ .Values.vault.tokenSecretName }}
+{{- end -}}
+{{- end -}}
+
 {{/* Shared NATS + drain-cap envs, then per-component back-end URLs,
 then per-service extraEnv. Pass `service` so the back-end-URL helper
 knows the component. */}}
