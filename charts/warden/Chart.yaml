@@ -19,7 +19,7 @@ version: 0.8.1
 # Tracks warden-charts/VERSION — bumped by scripts/push-images.sh
 # on every successful GHCR publish. Independent of warden-specs/VERSION
 # (which tracks the demo VPS deploy, not GHCR releases).
-appVersion: "0.1.0"
+appVersion: "0.1.1"
 dependencies:
   - name: nats
     version: "1.2.5"
