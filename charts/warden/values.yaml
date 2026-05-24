@@ -20,10 +20,18 @@ nats:
     # Set true to install the upstream nats-io/nats subchart
     # alongside the warden services. Single-node JetStream is the
     # default shape; see tests/values-bundled.yaml for the canonical
-    # bundled config (JetStream + PVC). All other keys under `nats:`
-    # pass through to the upstream subchart — see
+    # bundled config (JetStream + PVC + mTLS). All other keys under
+    # `nats:` pass through to the upstream subchart — see
     # https://github.com/nats-io/k8s/blob/main/helm/charts/nats/values.yaml
     # for the full surface.
+    #
+    # mTLS coupling: when `tlsBundle.secretName` is also set, the
+    # warden services dial NATS over TLS (NATS_TLS_{CERT,KEY,CA}_PATH
+    # → require_tls in async-nats). The subchart must terminate TLS to
+    # match — set `nats.config.nats.tls.enabled: true` (+ `verify: true`
+    # via `merge`) and `nats.tlsCA.enabled: true` against the same
+    # Secret. The warden.natsUrl helper render-fails if you enable one
+    # side without the other (avoids the `InvalidContentType` crash).
     enabled: false
 
 vault:

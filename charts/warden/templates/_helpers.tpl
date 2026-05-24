@@ -61,10 +61,22 @@ app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
 {{/* NATS URL: bundled mode forces the in-cluster service DNS; BYO
 mode honors the operator-supplied .Values.nats.url. The upstream
 nats-io/nats subchart names its Service `<release>-nats` so the
-helper composes that directly. */}}
+helper composes that directly. Scheme flips to `tls://` when the
+auto-mint bundle is in use — warden clients then read
+NATS_TLS_{CERT,KEY,CA}_PATH and require TLS on the wire (see
+B7.5 / nats_tls.rs in warden-proxy). Guard fails the render if the
+bundled NATS subchart hasn't been told to terminate TLS itself — the
+default would otherwise crash every client with `InvalidContentType`
+(plaintext NATS server, TLS-only clients). */}}
 {{- define "warden.natsUrl" -}}
 {{- if .Values.nats.bundled.enabled -}}
-nats://{{ .Release.Name }}-nats:4222
+{{- $tlsOn := not (empty .Values.tlsBundle.secretName) -}}
+{{- $natsTlsOn := and (hasKey .Values "nats") (hasKey .Values.nats "config") (hasKey .Values.nats.config "nats") (hasKey .Values.nats.config.nats "tls") .Values.nats.config.nats.tls.enabled -}}
+{{- if and $tlsOn (not $natsTlsOn) -}}
+{{- fail "tlsBundle.secretName is set + nats.bundled.enabled is true, but nats.config.nats.tls.enabled is false — bundled NATS would listen plaintext while warden clients dial TLS (InvalidContentType crash). Mirror tests/values-bundled.yaml's nats.config.nats.tls + nats.tlsCA blocks." -}}
+{{- end -}}
+{{- $scheme := ternary "tls" "nats" $tlsOn -}}
+{{ $scheme }}://{{ .Release.Name }}-nats:4222
 {{- else -}}
 {{ .Values.nats.url }}
 {{- end -}}
