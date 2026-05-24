@@ -81,3 +81,11 @@ upstreamStub:
 # in the lab evaluation flow.
 agentVaultSeed:
   enabled: true
+
+# Bare-name DNS alias from `proxy` to <release>-proxy so in-cluster
+# agents can dial `https://proxy:8443/mcp` and the TLS SNI matches
+# the auto-mint server cert SAN. Required for the lab Claude Code
+# pod (and the simulator under chart deployments) to handshake
+# without a per-release manifest tweak.
+proxyAlias:
+  enabled: true

@@ -1,0 +1,37 @@
+{{/*
+Bare-name DNS alias from `proxy` to the actual `<release>-proxy`
+Service. The chart's auto-mint script stamps the proxy server cert
+SAN as `DNS:proxy, DNS:proxy.warden.local, DNS:localhost` — no
+`DNS:<release>-proxy` entry. In-cluster clients dialing the proxy by
+Service name need `proxy` as BOTH the resolvable hostname AND the TLS
+SNI for the handshake to validate. ExternalName CNAME provides
+exactly that: DNS for "proxy" resolves to the real backend;
+SNI on `https://proxy:8443` still sends "proxy".
+
+Gated on `proxyAlias.enabled` because:
+  * production deploys that terminate mTLS at an Ingress / Gateway /
+    mesh don't need it (the Ingress speaks the right SNI on the
+    agent's behalf), and
+  * a second `proxy` Service in the namespace would conflict with
+    any unrelated `proxy` Service already there.
+
+Longer-term: extend the auto-mint script to also stamp
+`DNS:<release>-proxy` + `DNS:proxy.<namespace>.svc.cluster.local`
+into the SAN list, at which point this alias becomes redundant.
+*/}}
+{{- if .Values.proxyAlias.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: proxy
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" "proxy-alias") | nindent 4 }}
+spec:
+  type: ExternalName
+  externalName: {{ printf "%s-proxy.%s.svc.cluster.local" .Release.Name .Release.Namespace }}
+  ports:
+    - name: mtls
+      port: {{ .Values.services.proxy.port }}
+      targetPort: {{ .Values.services.proxy.port }}
+      protocol: TCP
+{{- end }}

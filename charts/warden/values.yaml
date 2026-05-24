@@ -114,6 +114,19 @@ agentVaultSeed:
   # from their own Vault policies — this Job is lab-only.
   stubApiKey: stub-key
 
+# Bare-name DNS alias from `proxy` to the actual `<release>-proxy`
+# Service. In-cluster clients need to dial `proxy` (not
+# `<release>-proxy`) because the auto-mint script stamps the proxy
+# server cert SAN as `DNS:proxy, DNS:proxy.warden.local,
+# DNS:localhost` — the TLS handshake validates SNI against the SAN.
+#
+# Enable for any lab / dev deploy where agents speak directly to the
+# proxy's Service IP. Skip when an Ingress / Gateway terminates mTLS
+# upstream (the Ingress sets the right SNI), or when another `proxy`
+# Service already exists in the namespace.
+proxyAlias:
+  enabled: false
+
 # Drain cap in seconds. Set as WARDEN_GRACEFUL_DRAIN_SECS;
 # terminationGracePeriodSeconds = drainCapSecs + 5 so kubelet SIGKILL
 # fires after the in-process watchdog has had its window.
