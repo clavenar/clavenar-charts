@@ -409,6 +409,15 @@ services:
       # shared-tokens Secret) — every mode requires it.
       - name: WARDEN_CONSOLE_AUTH
         value: disabled
+      # `disabled` + 0.0.0.0 bind would otherwise be rejected as a
+      # production footgun (unauthenticated access from anywhere on
+      # the cluster network). The chart's posture is deliberate for
+      # lab/dev installs — every Service is ClusterIP-only and the
+      # bundled stack matches the compose-stack threat model.
+      # Production operators should flip WARDEN_CONSOLE_AUTH to a
+      # real mode (oidc/webauthn/saml) and drop this override.
+      - name: WARDEN_CONSOLE_ALLOW_DISABLED_NETWORK
+        value: "true"
     metrics:
       enabled: true
 
