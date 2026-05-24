@@ -317,12 +317,12 @@ services:
     # (`/health` + `/readyz`), and Prometheus scrapes (`/metrics`).
     port: 8083
     # mTLS application port under TLS mode (B7 v1.x+2 session 5).
-    # `warden.backendEnvs` injects WARDEN_LEDGER_MTLS_ADDR pointing at
-    # this when tlsBundle is set; the internal write + console-only
-    # read surface lives behind rustls + SPIFFE-allowlist here. The
-    # Service template currently only exposes `port`; operators
-    # wanting console → ledger over mTLS must add a second Service
-    # entry (8183) and update the console URL env var.
+    # `warden.backendEnvs` injects WARDEN_LEDGER_MTLS_ADDR pointing
+    # here when tlsBundle is set; the internal write + console-only
+    # read surface lives behind rustls + SPIFFE-allowlist. Exposed as
+    # a second Service port (`name: mtls`) when tlsBundle.secretName
+    # is non-empty, so console / deep-review can dial it by Service
+    # DNS without any per-release manifest tweak.
     mtlsPort: 8183
     serviceType: ClusterIP
     resources:
@@ -382,10 +382,8 @@ services:
     # Dual-listener under mTLS receive (session 6). Plain HTTP on
     # `port` serves the public subset + /stats + JWKS + health; mTLS
     # on `mtlsPort` carries the internal /svid + /grant + /sign +
-    # /actor-token + /agents surface. Service template still exposes
-    # one port today — operators wiring console/proxy → identity over
-    # mTLS in-cluster must add a second Service port until the
-    # dual-port template lands (later chart minor).
+    # /actor-token + /agents surface. Exposed as a second Service
+    # port (`name: mtls`) when tlsBundle.secretName is non-empty.
     mtlsPort: 8186
     serviceType: ClusterIP
     resources:

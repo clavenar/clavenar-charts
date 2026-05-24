@@ -240,9 +240,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 #     including `/svid`, `/grant`, `/revoke`, `/sign`, `/actor-token*`,
 #     `/agents*`. SPIFFE allowlist gates every internal route.
 #
-# Same Service-template caveat as ledger: this chart still exposes a
-# single port. Operators wanting in-cluster console/proxy → identity
-# over mTLS must add an 8186 port (covered by a later chart minor).
+# Service template emits a second port (`name: mtls`) alongside
+# `http` when tlsBundle.secretName is set, so the chart-wired
+# WARDEN_CONSOLE_IDENTITY_URL=https://<release>-identity:8186 resolves
+# without any per-release manifest tweak.
 - name: WARDEN_IDENTITY_TLS_DIR
   value: {{ $mount | quote }}
 - name: WARDEN_IDENTITY_ALLOWED_CALLERS
@@ -262,11 +263,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # `/stream/audit`, `/export*`, `/agents`) is SPIFFE-gated by the
 # allowlist. The plain HTTP router STRIPS those routes so a cluster-
 # network attacker cannot bypass mTLS by hitting `port` directly.
-#
-# Note: this chart's Service template still exposes a single port —
-# operators wanting console → ledger over mTLS must add a second
-# Service port (8183) and update WARDEN_CONSOLE_LEDGER_URL to point at
-# it. A later chart minor will add the dual-port Service block.
+# Service template emits a second port (`name: mtls`) alongside
+# `http` when tlsBundle.secretName is set so in-cluster clients can
+# dial WARDEN_CONSOLE_LEDGER_URL=https://<release>-ledger:8183 by
+# Service DNS.
 - name: WARDEN_LEDGER_TLS_DIR
   value: {{ $mount | quote }}
 - name: WARDEN_LEDGER_ALLOWED_CALLERS

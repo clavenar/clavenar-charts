@@ -58,6 +58,11 @@ spec:
               containerPort: {{ $cfg.healthPort }}
               protocol: TCP
             {{- end }}
+            {{- if and $cfg.mtlsPort $.Values.tlsBundle.secretName }}
+            - name: mtls
+              containerPort: {{ $cfg.mtlsPort }}
+              protocol: TCP
+            {{- end }}
           env:
             {{- include "warden.commonEnv" (dict "ctx" $ "svcCfg" $cfg "service" $name) | nindent 12 }}
             {{- $vaultTokenSecret := include "warden.vaultTokenSecretName" $ }}
@@ -190,6 +195,15 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+    {{- if and $cfg.mtlsPort $.Values.tlsBundle.secretName }}
+    # Dual-port surface: console / proxy / deep-review reach the
+    # internal SPIFFE-gated subset here. Kept off when no TLS bundle
+    # is mounted — the in-pod mTLS listener wouldn't be up to receive.
+    - port: {{ $cfg.mtlsPort }}
+      targetPort: mtls
+      protocol: TCP
+      name: mtls
+    {{- end }}
   selector:
     {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 4 }}
 {{- if $persist.enabled }}
