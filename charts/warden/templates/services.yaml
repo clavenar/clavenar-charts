@@ -67,6 +67,17 @@ spec:
                 secretKeyRef:
                   name: {{ $vaultTokenSecret }}
                   key: token
+            # VAULT_ADDR has to accompany VAULT_TOKEN — vaultrs falls
+            # back to its compiled-in https://127.0.0.1:8200 default
+            # without it, which the proxy can never reach inside a pod.
+            # The ConfigMap carries the helper-computed URL (in-cluster
+            # Service DNS under bundled mode, .Values.vault.addr under
+            # BYO).
+            - name: VAULT_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ include "warden.fullname" $ }}-config
+                  key: VAULT_ADDR
             {{- end }}
             {{- if or (eq $name "hil") (eq $name "console") }}
             # WARDEN_HIL_DECIDE_TOKEN: shared bearer for the
