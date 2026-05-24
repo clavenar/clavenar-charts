@@ -1,0 +1,94 @@
+{{/*
+Post-install + post-upgrade hook Job. Waits for the bundled Vault
+Service to report ready, enables the transit engine, and creates the
+`warden-identity` transit key. All ops are idempotent — re-runs land
+on `already enabled` / `already exists` errors from Vault, which the
+script tolerates explicitly.
+
+Required because the bundled Vault subchart deploys dev-mode Vault
+(unsealed, in-memory) but does NOT auto-provision warden's transit
+key. Without this Job, `warden-identity` boot would fail with a
+404 from /transit/sign/warden-identity. Mirrors what
+`warden-e2e/prod/bootstrap.sh` does for the compose stack.
+
+Skipped entirely when vault.bundled.enabled is false — BYO Vault
+deployments must provision the transit key themselves (operator
+runbook).
+*/}}
+{{- if .Values.vault.bundled.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-vault-bootstrap
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  labels:
+    {{- include "warden.labels" (dict "ctx" . "service" "vault-bootstrap") | nindent 4 }}
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        {{- include "warden.selectorLabels" (dict "ctx" . "service" "vault-bootstrap") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: bootstrap
+          {{- $serverImg := default dict (default dict .Values.vault.server).image -}}
+          {{- $repo := default "hashicorp/vault" $serverImg.repository -}}
+          {{- $tag := default "1.17.2" $serverImg.tag }}
+          image: "{{ $repo }}:{{ $tag }}"
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              echo "Waiting for ${VAULT_ADDR}..."
+              for i in $(seq 1 60); do
+                  if vault status >/dev/null 2>&1; then
+                      echo "Vault reachable"
+                      break
+                  fi
+                  sleep 2
+              done
+              # Final reachability check — if vault status still
+              # fails, the bundled server never came up. Print its
+              # status for the Job log and exit.
+              if ! vault status; then
+                  echo "Vault never became reachable at ${VAULT_ADDR}" >&2
+                  exit 1
+              fi
+
+              # Both ops are idempotent. `vault secrets enable` errors
+              # with "path is already in use" on re-runs; `vault write
+              # -f transit/keys/X` is a no-op when the key exists. We
+              # tolerate both via `|| true` and verify the
+              # post-condition (key exists) at the end.
+              vault secrets enable -path=transit transit 2>/dev/null || true
+              vault write -f transit/keys/${TRANSIT_KEY_NAME} >/dev/null 2>&1 || true
+
+              # Post-condition: the warden-identity key must be readable.
+              # If both ops failed silently, this surfaces the issue.
+              vault read transit/keys/${TRANSIT_KEY_NAME} >/dev/null
+              echo "Transit key ${TRANSIT_KEY_NAME} ready at ${VAULT_ADDR}"
+          env:
+            - name: VAULT_ADDR
+              value: {{ include "warden.vaultAddr" . | quote }}
+            - name: VAULT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "warden.vaultTokenSecretName" . }}
+                  key: token
+            - name: TRANSIT_KEY_NAME
+              value: {{ .Values.vault.bundled.transit.keyName | quote }}
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+{{- end }}
