@@ -92,3 +92,11 @@ jobs:
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/postgres.yaml
       - name: kubeconform — bundled
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/bundled.yaml
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: shellcheck scripts/*.sh
+        run: shellcheck -S warning scripts/*.sh

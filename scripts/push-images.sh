@@ -1,0 +1,223 @@
+#!/bin/bash
+set -euo pipefail
+
+# Build and push all 8 warden service images to ghcr.io/vanteguardlabs
+# under the tag in warden-charts/VERSION (+ :latest). On success, bumps
+# VERSION patch and Chart.appVersion in lockstep and pushes the bump.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CHART_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE_ROOT="$(cd "$CHART_REPO/.." && pwd)"
+
+REGISTRY="ghcr.io/vanteguardlabs"
+
+SERVICES=(
+    "warden-proxy"
+    "warden-brain"
+    "warden-policy-engine"
+    "warden-ledger"
+    "warden-hil"
+    "warden-console"
+    "warden-deep-review"
+    "warden-identity"
+)
+
+ALLOW_DIRTY=0
+NO_BUMP=0
+DRY_RUN=0
+ONLY=""
+
+usage() {
+    cat <<'EOF'
+push-images.sh — build + push all warden service images to GHCR
+
+Usage:
+  push-images.sh [--only=svc1,svc2] [--allow-dirty] [--no-bump] [--dry-run]
+
+Reads VERSION at repo root, builds each sibling repo's Dockerfile,
+pushes ghcr.io/vanteguardlabs/<service>:<VERSION> and :latest, then
+bumps the patch in VERSION and Chart.yaml appVersion in lockstep.
+
+Flags:
+  --only=<csv>     Subset of the 8 services. Implies --no-bump.
+  --allow-dirty    Skip the "sibling repos on main + clean" preflight.
+  --no-bump        Push under current VERSION but do not bump or commit.
+  --dry-run        Print commands without executing.
+  --help           This usage message.
+
+Preflight: docker must be authenticated to ghcr.io
+  echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --only=*) ONLY="${1#--only=}"; NO_BUMP=1; shift ;;
+        --allow-dirty) ALLOW_DIRTY=1; shift ;;
+        --no-bump) NO_BUMP=1; shift ;;
+        --dry-run) DRY_RUN=1; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) echo "unknown arg: $1" >&2; usage >&2; exit 2 ;;
+    esac
+done
+
+# Resolve effective target list.
+TARGETS=()
+if [ -z "$ONLY" ]; then
+    TARGETS=("${SERVICES[@]}")
+else
+    IFS=',' read -ra requested <<<"$ONLY"
+    for r in "${requested[@]}"; do
+        found=0
+        for s in "${SERVICES[@]}"; do
+            if [ "$s" = "$r" ]; then
+                TARGETS+=("$s")
+                found=1
+                break
+            fi
+        done
+        if [ "$found" -eq 0 ]; then
+            echo "unknown service: $r" >&2
+            echo "valid: ${SERVICES[*]}" >&2
+            exit 2
+        fi
+    done
+fi
+
+VERSION_FILE="$CHART_REPO/VERSION"
+CHART_FILE="$CHART_REPO/charts/warden/Chart.yaml"
+
+[ -f "$VERSION_FILE" ] || { echo "VERSION missing at $VERSION_FILE" >&2; exit 1; }
+[ -f "$CHART_FILE" ] || { echo "Chart.yaml missing at $CHART_FILE" >&2; exit 1; }
+
+VERSION="$(tr -d '[:space:]' < "$VERSION_FILE")"
+case "$VERSION" in
+    [0-9]*.[0-9]*.[0-9]*) ;;
+    *) echo "VERSION not semver (got '$VERSION')" >&2; exit 1 ;;
+esac
+
+# Chart.appVersion must equal VERSION going in — else a manual edit
+# happened and the operator must resolve before pushing.
+chart_app_version="$(grep -E '^appVersion:' "$CHART_FILE" \
+    | sed -E 's/^appVersion:[[:space:]]*"?([^"[:space:]]+)"?[[:space:]]*$/\1/')"
+if [ "$chart_app_version" != "$VERSION" ]; then
+    echo "Chart.yaml appVersion ($chart_app_version) differs from VERSION ($VERSION)." >&2
+    echo "Resolve the manual edit before running this script." >&2
+    exit 1
+fi
+
+# docker auth preflight — script runs `sudo -n docker …` so the
+# authoritative config is /root/.docker/config.json.
+docker_auth_ok() {
+    sudo -n cat /root/.docker/config.json 2>/dev/null | grep -q '"ghcr.io"'
+}
+
+if ! docker_auth_ok; then
+    cat >&2 <<'EOF'
+no ghcr.io credentials found in /root/.docker/config.json.
+authenticate first:
+  echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
+EOF
+    exit 1
+fi
+
+# Sibling repo preflight — each target must be on main with a clean
+# working tree, so published images correspond to an actual commit.
+check_sibling_clean() {
+    violators=()
+    for svc in "${TARGETS[@]}"; do
+        repo="$WORKSPACE_ROOT/$svc"
+        if [ ! -d "$repo" ]; then
+            echo "missing sibling repo: $repo" >&2
+            exit 1
+        fi
+        if [ ! -f "$repo/Dockerfile" ]; then
+            echo "missing Dockerfile: $repo/Dockerfile" >&2
+            exit 1
+        fi
+        branch="$(git -C "$repo" branch --show-current 2>/dev/null || echo '')"
+        porcelain="$(git -C "$repo" status --porcelain 2>/dev/null || echo '')"
+        if [ -n "$porcelain" ]; then
+            dirty="yes"
+        else
+            dirty="no"
+        fi
+        if [ "$branch" != "main" ] || [ -n "$porcelain" ]; then
+            violators+=("$svc (branch=$branch, dirty=$dirty)")
+        fi
+    done
+    if [ "${#violators[@]}" -gt 0 ]; then
+        echo "sibling repos not clean + on main:" >&2
+        for v in "${violators[@]}"; do echo "  - $v" >&2; done
+        echo "Use --allow-dirty to override (for iteration only)." >&2
+        exit 1
+    fi
+}
+
+if [ "$ALLOW_DIRTY" -eq 0 ]; then
+    check_sibling_clean
+fi
+
+run() {
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "[dry-run] $*"
+    else
+        "$@"
+    fi
+}
+
+echo "VERSION    = $VERSION"
+echo "registry   = $REGISTRY"
+echo "targets    = ${TARGETS[*]}"
+echo "allow-dirty=$ALLOW_DIRTY  no-bump=$NO_BUMP  dry-run=$DRY_RUN"
+echo
+
+for svc in "${TARGETS[@]}"; do
+    repo="$WORKSPACE_ROOT/$svc"
+    rev="$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo 'unknown')"
+    echo "→ build $svc (rev=$rev)"
+    run sudo -n docker build \
+        --platform=linux/amd64 \
+        --label "org.opencontainers.image.source=https://github.com/vanteguardlabs/$svc" \
+        --label "org.opencontainers.image.version=$VERSION" \
+        --label "org.opencontainers.image.revision=$rev" \
+        -t "$REGISTRY/$svc:$VERSION" \
+        -t "$REGISTRY/$svc:latest" \
+        "$repo"
+done
+
+for svc in "${TARGETS[@]}"; do
+    echo "→ push $svc:$VERSION"
+    run sudo -n docker push "$REGISTRY/$svc:$VERSION"
+    echo "→ push $svc:latest"
+    run sudo -n docker push "$REGISTRY/$svc:latest"
+done
+
+echo
+for svc in "${TARGETS[@]}"; do
+    echo "pushed $REGISTRY/$svc:$VERSION"
+done
+
+if [ "$NO_BUMP" -eq 1 ]; then
+    echo "(no bump — --no-bump or --only set)"
+    exit 0
+fi
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo "(no bump — --dry-run set)"
+    exit 0
+fi
+
+IFS='.' read -r major minor patch <<<"$VERSION"
+new="${major}.${minor}.$((patch + 1))"
+printf '%s\n' "$new" > "$VERSION_FILE"
+# Use ~ as sed delimiter — | collides with regex alternation per
+# CLAUDE.md recurring gotchas.
+sed -i -E "s~^appVersion:.*~appVersion: \"$new\"~" "$CHART_FILE"
+
+git -C "$CHART_REPO" add VERSION charts/warden/Chart.yaml
+git -c user.name=VanteguardLabs -c user.email=vanteguardlabs@gmail.com \
+    -C "$CHART_REPO" commit -m "bump images to $VERSION (next: $new)"
+git -C "$CHART_REPO" push origin main
+
+echo
+echo "VERSION bumped: $VERSION → $new"

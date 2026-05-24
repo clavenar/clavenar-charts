@@ -16,10 +16,10 @@ description: |
   from ghcr.io/vanteguardlabs by default.
 type: application
 version: 0.8.1
-# Tracks warden-specs/VERSION — the stack-wide truth that
-# warden-e2e's deploy.sh promotes into the website's /version.json
-# after every redeploy. Bump in lockstep when ship a new image build.
-appVersion: "0.37.7"
+# Tracks warden-charts/VERSION — bumped by scripts/push-images.sh
+# on every successful GHCR publish. Independent of warden-specs/VERSION
+# (which tracks the demo VPS deploy, not GHCR releases).
+appVersion: "0.1.0"
 dependencies:
   - name: nats
     version: "1.2.5"
