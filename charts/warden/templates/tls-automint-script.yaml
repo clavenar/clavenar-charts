@@ -34,6 +34,7 @@ data:
 
     : "${SPIFFE_TRUST_DOMAIN:?must be set}"
     : "${BUNDLE_SERVICES:?must be set}"
+    : "${RELEASE_NAME:?must be set}"
 
     cd /work
 
@@ -62,14 +63,25 @@ data:
         -CA ca.crt -CAkey ca.key -CAcreateserial \
         -out client.crt 2>/dev/null
 
-    # 4. Per-service workload certs. SPIFFE URI SAN + DNS SAN so
-    # rustls accepts the in-cluster Service DNS as the hostname.
+    # 4. Per-service workload certs. SAN list covers every hostname
+    # warden code may dial:
+    #   - URI:spiffe://...  for server-side SPIFFE allowlists
+    #   - DNS:${svc}        for the compose stack + chart-internal
+    #                       short-name use
+    #   - DNS:${RELEASE_NAME}-${svc}
+    #                       for the in-cluster Service DNS that
+    #                       warden.serviceFullname / warden.natsUrl /
+    #                       warden.backendEnvs all hand to clients
+    #                       (e.g. `lab-warden-nats`). Without this,
+    #                       rustls rejects every in-cluster mTLS
+    #                       handshake with NotValidForName.
+    #   - DNS:localhost     for cargo-run / host-side testing.
     for svc in $BUNDLE_SERVICES; do
         openssl genrsa -out "service-${svc}.key" 2048 2>/dev/null
         openssl req -new -key "service-${svc}.key" \
             -out "service-${svc}.csr" \
             -subj "/CN=warden-${svc}" \
-            -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${svc},DNS:${svc},DNS:localhost" \
+            -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${svc},DNS:${svc},DNS:${RELEASE_NAME}-${svc},DNS:localhost" \
             2>/dev/null
         openssl x509 -req -days 365 \
             -in "service-${svc}.csr" \
