@@ -15,7 +15,7 @@ description: |
   the warden services in a single `helm install`. Images are pulled
   from ghcr.io/vanteguardlabs by default.
 type: application
-version: 0.8.3
+version: 0.8.4
 # Mirrors warden-charts/VERSION — the latest image set published to
 # ghcr.io/vanteguardlabs by scripts/push-images.sh. Independent of
 # warden-specs/VERSION (which tracks the demo VPS deploy, not GHCR).

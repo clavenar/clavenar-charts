@@ -27,6 +27,14 @@ spec:
         {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 8 }}
       annotations:
         {{- include "warden.metricsAnnotations" (dict "svcCfg" $cfg) | trim | nindent 8 }}
+        {{- if $.Values.tlsBundle.autoMint }}
+        # Roll the pod when the auto-mint script changes — the SAN
+        # scheme or extension shape might have shifted, which triggers
+        # apply.sh to re-mint the Secret. Pods that mounted the old
+        # bundle would otherwise keep using the stale cert/CA until
+        # something else forced a restart.
+        checksum/tls-automint-script: {{ include (print $.Template.BasePath "/tls-automint-script.yaml") $ | sha256sum }}
+        {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ include "warden.terminationGrace" $ }}
       {{- with $.Values.imagePullSecrets }}

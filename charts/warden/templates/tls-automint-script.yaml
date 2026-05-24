@@ -96,20 +96,41 @@ data:
   apply.sh: |
     #!/bin/sh
     # Write the bundle in /work to a single k8s Secret. Runs in the
-    # kubectl-only main container. Idempotent: skips when the Secret
-    # already carries ca.crt so the CA does not rotate on upgrade.
+    # kubectl-only main container. Idempotent: re-runs are no-ops when
+    # the existing Secret was minted under the *same* SAN scheme.
+    #
+    # SAN-scheme drift detection: the Secret carries a label
+    # `warden.vanteguardlabs.com/san-scheme` recording the mint shape
+    # in effect when it was written. apply.sh compares against
+    # EXPECTED_SAN_SCHEME (bumped in this script whenever the mint-time
+    # SAN/extension shape changes — e.g. adding release-prefixed DNS
+    # SANs). On mismatch, the bundle is re-written; on match, skipped.
+    # Catches the "upgrade picked up a chart that mints differently"
+    # case without operators having to `kubectl delete secret` first.
     set -eu
 
     : "${TLS_SECRET_NAME:?must be set}"
     : "${POD_NAMESPACE:?must be set}"
     : "${BUNDLE_SERVICES:?must be set}"
 
+    # Bump this string whenever the mint.sh SAN/extension shape changes.
+    # release-prefixed-v1 = ca.crt + ca-stable + DNS:${svc} + DNS:${RELEASE_NAME}-${svc} + DNS:localhost + URI:spiffe://...
+    EXPECTED_SAN_SCHEME="release-prefixed-v1"
+
     cd /work
 
     if kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
          -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
-        echo "Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} already carries ca.crt; skipping apply"
-        exit 0
+        existing_scheme="$(
+            kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
+                -o jsonpath='{.metadata.labels.warden\.vanteguardlabs\.com/san-scheme}' \
+                2>/dev/null || true
+        )"
+        if [ "$existing_scheme" = "$EXPECTED_SAN_SCHEME" ]; then
+            echo "Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} already carries ca.crt + scheme ${EXPECTED_SAN_SCHEME}; skipping apply"
+            exit 0
+        fi
+        echo "Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} exists but san-scheme is '${existing_scheme:-<missing>}' (expected ${EXPECTED_SAN_SCHEME}); re-minting"
     fi
     echo "Writing fresh bundle to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
 
@@ -126,5 +147,10 @@ data:
         --dry-run=client -o yaml \
         | kubectl -n "${POD_NAMESPACE}" apply -f -
 
-    echo "Bundle written to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME}"
+    # Stamp the scheme label so future apply.sh runs can detect drift.
+    # --overwrite handles the upgrade case (label exists from prior scheme).
+    kubectl -n "${POD_NAMESPACE}" label --overwrite secret "${TLS_SECRET_NAME}" \
+        "warden.vanteguardlabs.com/san-scheme=${EXPECTED_SAN_SCHEME}"
+
+    echo "Bundle written to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} (scheme=${EXPECTED_SAN_SCHEME})"
 {{- end }}
