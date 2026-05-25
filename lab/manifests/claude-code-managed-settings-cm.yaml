@@ -18,6 +18,15 @@
 # op, and HTTP fetch the agent runs lands in the ledger with a Brain
 # verdict and Policy reasons.
 #
+# `permissions.allow: ["mcp__warden"]` pre-approves every tool from
+# the `warden` MCP server, including the seven warden-exec primitives
+# and the upstream-stub demo tools. Without this, Claude Code's
+# default "ask before every tool" prompt fires on every call and the
+# agent stalls waiting for user approval. The warden pipeline already
+# runs Brain + Policy + HIL on every call, so the Claude-Code-side
+# prompt is redundant safety — pre-approving the whole server lets
+# warden's own gating do the work end-to-end.
+#
 # `allowManagedPermissionRulesOnly: true` pins the policy: lower-
 # precedence config files cannot add `allow`, `ask`, or `deny` rules
 # of their own. Without this, an agent that successfully `WebFetch`-es
@@ -47,6 +56,9 @@ data:
           "Glob",
           "Grep",
           "NotebookEdit"
+        ],
+        "allow": [
+          "mcp__warden"
         ]
       },
       "allowManagedPermissionRulesOnly": true
