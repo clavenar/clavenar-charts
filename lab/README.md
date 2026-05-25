@@ -13,13 +13,26 @@ does not deploy this pod.
 ## Lab posture vs. warden-exec
 
 As of chart 0.2.x, `exec.enabled=true` in `tests/values-bundled.yaml`
-puts `warden-exec` between the proxy and the upstream-stub. The lab
-`agent-pod.yaml` denylists every Claude Code built-in (`Bash`,
-`Read`, `Write`, `Edit`, `WebFetch`, `Glob`, `Grep`, `NotebookEdit`)
-and mounts the shared workspace PVC at `/workspace`. The only
-execution surface left is the `warden` MCP server, which means every
-shell command and file op the agent runs flows through Brain + Policy
-+ HIL + ledger. To inspect what the agent did:
+puts `warden-exec` between the proxy and the upstream-stub. Two lab
+manifests together close the agent's escape hatches:
+
+- `mcp-config-cm.yaml` (mounted at `~/.claude.json`) registers the
+  `warden` MCP server — the only MCP path out of the pod.
+- `claude-code-managed-settings-cm.yaml` (mounted at
+  `/etc/claude-code/managed-settings.json`) denylists every Claude
+  Code built-in (`Bash`, `Read`, `Write`, `Edit`, `WebFetch`,
+  `Glob`, `Grep`, `NotebookEdit`) at the **managed-settings** level
+  with `allowManagedPermissionRulesOnly: true`. Managed settings sit
+  at the top of Claude Code's precedence chain — the agent cannot
+  re-enable a tool by editing `~/.claude/settings.json` or
+  `.claude/settings.local.json` because both are lower precedence.
+  Putting deny rules in `~/.claude.json` does **not** work; that
+  file does not feed the permission system.
+
+`agent-pod.yaml` also mounts the shared workspace PVC at `/workspace`
+so an operator can `kubectl exec -- ls /workspace` alongside the
+agent. Net result: every shell command and file op the agent runs
+flows through Brain + Policy + HIL + ledger. Inspect with:
 
 ```bash
 kubectl -n warden logs deploy/<release>-exec --tail=200 | grep tools/call
@@ -27,8 +40,8 @@ kubectl -n warden exec -it claude-code-agent -- ls /workspace
 ```
 
 To run without the gateway (raw Claude Code + warden as one MCP
-among many), set `exec.enabled=false` and trim the `permissions.deny`
-list in `manifests/mcp-config-cm.yaml`.
+among many), set `exec.enabled=false` and skip applying
+`claude-code-managed-settings-cm.yaml`.
 
 ## Prerequisites
 
@@ -81,6 +94,8 @@ ExternalName Service named `proxy` that CNAMEs to the real
 # tlsBundle.secretName than `smoke-tls`.
 
 kubectl -n warden apply -f lab/manifests/mcp-config-cm.yaml
+# Only when exec.enabled=true on the release. Skip otherwise.
+kubectl -n warden apply -f lab/manifests/claude-code-managed-settings-cm.yaml
 kubectl -n warden apply -f lab/manifests/agent-pod.yaml
 
 kubectl -n warden wait --for=condition=Ready pod/claude-code-agent --timeout=120s
@@ -133,6 +148,7 @@ agent agent-001` on every request.
 ```bash
 kubectl -n warden delete -f lab/manifests/agent-pod.yaml
 kubectl -n warden delete -f lab/manifests/mcp-config-cm.yaml
+kubectl -n warden delete -f lab/manifests/claude-code-managed-settings-cm.yaml --ignore-not-found
 kubectl -n warden delete secret claude-code-agent-anthropic
 ```
 

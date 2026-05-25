@@ -1,0 +1,53 @@
+# Claude Code managed settings. Mounted at
+# /etc/claude-code/managed-settings.json in the agent pod.
+#
+# Managed settings sit at the top of Claude Code's settings precedence
+# chain — they cannot be overridden by user settings (~/.claude/settings.json),
+# project settings (.claude/settings.json), or by the agent rewriting
+# its own config at runtime. That's the property we need: a Red verdict
+# from the warden pipeline must not be circumventable by a clever
+# agent that flips `permissions.allow` in its home dir.
+#
+# `permissions.deny` here removes every Claude Code built-in tool
+# (Bash, Read, Write, Edit, WebFetch, Glob, Grep, NotebookEdit) from
+# the agent's available toolset. With them gone, the only execution
+# surface left is the `warden` MCP server registered in
+# claude-code-agent-mcp-config, which dispatches every tool call
+# through warden-proxy → warden-brain + warden-policy-engine →
+# warden-hil (Yellow-tier) → warden-exec. Every shell command, file
+# op, and HTTP fetch the agent runs lands in the ledger with a Brain
+# verdict and Policy reasons.
+#
+# `allowManagedPermissionRulesOnly: true` pins the policy: lower-
+# precedence config files cannot add `allow`, `ask`, or `deny` rules
+# of their own. Without this, an agent that successfully `WebFetch`-es
+# a fake managed-settings doc could try to unblock itself via
+# user-settings allow rules.
+#
+# This only works if `exec.enabled=true` is set on the chart release —
+# otherwise the warden MCP server only exposes the upstream-stub's
+# echo/add demo tools and the agent has no shell to fall back on.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-code-agent-managed-settings
+  labels:
+    app.kubernetes.io/name: warden-lab
+    app.kubernetes.io/component: claude-code-agent
+data:
+  managed-settings.json: |
+    {
+      "permissions": {
+        "deny": [
+          "Bash",
+          "Read",
+          "Write",
+          "Edit",
+          "WebFetch",
+          "Glob",
+          "Grep",
+          "NotebookEdit"
+        ]
+      },
+      "allowManagedPermissionRulesOnly": true
+    }

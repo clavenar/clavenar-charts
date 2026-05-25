@@ -86,6 +86,14 @@ spec:
           mountPath: /tmp
         - name: workspace
           mountPath: /workspace
+        # Managed settings: read-only mount at the path Claude Code
+        # walks for unbypassable settings. Putting deny rules in
+        # ~/.claude.json or ~/.claude/settings.json does NOT work —
+        # the agent can rewrite both at runtime. /etc/claude-code/
+        # is the only path that survives that.
+        - name: managed-settings
+          mountPath: /etc/claude-code
+          readOnly: true
       resources:
         requests: { cpu: 100m, memory: 256Mi }
         limits:   { cpu: 1000m, memory: 1Gi }
@@ -118,3 +126,6 @@ spec:
     - name: mcp-config-src
       configMap:
         name: claude-code-agent-mcp-config
+    - name: managed-settings
+      configMap:
+        name: claude-code-agent-managed-settings
