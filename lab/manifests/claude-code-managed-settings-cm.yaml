@@ -36,6 +36,13 @@
 # This only works if `exec.enabled=true` is set on the chart release —
 # otherwise the warden MCP server only exposes the upstream-stub's
 # echo/add demo tools and the agent has no shell to fall back on.
+#
+# `model: claude-haiku-4-5` pins the lab agent to Haiku — the lab is
+# for evaluating the warden pipeline (Brain verdicts, policy gating,
+# HIL flow), not for getting the smartest possible agent answer.
+# Haiku is fast and cheap, and every call here is gated through the
+# warden security pipeline anyway. Override per-session with
+# `claude --model claude-opus-4-7` if a specific scenario needs more.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -46,6 +53,7 @@ metadata:
 data:
   managed-settings.json: |
     {
+      "model": "claude-haiku-4-5",
       "permissions": {
         "deny": [
           "Bash",
