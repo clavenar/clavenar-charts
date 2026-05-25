@@ -64,12 +64,28 @@ spec:
             secretKeyRef:
               name: claude-code-agent-anthropic
               key: ANTHROPIC_API_KEY
+      # readOnlyRootFilesystem keeps every writable surface explicit.
+      # The Claude Code CLI writes to ~/.claude (home emptyDir) and
+      # /tmp (tmp emptyDir); npm cache rides ~/.npm under the same
+      # emptyDir. /workspace is the only path warden-exec lets the
+      # agent ask for write-shaped operations under, and the
+      # exec-workspace PVC is shared RW between this pod and warden-exec
+      # so an operator can still `kubectl exec -- ls /workspace`.
+      securityContext:
+        readOnlyRootFilesystem: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
       volumeMounts:
         - name: certs
           mountPath: /certs
           readOnly: true
         - name: home
           mountPath: /home/agent
+        - name: tmp
+          mountPath: /tmp
+        - name: workspace
+          mountPath: /workspace
       resources:
         requests: { cpu: 100m, memory: 256Mi }
         limits:   { cpu: 1000m, memory: 1Gi }
@@ -90,6 +106,15 @@ spec:
             path: client.key
     - name: home
       emptyDir: {}
+    - name: tmp
+      emptyDir: {}
+    - name: workspace
+      persistentVolumeClaim:
+        # Provisioned by the chart's exec.yaml template as
+        # `<release>-exec-workspace` when exec.enabled=true. Replace
+        # `my-warden` to match the release name (same edit as the
+        # image-tag note at the top of this file).
+        claimName: my-warden-exec-workspace
     - name: mcp-config-src
       configMap:
         name: claude-code-agent-mcp-config

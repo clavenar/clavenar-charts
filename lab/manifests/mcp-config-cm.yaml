@@ -22,6 +22,21 @@ metadata:
     app.kubernetes.io/name: warden-lab
     app.kubernetes.io/component: claude-code-agent
 data:
+  # `permissions.deny` removes Claude Code's built-in tools from the
+  # agent's context. With them gone, the only execution surface is the
+  # `warden` MCP server below, which dispatches every tool call through
+  # warden-proxy → warden-brain + warden-policy-engine → warden-hil
+  # (when Yellow-tier) → warden-exec. Every shell command, file op,
+  # and HTTP fetch lands in the ledger.
+  #
+  # `allowManagedPermissionRulesOnly: true` pins the policy against a
+  # runtime user-setting flip that would re-enable the built-ins.
+  # Without this, an agent that successfully `WebFetch`-es a managed
+  # permissions URL could unblock itself.
+  #
+  # This only works if `exec.enabled=true` is set on the chart release
+  # — otherwise the warden MCP server only knows the upstream-stub's
+  # echo/add demo tools and the agent has no shell to fall back on.
   .claude.json: |
     {
       "mcpServers": {
@@ -36,5 +51,18 @@ data:
             "--client-hint", "claude-code"
           ]
         }
+      },
+      "permissions": {
+        "deny": [
+          "Bash",
+          "Read",
+          "Write",
+          "Edit",
+          "WebFetch",
+          "Glob",
+          "Grep",
+          "NotebookEdit"
+        ],
+        "allowManagedPermissionRulesOnly": true
       }
     }

@@ -10,6 +10,26 @@ This is lab-only. Production deploys run their agents externally and
 point them at the proxy from outside the cluster; the chart itself
 does not deploy this pod.
 
+## Lab posture vs. warden-exec
+
+As of chart 0.2.x, `exec.enabled=true` in `tests/values-bundled.yaml`
+puts `warden-exec` between the proxy and the upstream-stub. The lab
+`agent-pod.yaml` denylists every Claude Code built-in (`Bash`,
+`Read`, `Write`, `Edit`, `WebFetch`, `Glob`, `Grep`, `NotebookEdit`)
+and mounts the shared workspace PVC at `/workspace`. The only
+execution surface left is the `warden` MCP server, which means every
+shell command and file op the agent runs flows through Brain + Policy
++ HIL + ledger. To inspect what the agent did:
+
+```bash
+kubectl -n warden logs deploy/<release>-exec --tail=200 | grep tools/call
+kubectl -n warden exec -it claude-code-agent -- ls /workspace
+```
+
+To run without the gateway (raw Claude Code + warden as one MCP
+among many), set `exec.enabled=false` and trim the `permissions.deny`
+list in `manifests/mcp-config-cm.yaml`.
+
 ## Prerequisites
 
 1. **A warden release with the bundled upstream stub.** The chart must
