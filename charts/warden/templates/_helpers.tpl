@@ -165,7 +165,14 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
 - name: WARDEN_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
-{{- if .ctx.Values.upstreamStub.enabled }}
+{{- if .ctx.Values.exec.enabled }}
+# Execution-gateway in front of any upstream. warden-exec runs the
+# Claude-Code-built-in-parity tools locally and forwards everything
+# else to its WARDEN_EXEC_FALLBACK_URL (typically the upstream-stub
+# Service). Takes precedence over the bare upstreamStub wiring below.
+- name: WARDEN_UPSTREAM_URL
+  value: "http://{{ $rel }}-exec:{{ .ctx.Values.exec.port }}/mcp"
+{{- else if .ctx.Values.upstreamStub.enabled }}
 # Bundled echo-MCP target. Opt-in via upstreamStub.enabled. Operator
 # extraEnv setting WARDEN_UPSTREAM_URL still wins — Kubernetes applies
 # duplicate env entries last-write-wins and warden.commonEnv emits

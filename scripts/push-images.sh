@@ -26,6 +26,11 @@ SERVICES=(
     # bundled-lab upstreamStub Deployment runs. Operators enabling
     # upstreamStub.enabled need this image at the chart's appVersion.
     "warden-simulator"
+    # warden-exec is the execution-gateway MCP server the chart's
+    # `exec.enabled=true` Deployment runs in front of the upstream-stub.
+    # Required for the lab posture where Claude Code built-ins are
+    # denylisted and the only execution surface flows through warden.
+    "warden-exec"
 )
 
 # Seven of the nine Dockerfiles `COPY --from=<name>` source from sibling

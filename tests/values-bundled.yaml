@@ -72,8 +72,19 @@ tlsBundle:
 # Bundled echo-MCP target. Deploys warden-upstream-stub as a sidecar
 # Deployment + Service and auto-wires WARDEN_UPSTREAM_URL on the
 # proxy. Pairs with agentVaultSeed below — without the stub credential
-# in Vault, the proxy 403s every request.
+# in Vault, the proxy 403s every request. With `exec.enabled: true`
+# below, the stub becomes the warden-exec fallback target (initialize,
+# resources/*, echo, add) rather than the proxy's upstream.
 upstreamStub:
+  enabled: true
+
+# warden-exec sits between the proxy and the upstream-stub: it runs
+# the seven Claude-Code-built-in-parity tools (bash, read_file, …)
+# locally and forwards every other MCP frame to the stub. The lab
+# Claude Code pod (lab/manifests/) has its built-ins denylisted, so
+# the only path to a shell or file op runs through warden-exec, which
+# means through the full warden security pipeline.
+exec:
   enabled: true
 
 # Seed Vault with a stub api_key for the auto-mint starter cert's

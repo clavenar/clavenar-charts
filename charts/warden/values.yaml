@@ -92,6 +92,43 @@ upstreamStub:
     pullPolicy: IfNotPresent
   port: 9000
 
+# Execution-gateway MCP server. When `exec.enabled=true`, the chart
+# emits a Deployment + Service + workspace PVC for `warden-exec` and
+# the proxy points WARDEN_UPSTREAM_URL at it instead of the
+# upstream-stub. warden-exec implements the seven Claude-Code-built-in-
+# parity tools (bash, read_file, write_file, edit_file,
+# list_directory, search_files, fetch_url) and forwards everything
+# else to the upstream-stub via WARDEN_EXEC_FALLBACK_URL — tools/list
+# returns the union of both catalogs.
+#
+# Pairs with the lab pod's `permissions.deny` posture (see lab/) so
+# the only execution surface an agent can reach is one that flows
+# through the warden security pipeline. Lab-only in v1: the sandbox
+# is pod-level securityContext, not gVisor.
+#
+# `fetchAllowlist` is the v1 egress gate for `fetch_url` — default
+# empty denies every external HTTP call. Add hosts an operator
+# trusts (e.g. ["api.anthropic.com", "api.openai.com"]).
+exec:
+  enabled: false
+  image:
+    repository: ghcr.io/vanteguardlabs/warden-exec
+    # Empty → falls back to .Values.imageTag → Chart.appVersion.
+    tag: ""
+    pullPolicy: IfNotPresent
+  port: 9001
+  # Shared workspace PVC mounted at /workspace inside warden-exec and
+  # (when the lab pod is enabled) inside the agent pod RW so
+  # `kubectl exec -- ls /workspace` works for operators.
+  workspaceSize: 2Gi
+  # Default bash / fetch_url timeout in seconds. Per-call override
+  # via the tool's `timeout_seconds` argument.
+  timeoutSecs: 30
+  fetchAllowlist: []
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits:   { cpu: 250m, memory: 256Mi }
+
 # One-shot Job that seeds Vault with a stub api_key for agent-001 (the
 # CN baked into the auto-mint starter `client.crt`). The proxy refuses
 # every request with `403 No credentials found for agent <id>` until a

@@ -58,6 +58,7 @@ helm install my-warden . --namespace warden --create-namespace \
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
 | Upstream MCP target | `warden-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `WARDEN_UPSTREAM_URL` at a real MCP server |
+| Execution gateway | `warden-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes 7 Claude-Code-built-in-parity tools (`bash`, `read_file`, …) so an agent whose built-ins are denylisted still has a shell, but every call lands in the ledger | Lab-only; production still routes to a real MCP via `WARDEN_UPSTREAM_URL` |
 | Agent Vault credential | Stub `secret/data/agents/agent-001` seeded by post-install Job when `agentVaultSeed.enabled=true` | Operator seeds per-agent entries against their own Vault |
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
@@ -117,6 +118,19 @@ apply walkthrough.
 - **Deep-review** singleton — same posture as brain. Per-agent
   history rides NATS, daily token budget is per-pod (scale the
   cap, not the pods).
+- **Execution gateway** (opt-in via `exec.enabled=true`) —
+  `warden-exec` becomes the proxy's upstream, exposes seven tools
+  (`bash`, `read_file`, `write_file`, `edit_file`, `list_directory`,
+  `search_files`, `fetch_url`) that mirror Claude Code's built-ins,
+  and forwards anything else (initialize, `resources/*`,
+  `tools/list` discovery for non-exec tools) to the upstream-stub.
+  Pairs with the lab pod's `permissions.deny` posture so an agent
+  cannot reach a shell except through the warden pipeline. Single
+  replica because the workspace PVC is shared RW with the lab
+  agent pod. Egress for `fetch_url` defaults to deny-all until
+  `exec.fetchAllowlist` names a host. Sandboxing is pod-level
+  (`readOnlyRootFilesystem`, capability drop, RuntimeDefault
+  seccomp) — gVisor / Kata is v2.
 
 ## What's not wired
 
