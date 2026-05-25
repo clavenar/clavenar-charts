@@ -29,14 +29,16 @@ manifests together close the agent's escape hatches:
   Putting deny rules in `~/.claude.json` does **not** work; that
   file does not feed the permission system.
 
-`agent-pod.yaml` also mounts the shared workspace PVC at `/workspace`
-so an operator can `kubectl exec -- ls /workspace` alongside the
-agent. Net result: every shell command and file op the agent runs
-flows through Brain + Policy + HIL + ledger. Inspect with:
+`agent-pod.yaml`'s `/workspace` is a pod-private emptyDir — the
+agent process can't touch it directly because the built-in Write /
+Edit tools are denylisted. Agent state lives in **warden-exec's**
+PVC (`<release>-exec-workspace`), one canonicalize-and-jail
+directory deeper at `/workspace/<agent_id>/`. Operator visibility
+goes through that pod, not through the agent pod:
 
 ```bash
 kubectl -n warden logs deploy/<release>-exec --tail=200 | grep tools/call
-kubectl -n warden exec -it claude-code-agent -- ls /workspace
+kubectl -n warden exec deploy/<release>-exec -- ls /workspace
 ```
 
 To run without the gateway (raw Claude Code + warden as one MCP

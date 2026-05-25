@@ -117,12 +117,16 @@ spec:
     - name: tmp
       emptyDir: {}
     - name: workspace
-      persistentVolumeClaim:
-        # Provisioned by the chart's exec.yaml template as
-        # `<release>-exec-workspace` when exec.enabled=true. Replace
-        # `my-warden` to match the release name (same edit as the
-        # image-tag note at the top of this file).
-        claimName: my-warden-exec-workspace
+      # Pod-private emptyDir. The agent process itself can't write
+      # here because the built-in Write/Edit tools are denylisted —
+      # only the warden MCP server can, and that routes file ops to
+      # warden-exec's OWN /workspace PVC (`<release>-exec-workspace`).
+      # Operator visibility goes through warden-exec, not through this
+      # pod:
+      #   kubectl -n warden exec deploy/<release>-exec -- ls /workspace
+      # This mount mainly exists so the Claude Code CLI has a stable
+      # cwd to display in its prompt.
+      emptyDir: {}
     - name: mcp-config-src
       configMap:
         name: claude-code-agent-mcp-config
