@@ -22,12 +22,19 @@ metadata:
     app.kubernetes.io/name: warden-lab
     app.kubernetes.io/component: claude-code-agent
 data:
-  # ~/.claude.json holds MCP server registrations + OAuth state. The
-  # built-in-tool deny list lives separately in
+  # ~/.claude.json holds MCP server registrations + onboarding state.
+  # The built-in-tool deny list lives separately in
   # /etc/claude-code/managed-settings.json (see
   # claude-code-managed-settings-cm.yaml) — permissions in this file
   # do nothing; Claude Code reads them from settings.json / managed
   # settings instead.
+  #
+  # `hasCompletedOnboarding: true` skips the first-run wizard that
+  # otherwise asks the operator to pick between "Sign in to Claude"
+  # (OAuth via claude.ai) and "Use API key" — even when
+  # ANTHROPIC_API_KEY is set in the pod's env, the interactive wizard
+  # still runs and looks like a sign-in prompt. With this flag set,
+  # Claude Code falls through directly to ANTHROPIC_API_KEY auth.
   .claude.json: |
     {
       "mcpServers": {
@@ -42,5 +49,6 @@ data:
             "--client-hint", "claude-code"
           ]
         }
-      }
+      },
+      "hasCompletedOnboarding": true
     }
