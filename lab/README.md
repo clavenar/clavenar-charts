@@ -10,6 +10,14 @@ This is lab-only. Production deploys run their agents externally and
 point them at the proxy from outside the cluster; the chart itself
 does not deploy this pod.
 
+**No Kubernetes handy?** The same end-to-end pipeline runs as a
+docker-compose stack under [`warden-e2e`](https://github.com/vanteguardlabs/warden-e2e) —
+`cd prod && docker compose --profile stack up -d --build` (or
+`cd dev`) boots all eight services on a single host with the
+same wire contracts. The compose stack does not stand up a real
+Claude Code agent pod; for that scenario this lab is the
+canonical path.
+
 ## Lab posture vs. warden-exec
 
 As of chart 0.2.x, `exec.enabled=true` in `tests/values-bundled.yaml`

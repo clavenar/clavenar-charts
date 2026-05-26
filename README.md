@@ -22,9 +22,27 @@ plus a chart render decision tree, live in
 ```
 charts/warden/        # the chart — see charts/warden/README.md for the full
                      # quickstart, values reference, and per-service knobs
+lab/                  # optional Claude Code agent pod manifests for an
+                     # in-cluster end-to-end demo (proxy → brain → policy →
+                     # hil → ledger). See lab/README.md.
 .github/workflows/    # helm lint + template + kubeconform schema check
 SECURITY.md           # vulnerability reporting policy
 ```
+
+## Compose-native dev (warden-e2e)
+
+If you don't have a Kubernetes cluster handy, the compose-native
+stack at [`warden-e2e`](https://github.com/vanteguardlabs/warden-e2e)
+boots the same eight services under `docker compose --profile stack`
+on a single host. Same wire contracts, same TECH_SPEC.md, isolated
+prod / dev environments under `prod/` and `dev/`. That repo also
+hosts the MANUAL_TESTS.md scenarios and `bootstrap.sh` / `deploy.sh`
+operator runners.
+
+The Helm chart in this repo and the compose stack in warden-e2e
+are independent deploy paths — pick whichever matches your target.
+The lab manifests under `lab/` are the Kubernetes counterpart to
+warden-e2e's compose-native end-to-end test.
 
 ## Quick install
 
