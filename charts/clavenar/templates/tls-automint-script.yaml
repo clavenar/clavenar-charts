@@ -100,7 +100,7 @@ data:
     # the existing Secret was minted under the *same* SAN scheme.
     #
     # SAN-scheme drift detection: the Secret carries a label
-    # `warden.vanteguardlabs.com/san-scheme` recording the mint shape
+    # `clavenar.com/san-scheme` recording the mint shape
     # in effect when it was written. apply.sh compares against
     # EXPECTED_SAN_SCHEME (bumped in this script whenever the mint-time
     # SAN/extension shape changes — e.g. adding release-prefixed DNS
@@ -159,7 +159,7 @@ data:
     # Stamp the scheme label so future apply.sh runs can detect drift.
     # --overwrite handles the upgrade case (label exists from prior scheme).
     kubectl -n "${POD_NAMESPACE}" label --overwrite secret "${TLS_SECRET_NAME}" \
-        "warden.vanteguardlabs.com/san-scheme=${EXPECTED_SAN_SCHEME}"
+        "clavenar.com/san-scheme=${EXPECTED_SAN_SCHEME}"
 
     echo "Bundle written to Secret ${POD_NAMESPACE}/${TLS_SECRET_NAME} (scheme=${EXPECTED_SAN_SCHEME})"
 {{- end }}
