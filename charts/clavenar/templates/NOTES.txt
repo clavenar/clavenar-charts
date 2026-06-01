@@ -1,4 +1,4 @@
-Agent Warden installed as release: {{ .Release.Name }}
+Clavenar installed as release: {{ .Release.Name }}
 
 The eight services live behind ClusterIP — by default not exposed
 outside the cluster. Forward them locally:
@@ -27,28 +27,28 @@ Proxy serves /mcp + /metrics on its mTLS port (8443) only. /health
 and /readyz are *also* on a non-mTLS health listener (8080 by default,
 container-port only — not published by the Service). Kubelet probes
 target 8080. To exercise the mTLS path locally, point a client with
-valid certs at https://localhost:8443/ per warden-proxy/README.md.
+valid certs at https://localhost:8443/ per clavenar-proxy/README.md.
 
 {{- if and (not .Values.tlsBundle.secretName) (not .Values.tlsBundle.autoMint) }}
 
 WARNING: tlsBundle.secretName is empty.
 
-The proxy panics at boot without /certs mounted (see warden-proxy
+The proxy panics at boot without /certs mounted (see clavenar-proxy
 recurring-gotchas in CLAUDE.md). Three ways forward:
 
   1. Auto-mint inside the cluster (quickstart path):
 
        helm upgrade {{ .Release.Name }} . --reuse-values \
          --set tlsBundle.autoMint=true \
-         --set tlsBundle.secretName=warden-certs
+         --set tlsBundle.secretName=clavenar-certs
 
   2. Mint locally and project as a Secret:
 
-       warden-proxy/scripts/gen_certs.sh --env prod
-       kubectl -n {{ .Release.Namespace }} create secret generic warden-certs \
-         --from-file=warden-proxy/certs/
+       clavenar-proxy/scripts/gen_certs.sh --env prod
+       kubectl -n {{ .Release.Namespace }} create secret generic clavenar-certs \
+         --from-file=clavenar-proxy/certs/
        helm upgrade {{ .Release.Name }} . --reuse-values \
-         --set tlsBundle.secretName=warden-certs
+         --set tlsBundle.secretName=clavenar-certs
 
   3. Reuse an existing bundle Secret your PKI already publishes.
 {{- end }}
@@ -95,5 +95,5 @@ your CNI supports it:
 {{- end }}
 
 Chart layout: 8 services, 3 PVCs (ledger / hil / identity SQLite mode),
-NetworkPolicy + PDB opt-in. See charts/warden/README.md for the full
+NetworkPolicy + PDB opt-in. See charts/clavenar/README.md for the full
 values reference.

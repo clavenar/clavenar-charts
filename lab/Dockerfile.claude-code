@@ -1,34 +1,34 @@
-# Lab-only image: Claude Code CLI + wardenctl, bundled so the agent
+# Lab-only image: Claude Code CLI + clavenarctl, bundled so the agent
 # pod can `claude mcp list` and route every tool call through the
-# warden-proxy via `wardenctl mcp-bridge`. Not for production —
+# clavenar-proxy via `clavenarctl mcp-bridge`. Not for production —
 # operators running real agents externally don't need this image.
 #
-# Build context is the workspace root (the parent of warden-charts).
+# Build context is the workspace root (the parent of clavenar-charts).
 # `lab/scripts/build-agent-image.sh` handles the cd + tag.
 
-# ───── Stage 1: build wardenctl from sibling repos ───────────────────
-FROM rust:1-bookworm AS wardenctl-builder
+# ───── Stage 1: build clavenarctl from sibling repos ───────────────────
+FROM rust:1-bookworm AS clavenarctl-builder
 
-# Path-deps: warden-ctl pulls warden-sdk by relative path. Mirror the
+# Path-deps: clavenar-ctl pulls clavenar-sdk by relative path. Mirror the
 # workspace tree inside the builder so cargo resolves both. The Rego
-# templates subtree is `include_str!`'d into wardenctl's `policy`
-# subcommand at compile time (warden-ctl/src/cmd/policy.rs) — only the
+# templates subtree is `include_str!`'d into clavenarctl's `policy`
+# subcommand at compile time (clavenar-ctl/src/cmd/policy.rs) — only the
 # templates/ subtree is needed, not the whole policy-engine repo.
 WORKDIR /workspace
-COPY warden-ctl                       ./warden-ctl
-COPY warden-sdk                       ./warden-sdk
-COPY warden-policy-engine/policies    ./warden-policy-engine/policies
+COPY clavenar-ctl                       ./clavenar-ctl
+COPY clavenar-sdk                       ./clavenar-sdk
+COPY clavenar-policy-engine/policies    ./clavenar-policy-engine/policies
 
-WORKDIR /workspace/warden-ctl
+WORKDIR /workspace/clavenar-ctl
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/workspace/warden-ctl/target \
-    cargo build --release --bin wardenctl && \
-    cp target/release/wardenctl /usr/local/bin/wardenctl
+    --mount=type=cache,target=/workspace/clavenar-ctl/target \
+    cargo build --release --bin clavenarctl && \
+    cp target/release/clavenarctl /usr/local/bin/clavenarctl
 
-# ───── Stage 2: runtime image with Claude Code + wardenctl ───────────
+# ───── Stage 2: runtime image with Claude Code + clavenarctl ───────────
 FROM node:20-bookworm-slim AS runtime
 
-# ca-certificates so wardenctl mcp-bridge can validate the proxy's
+# ca-certificates so clavenarctl mcp-bridge can validate the proxy's
 # server cert against the in-cluster CA mount. tini for proper PID 1
 # under `kubectl exec` so Ctrl-C in a session reaps cleanly.
 RUN apt-get update && \
@@ -40,9 +40,9 @@ RUN apt-get update && \
 RUN npm install -g @anthropic-ai/claude-code@latest && \
     npm cache clean --force
 
-COPY --from=wardenctl-builder /usr/local/bin/wardenctl /usr/local/bin/wardenctl
+COPY --from=clavenarctl-builder /usr/local/bin/clavenarctl /usr/local/bin/clavenarctl
 
-# Nonroot UID matches the warden services' convention (Google distroless
+# Nonroot UID matches the clavenar services' convention (Google distroless
 # nonroot). Pod's tlsBundle Secret is chmod 644 on the keys, so reading
 # /certs/{ca,client.crt,client.key} works.
 RUN groupadd --gid 65532 agent && \

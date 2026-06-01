@@ -5,27 +5,27 @@
 # chain — they cannot be overridden by user settings (~/.claude/settings.json),
 # project settings (.claude/settings.json), or by the agent rewriting
 # its own config at runtime. That's the property we need: a Red verdict
-# from the warden pipeline must not be circumventable by a clever
+# from the clavenar pipeline must not be circumventable by a clever
 # agent that flips `permissions.allow` in its home dir.
 #
 # `permissions.deny` here removes every Claude Code built-in tool
 # (Bash, Read, Write, Edit, WebFetch, Glob, Grep, NotebookEdit) from
 # the agent's available toolset. With them gone, the only execution
-# surface left is the `warden` MCP server registered in
+# surface left is the `clavenar` MCP server registered in
 # claude-code-agent-mcp-config, which dispatches every tool call
-# through warden-proxy → warden-brain + warden-policy-engine →
-# warden-hil (Yellow-tier) → warden-exec. Every shell command, file
+# through clavenar-proxy → clavenar-brain + clavenar-policy-engine →
+# clavenar-hil (Yellow-tier) → clavenar-exec. Every shell command, file
 # op, and HTTP fetch the agent runs lands in the ledger with a Brain
 # verdict and Policy reasons.
 #
-# `permissions.allow: ["mcp__warden"]` pre-approves every tool from
-# the `warden` MCP server, including the seven warden-exec primitives
+# `permissions.allow: ["mcp__clavenar"]` pre-approves every tool from
+# the `clavenar` MCP server, including the seven clavenar-exec primitives
 # and the upstream-stub demo tools. Without this, Claude Code's
 # default "ask before every tool" prompt fires on every call and the
-# agent stalls waiting for user approval. The warden pipeline already
+# agent stalls waiting for user approval. The clavenar pipeline already
 # runs Brain + Policy + HIL on every call, so the Claude-Code-side
 # prompt is redundant safety — pre-approving the whole server lets
-# warden's own gating do the work end-to-end.
+# clavenar's own gating do the work end-to-end.
 #
 # `allowManagedPermissionRulesOnly: true` pins the policy: lower-
 # precedence config files cannot add `allow`, `ask`, or `deny` rules
@@ -34,21 +34,21 @@
 # user-settings allow rules.
 #
 # This only works if `exec.enabled=true` is set on the chart release —
-# otherwise the warden MCP server only exposes the upstream-stub's
+# otherwise the clavenar MCP server only exposes the upstream-stub's
 # echo/add demo tools and the agent has no shell to fall back on.
 #
 # `model: claude-haiku-4-5` pins the lab agent to Haiku — the lab is
-# for evaluating the warden pipeline (Brain verdicts, policy gating,
+# for evaluating the clavenar pipeline (Brain verdicts, policy gating,
 # HIL flow), not for getting the smartest possible agent answer.
 # Haiku is fast and cheap, and every call here is gated through the
-# warden security pipeline anyway. Override per-session with
+# clavenar security pipeline anyway. Override per-session with
 # `claude --model claude-opus-4-7` if a specific scenario needs more.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: claude-code-agent-managed-settings
   labels:
-    app.kubernetes.io/name: warden-lab
+    app.kubernetes.io/name: clavenar-lab
     app.kubernetes.io/component: claude-code-agent
 data:
   managed-settings.json: |
@@ -66,7 +66,7 @@ data:
           "NotebookEdit"
         ],
         "allow": [
-          "mcp__warden"
+          "mcp__clavenar"
         ]
       },
       "allowManagedPermissionRulesOnly": true

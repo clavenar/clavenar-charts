@@ -3,14 +3,14 @@
 # `services.<svc>`.
 
 # Tag fallback chain: services.<svc>.image.tag → imageTag → appVersion.
-imageRegistry: ghcr.io/vanteguardlabs
+imageRegistry: ghcr.io/clavenar
 imageTag: ""
 imagePullPolicy: IfNotPresent
 imagePullSecrets: []
 
 # NATS + Vault default to BYO (bring-your-own). Flip `bundled.enabled`
 # to have the chart install the upstream subcharts alongside the
-# warden services in a single `helm install` — see Chart.yaml deps.
+# clavenar services in a single `helm install` — see Chart.yaml deps.
 nats:
   # Injected as NATS_URL into every service when bundled.enabled is
   # false. When bundled.enabled is true, the helper overrides this
@@ -18,7 +18,7 @@ nats:
   url: nats://nats:4222
   bundled:
     # Set true to install the upstream nats-io/nats subchart
-    # alongside the warden services. Single-node JetStream is the
+    # alongside the clavenar services. Single-node JetStream is the
     # default shape; see tests/values-bundled.yaml for the canonical
     # bundled config (JetStream + PVC + mTLS). All other keys under
     # `nats:` pass through to the upstream subchart — see
@@ -26,11 +26,11 @@ nats:
     # for the full surface.
     #
     # mTLS coupling: when `tlsBundle.secretName` is also set, the
-    # warden services dial NATS over TLS (NATS_TLS_{CERT,KEY,CA}_PATH
+    # clavenar services dial NATS over TLS (NATS_TLS_{CERT,KEY,CA}_PATH
     # → require_tls in async-nats). The subchart must terminate TLS to
     # match — set `nats.config.nats.tls.enabled: true` (+ `verify: true`
     # via `merge`) and `nats.tlsCA.enabled: true` against the same
-    # Secret. The warden.natsUrl helper render-fails if you enable one
+    # Secret. The clavenar.natsUrl helper render-fails if you enable one
     # side without the other (avoids the `InvalidContentType` crash).
     enabled: false
 
@@ -46,7 +46,7 @@ vault:
   bundled:
     # Set true to install the upstream hashicorp/vault subchart
     # in dev mode (auto-unsealed, in-memory) and auto-provision the
-    # transit engine + `warden-identity` key via a post-install Job.
+    # transit engine + `clavenar-identity` key via a post-install Job.
     # Dev mode loses state on pod restart; the post-install hook
     # re-creates the transit key on every upgrade. Production
     # deployments should set this false and point `vault.addr` /
@@ -57,18 +57,18 @@ vault:
     devToken: root
     transit:
       # Name of the transit key the bootstrap Job creates. Must match
-      # `warden-identity`'s `WARDEN_IDENTITY_VAULT_KEY_NAME` env
-      # (default `warden-identity`). Override only if you've changed
+      # `clavenar-identity`'s `CLAVENAR_IDENTITY_VAULT_KEY_NAME` env
+      # (default `clavenar-identity`). Override only if you've changed
       # the identity-side env explicitly.
-      keyName: warden-identity
+      keyName: clavenar-identity
 
-# Bundled lab-only echo MCP server. The warden-proxy forwards every
-# approved tool call to WARDEN_UPSTREAM_URL; production deploys point
+# Bundled lab-only echo MCP server. The clavenar-proxy forwards every
+# approved tool call to CLAVENAR_UPSTREAM_URL; production deploys point
 # this at a real MCP server (filesystem-MCP, GitHub-MCP, etc.). Setting
-# `upstreamStub.enabled=true` instead deploys the `warden-upstream-stub`
-# binary (shipped inside the warden-simulator image) as a sidecar
+# `upstreamStub.enabled=true` instead deploys the `clavenar-upstream-stub`
+# binary (shipped inside the clavenar-simulator image) as a sidecar
 # Deployment + Service in the release and auto-wires
-# `WARDEN_UPSTREAM_URL=http://<release>-upstream-stub:9000/mcp` on the
+# `CLAVENAR_UPSTREAM_URL=http://<release>-upstream-stub:9000/mcp` on the
 # proxy. The stub echoes every MCP frame back verbatim — handy for
 # proving the Brain + Policy + HIL + ledger path end-to-end without
 # bringing up a real MCP server. Not for production use.
@@ -78,12 +78,12 @@ vault:
 upstreamStub:
   enabled: false
   image:
-    # The simulator image ships `warden-upstream-stub` as a secondary
+    # The simulator image ships `clavenar-upstream-stub` as a secondary
     # binary alongside the main simulator. Same image, command override
     # in templates/upstream-stub.yaml selects the stub binary.
-    repository: ghcr.io/vanteguardlabs/warden-simulator
+    repository: ghcr.io/clavenar/clavenar-simulator
     # Empty → falls back to .Values.imageTag → Chart.appVersion. Safe
-    # to track appVersion now that every published warden-simulator
+    # to track appVersion now that every published clavenar-simulator
     # image ships the MCP-protocol-compliant upstream-stub binary
     # (real initialize + tools/list + tools/call shapes). The earlier
     # 0.1.1 echo-only stub is the only ancestor that couldn't satisfy
@@ -93,17 +93,17 @@ upstreamStub:
   port: 9000
 
 # Execution-gateway MCP server. When `exec.enabled=true`, the chart
-# emits a Deployment + Service + workspace PVC for `warden-exec` and
-# the proxy points WARDEN_UPSTREAM_URL at it instead of the
-# upstream-stub. warden-exec implements the seven Claude-Code-built-in-
+# emits a Deployment + Service + workspace PVC for `clavenar-exec` and
+# the proxy points CLAVENAR_UPSTREAM_URL at it instead of the
+# upstream-stub. clavenar-exec implements the seven Claude-Code-built-in-
 # parity tools (bash, read_file, write_file, edit_file,
 # list_directory, search_files, fetch_url) and forwards everything
-# else to the upstream-stub via WARDEN_EXEC_FALLBACK_URL — tools/list
+# else to the upstream-stub via CLAVENAR_EXEC_FALLBACK_URL — tools/list
 # returns the union of both catalogs.
 #
 # Pairs with the lab pod's `permissions.deny` posture (see lab/) so
 # the only execution surface an agent can reach is one that flows
-# through the warden security pipeline. Lab-only in v1: the sandbox
+# through the clavenar security pipeline. Lab-only in v1: the sandbox
 # is pod-level securityContext, not gVisor.
 #
 # `fetchAllowlist` is the v1 egress gate for `fetch_url` — default
@@ -112,12 +112,12 @@ upstreamStub:
 exec:
   enabled: false
   image:
-    repository: ghcr.io/vanteguardlabs/warden-exec
+    repository: ghcr.io/clavenar/clavenar-exec
     # Empty → falls back to .Values.imageTag → Chart.appVersion.
     tag: ""
     pullPolicy: IfNotPresent
   port: 9001
-  # Shared workspace PVC mounted at /workspace inside warden-exec and
+  # Shared workspace PVC mounted at /workspace inside clavenar-exec and
   # (when the lab pod is enabled) inside the agent pod RW so
   # `kubectl exec -- ls /workspace` works for operators.
   workspaceSize: 2Gi
@@ -153,7 +153,7 @@ agentVaultSeed:
 # Bare-name DNS alias from `proxy` to the actual `<release>-proxy`
 # Service. In-cluster clients need to dial `proxy` (not
 # `<release>-proxy`) because the auto-mint script stamps the proxy
-# server cert SAN as `DNS:proxy, DNS:proxy.warden.local,
+# server cert SAN as `DNS:proxy, DNS:proxy.clavenar.local,
 # DNS:localhost` — the TLS handshake validates SNI against the SAN.
 #
 # Enable for any lab / dev deploy where agents speak directly to the
@@ -163,13 +163,13 @@ agentVaultSeed:
 proxyAlias:
   enabled: false
 
-# Drain cap in seconds. Set as WARDEN_GRACEFUL_DRAIN_SECS;
+# Drain cap in seconds. Set as CLAVENAR_GRACEFUL_DRAIN_SECS;
 # terminationGracePeriodSeconds = drainCapSecs + 5 so kubelet SIGKILL
 # fires after the in-process watchdog has had its window.
 drainCapSecs: 30
 
-# Grafana dashboard ConfigMaps. Bundles warden-overview + warden-cost
-# (the two dashboards shipped under charts/warden/dashboards/). The
+# Grafana dashboard ConfigMaps. Bundles clavenar-overview + clavenar-cost
+# (the two dashboards shipped under charts/clavenar/dashboards/). The
 # kube-prometheus-stack Grafana sidecar discovers them via the
 # `grafana_dashboard: "1"` label. Disable if your Grafana isn't running
 # the sidecar — operators can still import the JSON manually from
@@ -178,7 +178,7 @@ dashboards:
   enabled: true
 
 # Prometheus alerting rules. Ship the rule catalog
-# (charts/warden/alerts/*.yaml) into a ConfigMap labelled
+# (charts/clavenar/alerts/*.yaml) into a ConfigMap labelled
 # `prometheus_rule: "1"`. kube-prometheus-stack discovers via that
 # label. Set `enabled: false` if your Prometheus is configured to
 # load rules differently.
@@ -186,10 +186,10 @@ alerting:
   enabled: true
 
 # Alertmanager routing. Disabled by default — most operators already
-# run an Alertmanager and want to merge warden alerts into it.
+# run an Alertmanager and want to merge clavenar alerts into it.
 # When enabled, the chart projects a Secret with severity-based
 # routing (critical → slack + email, warning → slack only). Channel
-# `#warden-ops` is deliberately distinct from HIL's `#warden-approvals`.
+# `#clavenar-ops` is deliberately distinct from HIL's `#clavenar-approvals`.
 alertmanager:
   enabled: false
   slack:
@@ -243,7 +243,7 @@ services:
     enabled: true
     replicas: 1
     image:
-      repository: warden-proxy
+      repository: clavenar-proxy
       tag: ""
     port: 8443        # mTLS surface — Service exposes this for agents
     healthPort: 8080  # plain-HTTP /health + /readyz — kubelet probes this
@@ -258,7 +258,7 @@ services:
       # Proxy's main port is mTLS-gated; probes target healthPort.
       port: 8080
     extraEnv:
-      - name: WARDEN_PROXY_HEALTH_ADDR
+      - name: CLAVENAR_PROXY_HEALTH_ADDR
         value: 0.0.0.0:8080
     # Metrics on the plain-HTTP port so vanilla Prometheus pods can
     # scrape without a client cert.
@@ -270,12 +270,12 @@ services:
     enabled: true
     replicas: 1
     image:
-      repository: warden-brain
+      repository: clavenar-brain
       tag: ""
     # Application port. Plain HTTP without tlsBundle.secretName set;
     # rustls + SPIFFE-allowlist on the same port when the bundle is
-    # mounted. WARDEN_BRAIN_TLS_DIR + ALLOWED_CALLERS env vars are
-    # auto-injected by `warden.backendEnvs` when tlsBundle is set
+    # mounted. CLAVENAR_BRAIN_TLS_DIR + ALLOWED_CALLERS env vars are
+    # auto-injected by `clavenar.backendEnvs` when tlsBundle is set
     # (B7 v1.x+2 session 3).
     port: 8081
     # Plain-HTTP /health + /readyz + /metrics under TLS mode so
@@ -304,12 +304,12 @@ services:
     enabled: true
     replicas: 1
     image:
-      repository: warden-policy-engine
+      repository: clavenar-policy-engine
       tag: ""
     # Application port. Plain HTTP without tlsBundle.secretName set;
     # rustls + SPIFFE-allowlist on the same port when the bundle is
-    # mounted. WARDEN_POLICY_TLS_DIR + ALLOWED_CALLERS env vars are
-    # auto-injected by `warden.backendEnvs` when tlsBundle is set
+    # mounted. CLAVENAR_POLICY_TLS_DIR + ALLOWED_CALLERS env vars are
+    # auto-injected by `clavenar.backendEnvs` when tlsBundle is set
     # (B7 v1.x+2 session 4).
     port: 8082
     # Plain-HTTP /health + /readyz + /metrics under TLS mode (kubelet
@@ -337,8 +337,8 @@ services:
     # on a shared RWX PVC, and SQLite's WAL doesn't help across hosts.
     #
     # Postgres mode lifts that pin. Set:
-    #   WARDEN_LEDGER_BACKEND: "postgres"
-    #   WARDEN_LEDGER_PG_URL: "postgres://user:pass@host:5432/warden"
+    #   CLAVENAR_LEDGER_BACKEND: "postgres"
+    #   CLAVENAR_LEDGER_PG_URL: "postgres://user:pass@host:5432/clavenar"
     # and the ledger pool can scale to N replicas (Postgres serializes
     # the chain append on a UNIQUE(seq) constraint; deadpool sizes
     # the per-pod pool). Cold-tier export, regulatory bundles,
@@ -347,14 +347,14 @@ services:
     # against the Postgres chain table instead. See HA_RUNBOOK.md.
     replicas: 1
     image:
-      repository: warden-ledger
+      repository: clavenar-ledger
       tag: ""
     # Plain HTTP listener — serves Caddy / Ingress for the public
     # `/verify` + `/audit/{agent_id}*` browser surface, kubelet probes
     # (`/health` + `/readyz`), and Prometheus scrapes (`/metrics`).
     port: 8083
     # mTLS application port under TLS mode (B7 v1.x+2 session 5).
-    # `warden.backendEnvs` injects WARDEN_LEDGER_MTLS_ADDR pointing
+    # `clavenar.backendEnvs` injects CLAVENAR_LEDGER_MTLS_ADDR pointing
     # here when tlsBundle is set; the internal write + console-only
     # read surface lives behind rustls + SPIFFE-allowlist. Exposed as
     # a second Service port (`name: mtls`) when tlsBundle.secretName
@@ -369,12 +369,12 @@ services:
       type: httpGet
       health: /health
       ready: /readyz
-    # SQLite default. To use Postgres, drop WARDEN_LEDGER_DB, add
-    # `WARDEN_LEDGER_BACKEND=postgres` + `WARDEN_LEDGER_PG_URL=…`,
+    # SQLite default. To use Postgres, drop CLAVENAR_LEDGER_DB, add
+    # `CLAVENAR_LEDGER_BACKEND=postgres` + `CLAVENAR_LEDGER_PG_URL=…`,
     # and bump `replicas`.
     extraEnv:
-      - name: WARDEN_LEDGER_DB
-        value: /var/lib/warden/ledger.db
+      - name: CLAVENAR_LEDGER_DB
+        value: /var/lib/clavenar/ledger.db
     metrics:
       enabled: true
 
@@ -385,7 +385,7 @@ services:
     # trait migration spreading from ledger to hil + identity.
     replicas: 1
     image:
-      repository: warden-hil
+      repository: clavenar-hil
       tag: ""
     port: 8084
     # Plain-HTTP /health + /readyz + /metrics under mTLS receive
@@ -401,8 +401,8 @@ services:
       health: /health
       ready: /readyz
     extraEnv:
-      - name: WARDEN_HIL_DB
-        value: /var/lib/warden/hil.db
+      - name: CLAVENAR_HIL_DB
+        value: /var/lib/clavenar/hil.db
     metrics:
       enabled: true
 
@@ -413,7 +413,7 @@ services:
     # ledger and hil.
     replicas: 1
     image:
-      repository: warden-identity
+      repository: clavenar-identity
       tag: ""
     port: 8086
     # Dual-listener under mTLS receive (session 6). Plain HTTP on
@@ -431,12 +431,12 @@ services:
       health: /health
       ready: /readyz
     extraEnv:
-      - name: WARDEN_IDENTITY_DB
-        value: /var/lib/warden/identity.db
+      - name: CLAVENAR_IDENTITY_DB
+        value: /var/lib/clavenar/identity.db
     metrics:
       enabled: true
 
-  # Forensic-tier async auditor. Subscribes to warden.forensic, samples,
+  # Forensic-tier async auditor. Subscribes to clavenar.forensic, samples,
   # runs the configured LLM against the bundle. Pairs with brain (fast,
   # in-band) as the slow-but-deep tier. Spec §"Forensic-tier deep review".
   # Singleton like brain — no PVC; per-agent history rides NATS, daily
@@ -446,7 +446,7 @@ services:
     enabled: true
     replicas: 1
     image:
-      repository: warden-deep-review
+      repository: clavenar-deep-review
       tag: ""
     # /metrics + /health scrape port. 8087 because identity owns 8086.
     port: 8087
@@ -457,7 +457,7 @@ services:
     # Deep-review's axum router only mounts /health (not /readyz like
     # the other services); pointing readiness at /health avoids the
     # 404 that would otherwise hold the pod NotReady forever. Worth
-    # adding a real /readyz to warden-deep-review as a follow-up.
+    # adding a real /readyz to clavenar-deep-review as a follow-up.
     probes:
       type: httpGet
       health: /health
@@ -466,11 +466,11 @@ services:
     # account. Prod overrides via --set or secretKeyRef. Daily token
     # cap matches the demo-VPS pin — bump for real-traffic operators.
     extraEnv:
-      - name: WARDEN_DEEP_REVIEW_ANTHROPIC_API_KEY
+      - name: CLAVENAR_DEEP_REVIEW_ANTHROPIC_API_KEY
         value: mock-key
-      - name: WARDEN_DEEP_REVIEW_DAILY_TOKEN_CAP
+      - name: CLAVENAR_DEEP_REVIEW_DAILY_TOKEN_CAP
         value: "200000"
-      - name: WARDEN_DEEP_REVIEW_SAMPLE_RATE_GREEN
+      - name: CLAVENAR_DEEP_REVIEW_SAMPLE_RATE_GREEN
         value: "0.01"
     metrics:
       enabled: true
@@ -486,7 +486,7 @@ services:
     enabled: true
     replicas: 1
     image:
-      repository: warden-console
+      repository: clavenar-console
       tag: ""
     port: 8085
     serviceType: ClusterIP
@@ -501,31 +501,31 @@ services:
     # the helper. Override via --set if you front the stack with a
     # service mesh that renames Services.
     extraEnv:
-      - name: WARDEN_CONSOLE_BIND
+      - name: CLAVENAR_CONSOLE_BIND
         value: 0.0.0.0
       # Auth mode default is `disabled` so a fresh install boots
       # without operator OIDC/SAML config. Other modes (oidc,
       # webauthn, basic-admin, saml) require additional env that
       # operators set via --set or a values overlay; see
-      # warden-console/src/auth_session.rs for the per-mode
+      # clavenar-console/src/auth_session.rs for the per-mode
       # required env. Decide-token is wired regardless (the
       # shared-tokens Secret) — every mode requires it.
-      - name: WARDEN_CONSOLE_AUTH
+      - name: CLAVENAR_CONSOLE_AUTH
         value: disabled
       # `disabled` + 0.0.0.0 bind would otherwise be rejected as a
       # production footgun (unauthenticated access from anywhere on
       # the cluster network). The chart's posture is deliberate for
       # lab/dev installs — every Service is ClusterIP-only and the
       # bundled stack matches the compose-stack threat model.
-      # Production operators should flip WARDEN_CONSOLE_AUTH to a
+      # Production operators should flip CLAVENAR_CONSOLE_AUTH to a
       # real mode (oidc/webauthn/saml) and drop this override.
-      - name: WARDEN_CONSOLE_ALLOW_DISABLED_NETWORK
+      - name: CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK
         value: "true"
     metrics:
       enabled: true
 
-# Persistence — SQLite-backed services only. Mounts at /var/lib/warden
-# (matches WARDEN_*_DB defaults). Disable for emptyDir.
+# Persistence — SQLite-backed services only. Mounts at /var/lib/clavenar
+# (matches CLAVENAR_*_DB defaults). Disable for emptyDir.
 persistence:
   ledger:
     enabled: true
@@ -543,17 +543,17 @@ persistence:
     storageClass: ""
     accessMode: ReadWriteOnce
 
-# Cert bundle mount. Single k8s Secret carries the warden CA + per-service
+# Cert bundle mount. Single k8s Secret carries the clavenar CA + per-service
 # workload certs (B7 v1.x+2). Generate with
-# `warden-proxy/scripts/gen_certs.sh --env prod` then
-# `kubectl create secret generic warden-tls --from-file=warden-proxy/certs/`.
+# `clavenar-proxy/scripts/gen_certs.sh --env prod` then
+# `kubectl create secret generic clavenar-tls --from-file=clavenar-proxy/certs/`.
 #
 # Files expected in the Secret:
 #   ca.crt                       — CA root, mounted on every pod
 #   server.crt + server.key      — proxy's agent-facing server cert (proxy only)
 #   client.crt + client.key      — agent client cert (legacy / starter agent)
 #   service-<name>.crt + .key    — per-service workload identity with SAN URI
-#                                  spiffe://warden.local/service/<name>;
+#                                  spiffe://clavenar.local/service/<name>;
 #                                  one pair per backend service.
 #
 # Per-pod projection: each Deployment mounts only ca.crt + its own
@@ -578,8 +578,8 @@ tlsBundle:
   # and supply the bundle from a managed PKI instead.
   autoMint: false
   # Workload names that get a per-service cert. The 8 default
-  # warden services live here; "nats" is auto-appended by
-  # `warden.bundleServices` when `nats.bundled.enabled`.
+  # clavenar services live here; "nats" is auto-appended by
+  # `clavenar.bundleServices` when `nats.bundled.enabled`.
   bundleServices:
     - proxy
     - brain
@@ -591,9 +591,9 @@ tlsBundle:
     - console
   # SPIFFE trust domain stamped into each workload cert's SAN URI
   # (URI:spiffe://<domain>/service/<name>). Matches the compose
-  # stack's `warden.local`. Change only if you've adjusted the
-  # `WARDEN_*_ALLOWED_CALLERS` allowlists on the consuming services.
-  spiffeTrustDomain: warden.local
+  # stack's `clavenar.local`. Change only if you've adjusted the
+  # `CLAVENAR_*_ALLOWED_CALLERS` allowlists on the consuming services.
+  spiffeTrustDomain: clavenar.local
   # Auto-mint Job runs two containers sharing an emptyDir:
   #   mintImage  — openssl-only, generates CA + per-service certs
   #                into /work. alpine/openssl is ~10MB.

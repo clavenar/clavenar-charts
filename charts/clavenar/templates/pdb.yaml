@@ -15,14 +15,14 @@ Disable the whole feature via .Values.podDisruptionBudget.enabled=false.
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}
+  name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}
   labels:
-    {{- include "warden.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
 spec:
   minAvailable: {{ $minAvailable }}
   selector:
     matchLabels:
-      {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
+      {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
 {{- end }}
 {{- end }}
 {{- end }}

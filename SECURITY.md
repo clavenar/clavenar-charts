@@ -1,6 +1,6 @@
 # Security Policy
 
-Agent Warden is a security product. We take vulnerability reports seriously
+Clavenar is a security product. We take vulnerability reports seriously
 and aim to acknowledge every report within 72 hours.
 
 ## Reporting a vulnerability
@@ -12,7 +12,7 @@ Email **vanteguardlabs@gmail.com** with:
   that reproduces the surface is appreciated but not required if the issue
   is structural.
 - Affected chart version (from `Chart.yaml:version`) and the specific
-  template path (e.g. `charts/warden/templates/networkpolicy.yaml`).
+  template path (e.g. `charts/clavenar/templates/networkpolicy.yaml`).
 - Whether you would like public credit in the disclosure announcement.
 
 PGP/GPG: not yet available. If you need an encrypted channel, mention it
@@ -22,9 +22,9 @@ in your initial email and we will arrange one.
 
 In scope:
 
-- Every template and helper under `charts/warden/` — Deployment shapes,
+- Every template and helper under `charts/clavenar/` — Deployment shapes,
   Service definitions, NetworkPolicy rules, PodDisruptionBudget logic,
-  the `warden.serviceFullname` helper kebab-casing, the per-pod secret
+  the `clavenar.serviceFullname` helper kebab-casing, the per-pod secret
   projection that isolates one service's private key from another.
 - Default `values.yaml` knobs that ship with the chart — anything an
   out-of-the-box `helm install` produces.
@@ -35,14 +35,14 @@ Out of scope:
 
 - Bugs in the per-service runtime binaries (proxy, brain, policy-engine,
   ledger, hil, identity, deep-review, console). Report those against
-  the relevant `warden-<service>` repository's `SECURITY.md`.
+  the relevant `clavenar-<service>` repository's `SECURITY.md`.
 - Bugs in upstream dependencies operators bring themselves — NATS,
   Vault, cert-manager, the container runtime, the k8s control plane.
 - Findings against demo / simulator components when wired into a
   chart-deployed cluster — those tools' admin surfaces are intentionally
   unauthenticated on loopback only.
 - Self-XSS, clickjacking, or other browser-side findings against the
-  console (covered in `warden-console/SECURITY.md`).
+  console (covered in `clavenar-console/SECURITY.md`).
 
 ## Safe harbor
 

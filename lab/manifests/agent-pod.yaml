@@ -2,7 +2,7 @@
 #   kubectl exec -it claude-code-agent -- claude
 #
 # Mounts:
-#   /certs — warden tlsBundle Secret (chart-auto-minted CA + starter
+#   /certs — clavenar tlsBundle Secret (chart-auto-minted CA + starter
 #            client cert + key). Read-only.
 #   /home/agent — writable emptyDir. An initContainer copies the
 #            mcp-config ConfigMap to /home/agent/.claude.json so Claude
@@ -16,7 +16,7 @@
 #
 # The image needs to exist at the tagged path — see
 # lab/scripts/build-agent-image.sh. The release name placeholder
-# `my-warden` appears in two spots (image tag's appVersion + proxy URL
+# `my-clavenar` appears in two spots (image tag's appVersion + proxy URL
 # in the ConfigMap); change both before applying for a non-default
 # release.
 apiVersion: v1
@@ -24,7 +24,7 @@ kind: Pod
 metadata:
   name: claude-code-agent
   labels:
-    app.kubernetes.io/name: warden-lab
+    app.kubernetes.io/name: clavenar-lab
     app.kubernetes.io/component: claude-code-agent
 spec:
   restartPolicy: Always
@@ -37,7 +37,7 @@ spec:
       type: RuntimeDefault
   initContainers:
     - name: prime-home
-      image: ghcr.io/vanteguardlabs/warden-claude-code-agent:latest
+      image: ghcr.io/clavenar/clavenar-claude-code-agent:latest
       imagePullPolicy: IfNotPresent
       command:
         - /bin/sh
@@ -56,7 +56,7 @@ spec:
           readOnly: true
   containers:
     - name: agent
-      image: ghcr.io/vanteguardlabs/warden-claude-code-agent:latest
+      image: ghcr.io/clavenar/clavenar-claude-code-agent:latest
       imagePullPolicy: IfNotPresent
       env:
         - name: ANTHROPIC_API_KEY
@@ -67,9 +67,9 @@ spec:
       # readOnlyRootFilesystem keeps every writable surface explicit.
       # The Claude Code CLI writes to ~/.claude (home emptyDir) and
       # /tmp (tmp emptyDir); npm cache rides ~/.npm under the same
-      # emptyDir. /workspace is the only path warden-exec lets the
+      # emptyDir. /workspace is the only path clavenar-exec lets the
       # agent ask for write-shaped operations under, and the
-      # exec-workspace PVC is shared RW between this pod and warden-exec
+      # exec-workspace PVC is shared RW between this pod and clavenar-exec
       # so an operator can still `kubectl exec -- ls /workspace`.
       securityContext:
         readOnlyRootFilesystem: true
@@ -119,11 +119,11 @@ spec:
     - name: workspace
       # Pod-private emptyDir. The agent process itself can't write
       # here because the built-in Write/Edit tools are denylisted —
-      # only the warden MCP server can, and that routes file ops to
-      # warden-exec's OWN /workspace PVC (`<release>-exec-workspace`).
-      # Operator visibility goes through warden-exec, not through this
+      # only the clavenar MCP server can, and that routes file ops to
+      # clavenar-exec's OWN /workspace PVC (`<release>-exec-workspace`).
+      # Operator visibility goes through clavenar-exec, not through this
       # pod:
-      #   kubectl -n warden exec deploy/<release>-exec -- ls /workspace
+      #   kubectl -n clavenar exec deploy/<release>-exec -- ls /workspace
       # This mount mainly exists so the Claude Code CLI has a stable
       # cwd to display in its prompt.
       emptyDir: {}

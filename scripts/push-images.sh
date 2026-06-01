@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Build and push all 8 warden service images to ghcr.io/vanteguardlabs.
+# Build and push all 8 clavenar service images to ghcr.io/clavenar.
 # VERSION holds the latest tag already published; the script bumps to
 # next patch, builds + pushes under that, then writes the new value
 # back to VERSION + Chart.appVersion. Failed pushes leave VERSION
@@ -11,26 +11,26 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CHART_REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 WORKSPACE_ROOT="$(cd "$CHART_REPO/.." && pwd)"
 
-REGISTRY="ghcr.io/vanteguardlabs"
+REGISTRY="ghcr.io/clavenar"
 
 SERVICES=(
-    "warden-proxy"
-    "warden-brain"
-    "warden-policy-engine"
-    "warden-ledger"
-    "warden-hil"
-    "warden-console"
-    "warden-deep-review"
-    "warden-identity"
-    # warden-simulator ships the warden-upstream-stub binary the chart's
+    "clavenar-proxy"
+    "clavenar-brain"
+    "clavenar-policy-engine"
+    "clavenar-ledger"
+    "clavenar-hil"
+    "clavenar-console"
+    "clavenar-deep-review"
+    "clavenar-identity"
+    # clavenar-simulator ships the clavenar-upstream-stub binary the chart's
     # bundled-lab upstreamStub Deployment runs. Operators enabling
     # upstreamStub.enabled need this image at the chart's appVersion.
-    "warden-simulator"
-    # warden-exec is the execution-gateway MCP server the chart's
+    "clavenar-simulator"
+    # clavenar-exec is the execution-gateway MCP server the chart's
     # `exec.enabled=true` Deployment runs in front of the upstream-stub.
     # Required for the lab posture where Claude Code built-ins are
-    # denylisted and the only execution surface flows through warden.
-    "warden-exec"
+    # denylisted and the only execution surface flows through clavenar.
+    "clavenar-exec"
 )
 
 # Seven of the nine Dockerfiles `COPY --from=<name>` source from sibling
@@ -38,13 +38,13 @@ SERVICES=(
 # checkouts under WORKSPACE_ROOT — without these flags docker tries to
 # pull `docker.io/library/<name>` and fails.
 declare -A EXTRA_CONTEXTS=(
-    [warden-proxy]="warden-sandbox"
-    [warden-brain]="warden-workload-identity"
-    [warden-policy-engine]="warden-workload-identity"
-    [warden-ledger]="warden-workload-identity"
-    [warden-console]="warden-sdk warden-workload-identity"
-    [warden-identity]="warden-workload-identity"
-    [warden-simulator]="warden-workload-identity"
+    [clavenar-proxy]="clavenar-sandbox"
+    [clavenar-brain]="clavenar-workload-identity"
+    [clavenar-policy-engine]="clavenar-workload-identity"
+    [clavenar-ledger]="clavenar-workload-identity"
+    [clavenar-console]="clavenar-sdk clavenar-workload-identity"
+    [clavenar-identity]="clavenar-workload-identity"
+    [clavenar-simulator]="clavenar-workload-identity"
 )
 
 ALLOW_DIRTY=0
@@ -54,14 +54,14 @@ ONLY=""
 
 usage() {
     cat <<'EOF'
-push-images.sh — build + push all warden service images to GHCR
+push-images.sh — build + push all clavenar service images to GHCR
 
 Usage:
   push-images.sh [--only=svc1,svc2] [--allow-dirty] [--no-bump] [--dry-run]
 
 VERSION holds the latest image set already published to GHCR. The
 script computes the next patch as the target, builds each sibling
-repo's Dockerfile, pushes ghcr.io/vanteguardlabs/<service>:<target>
+repo's Dockerfile, pushes ghcr.io/clavenar/<service>:<target>
 and :latest, then writes <target> into VERSION + Chart.appVersion.
 
 Flags:
@@ -112,7 +112,7 @@ else
 fi
 
 VERSION_FILE="$CHART_REPO/VERSION"
-CHART_FILE="$CHART_REPO/charts/warden/Chart.yaml"
+CHART_FILE="$CHART_REPO/charts/clavenar/Chart.yaml"
 
 [ -f "$VERSION_FILE" ] || { echo "VERSION missing at $VERSION_FILE" >&2; exit 1; }
 [ -f "$CHART_FILE" ] || { echo "Chart.yaml missing at $CHART_FILE" >&2; exit 1; }
@@ -236,7 +236,7 @@ for svc in "${TARGETS[@]}"; do
     run sudo -n docker build \
         --platform=linux/amd64 \
         "${ctx_args[@]}" \
-        --label "org.opencontainers.image.source=https://github.com/vanteguardlabs/$svc" \
+        --label "org.opencontainers.image.source=https://github.com/clavenar/$svc" \
         --label "org.opencontainers.image.version=$TARGET" \
         --label "org.opencontainers.image.revision=$rev" \
         -t "$REGISTRY/$svc:$TARGET" \
@@ -270,7 +270,7 @@ printf '%s\n' "$TARGET" > "$VERSION_FILE"
 # CLAUDE.md recurring gotchas.
 sed -i -E "s~^appVersion:.*~appVersion: \"$TARGET\"~" "$CHART_FILE"
 
-git -C "$CHART_REPO" add VERSION charts/warden/Chart.yaml
+git -C "$CHART_REPO" add VERSION charts/clavenar/Chart.yaml
 git -c user.name=VanteguardLabs -c user.email=vanteguardlabs@gmail.com \
     -C "$CHART_REPO" commit -m "publish images $TARGET"
 git -C "$CHART_REPO" push origin main

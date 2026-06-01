@@ -20,24 +20,24 @@ jobs:
       # Tarballs are gitignored; this step replaces the manual
       # `helm dep update` an operator would run before `helm install`.
       - name: helm dep update
-        working-directory: charts/warden
+        working-directory: charts/clavenar
         run: helm dep update .
 
       - name: helm lint
-        working-directory: charts/warden
+        working-directory: charts/clavenar
         run: helm lint .
 
       - name: helm template — default values
-        working-directory: charts/warden
+        working-directory: charts/clavenar
         run: helm template smoke . > /tmp/default.yaml
 
       - name: helm template — all-on combo
-        working-directory: charts/warden
+        working-directory: charts/clavenar
         run: |
           helm template smoke . \
-            --set tlsBundle.secretName=warden-certs \
+            --set tlsBundle.secretName=clavenar-certs \
             --set vault.addr=http://vault:8200 \
-            --set vault.tokenSecretName=warden-vault \
+            --set vault.tokenSecretName=clavenar-vault \
             --set networkPolicy.enabled=true \
             --set networkPolicy.prometheusNamespaceLabel=monitoring \
             --set services.brain.replicas=3 \
@@ -45,12 +45,12 @@ jobs:
             > /tmp/all-on.yaml
 
       - name: helm template — postgres ledger mode
-        working-directory: charts/warden
+        working-directory: charts/clavenar
         run: |
           helm template smoke . \
             --set services.ledger.replicas=3 \
             --set persistence.ledger.enabled=false \
-            --set services.ledger.extraEnv[0].name=WARDEN_LEDGER_BACKEND \
+            --set services.ledger.extraEnv[0].name=CLAVENAR_LEDGER_BACKEND \
             --set services.ledger.extraEnv[0].value=postgres \
             > /tmp/postgres.yaml
 
@@ -58,7 +58,7 @@ jobs:
       # emitted. The fixture lives outside the chart dir so it can
       # also drive a `kind` smoke test from a release tarball.
       - name: helm template — bundled mode
-        working-directory: charts/warden
+        working-directory: charts/clavenar
         run: |
           helm template smoke . -f ../../tests/values-bundled.yaml \
             > /tmp/bundled.yaml

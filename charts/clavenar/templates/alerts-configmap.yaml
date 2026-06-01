@@ -1,5 +1,5 @@
 {{- /*
-Prometheus alerting rules (warden.critical + warden.warning).
+Prometheus alerting rules (clavenar.critical + clavenar.warning).
 
 Operators running the Helm chart alongside the kube-prometheus-stack
 get the rules auto-loaded via the `prometheus_rule: "1"` label that
@@ -15,9 +15,9 @@ Alertmanager template substitution that Helm must not consume.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "warden.fullname" . }}-alerts
+  name: {{ include "clavenar.fullname" . }}-alerts
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "alerts") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "alerts") | nindent 4 }}
     prometheus_rule: "1"
 data:
 {{- range $path, $_ := .Files.Glob "alerts/*.yaml" }}

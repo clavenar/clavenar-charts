@@ -1,7 +1,7 @@
 {{/*
 Bare-name DNS alias from `proxy` to the actual `<release>-proxy`
 Service. The chart's auto-mint script stamps the proxy server cert
-SAN as `DNS:proxy, DNS:proxy.warden.local, DNS:localhost` — no
+SAN as `DNS:proxy, DNS:proxy.clavenar.local, DNS:localhost` — no
 `DNS:<release>-proxy` entry. In-cluster clients dialing the proxy by
 Service name need `proxy` as BOTH the resolvable hostname AND the TLS
 SNI for the handshake to validate. ExternalName CNAME provides
@@ -25,7 +25,7 @@ kind: Service
 metadata:
   name: proxy
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "proxy-alias") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "proxy-alias") | nindent 4 }}
 spec:
   type: ExternalName
   externalName: {{ printf "%s-proxy.%s.svc.cluster.local" .Release.Name .Release.Namespace }}

@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Per-service request rate, latency, and error counts across the warden stack. Ships in-tree with the chart; operators can import into any Grafana via the ${DS_PROMETHEUS} datasource var.",
+  "description": "Per-service request rate, latency, and error counts across the clavenar stack. Ships in-tree with the chart; operators can import into any Grafana via the ${DS_PROMETHEUS} datasource var.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -24,25 +24,25 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (rate(warden_proxy_requests_total[1m]))",
+          "expr": "sum (rate(clavenar_proxy_requests_total[1m]))",
           "legendFormat": "proxy",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (rate(warden_brain_inspect_total[1m]))",
+          "expr": "sum (rate(clavenar_brain_inspect_total[1m]))",
           "legendFormat": "brain /inspect",
           "refId": "B"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (rate(warden_policy_engine_evaluate_total[1m]))",
+          "expr": "sum (rate(clavenar_policy_engine_evaluate_total[1m]))",
           "legendFormat": "policy /evaluate",
           "refId": "C"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (rate(warden_ledger_nats_events_total[1m]))",
+          "expr": "sum (rate(clavenar_ledger_nats_events_total[1m]))",
           "legendFormat": "ledger writes",
           "refId": "D"
         }
@@ -65,25 +65,25 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "max (warden_proxy_request_duration_seconds{quantile=\"0.95\"})",
+          "expr": "max (clavenar_proxy_request_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "proxy p95",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "max (warden_brain_inspect_duration_seconds{quantile=\"0.95\"})",
+          "expr": "max (clavenar_brain_inspect_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "brain p95",
           "refId": "B"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "max (warden_policy_engine_evaluate_duration_seconds{quantile=\"0.95\"})",
+          "expr": "max (clavenar_policy_engine_evaluate_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "policy p95",
           "refId": "C"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "max (warden_ledger_log_duration_seconds{quantile=\"0.95\"})",
+          "expr": "max (clavenar_ledger_log_duration_seconds{quantile=\"0.95\"})",
           "legendFormat": "ledger p95",
           "refId": "D"
         }
@@ -112,7 +112,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (detector, outcome) (rate(warden_brain_requests_total{outcome!=\"success\"}[5m]))",
+          "expr": "sum by (detector, outcome) (rate(clavenar_brain_requests_total{outcome!=\"success\"}[5m]))",
           "legendFormat": "brain {{detector}} / {{outcome}}",
           "refId": "A"
         }
@@ -135,7 +135,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (persona) (rate(warden_simulator_requests_total[1m]))",
+          "expr": "sum by (persona) (rate(clavenar_simulator_requests_total[1m]))",
           "legendFormat": "{{persona}}",
           "refId": "A"
         }
@@ -167,7 +167,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "warden_simulator_running",
+          "expr": "clavenar_simulator_running",
           "refId": "A"
         }
       ],
@@ -177,7 +177,7 @@
   ],
   "refresh": "10s",
   "schemaVersion": 38,
-  "tags": ["warden", "overview"],
+  "tags": ["clavenar", "overview"],
   "templating": {
     "list": [
       {
@@ -197,8 +197,8 @@
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "timezone": "",
-  "title": "Warden — Overview",
-  "uid": "warden-overview",
+  "title": "Clavenar — Overview",
+  "uid": "clavenar-overview",
   "version": 1,
   "weekStart": ""
 }

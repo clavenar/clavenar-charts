@@ -1,10 +1,10 @@
 {{/*
 Post-install + post-upgrade Job that seeds Vault with a stub api_key
 for the lab agent (default `agent-001`, matching the CN of the
-auto-mint starter client cert). The warden-proxy returns 403
+auto-mint starter client cert). The clavenar-proxy returns 403
 "No credentials found for agent <id>" on every request until a
 KV entry exists at `secret/data/agents/<id>` — see
-repos/warden-ctl/docs/clients/README.md "Shared prerequisites".
+repos/clavenar-ctl/docs/clients/README.md "Shared prerequisites".
 
 Gated on BOTH `agentVaultSeed.enabled` AND `vault.bundled.enabled` —
 without the bundled Vault the Job has nothing to talk to, and BYO
@@ -31,14 +31,14 @@ metadata:
     helm.sh/hook-weight: "1"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "vault-agent-seed") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "vault-agent-seed") | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 5
   template:
     metadata:
       labels:
-        {{- include "warden.selectorLabels" (dict "ctx" . "service" "vault-agent-seed") | nindent 8 }}
+        {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "vault-agent-seed") | nindent 8 }}
     spec:
       restartPolicy: OnFailure
       {{- with .Values.podSecurityContext }}
@@ -87,11 +87,11 @@ spec:
               echo "Seeded secret/data/agents/${AGENT_ID} at ${VAULT_ADDR}"
           env:
             - name: VAULT_ADDR
-              value: {{ include "warden.vaultAddr" . | quote }}
+              value: {{ include "clavenar.vaultAddr" . | quote }}
             - name: VAULT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "warden.vaultTokenSecretName" . }}
+                  name: {{ include "clavenar.vaultTokenSecretName" . }}
                   key: token
             - name: AGENT_ID
               value: {{ .Values.agentVaultSeed.agentId | quote }}

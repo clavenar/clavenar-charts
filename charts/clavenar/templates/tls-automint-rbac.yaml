@@ -17,7 +17,7 @@ metadata:
     helm.sh/hook-weight: "-20"
     helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -28,7 +28,7 @@ metadata:
     helm.sh/hook-weight: "-20"
     helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -43,7 +43,7 @@ metadata:
     helm.sh/hook-weight: "-20"
     helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
 subjects:
   - kind: ServiceAccount
     name: {{ .Release.Name }}-tls-automint

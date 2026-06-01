@@ -1,7 +1,7 @@
 apiVersion: v2
-name: warden
+name: clavenar
 description: |
-  Agent Warden — Rust security pipeline for AI agents. Deploys the
+  Clavenar — Rust security pipeline for AI agents. Deploys the
   eight-service stack (proxy, brain, policy-engine, ledger, hil,
   identity, deep-review, console) as Deployments + Services with
   /health + /readyz probes wired to the operational endpoints,
@@ -12,13 +12,13 @@ description: |
   own and set `nats.url` / `vault.addr`. Set `nats.bundled.enabled` or
   `vault.bundled.enabled` to true to have the chart install the
   upstream `nats-io/nats` and `hashicorp/vault` subcharts alongside
-  the warden services in a single `helm install`. Images are pulled
-  from ghcr.io/vanteguardlabs by default.
+  the clavenar services in a single `helm install`. Images are pulled
+  from ghcr.io/clavenar by default.
 type: application
 version: 0.8.10
-# Mirrors warden-charts/VERSION — the latest image set published to
-# ghcr.io/vanteguardlabs by scripts/push-images.sh. Independent of
-# warden-specs/VERSION (which tracks the demo VPS deploy, not GHCR).
+# Mirrors clavenar-charts/VERSION — the latest image set published to
+# ghcr.io/clavenar by scripts/push-images.sh. Independent of
+# clavenar-specs/VERSION (which tracks the demo VPS deploy, not GHCR).
 appVersion: "0.1.4"
 dependencies:
   - name: nats
@@ -39,17 +39,17 @@ keywords:
   - audit
   - ai
   - llm
-home: https://github.com/vanteguardlabs/warden-charts
+home: https://github.com/clavenar/clavenar-charts
 sources:
-  - https://github.com/vanteguardlabs/warden-proxy
-  - https://github.com/vanteguardlabs/warden-brain
-  - https://github.com/vanteguardlabs/warden-policy-engine
-  - https://github.com/vanteguardlabs/warden-ledger
-  - https://github.com/vanteguardlabs/warden-hil
-  - https://github.com/vanteguardlabs/warden-identity
-  - https://github.com/vanteguardlabs/warden-deep-review
-  - https://github.com/vanteguardlabs/warden-console
+  - https://github.com/clavenar/clavenar-proxy
+  - https://github.com/clavenar/clavenar-brain
+  - https://github.com/clavenar/clavenar-policy-engine
+  - https://github.com/clavenar/clavenar-ledger
+  - https://github.com/clavenar/clavenar-hil
+  - https://github.com/clavenar/clavenar-identity
+  - https://github.com/clavenar/clavenar-deep-review
+  - https://github.com/clavenar/clavenar-console
 maintainers:
   - name: VanteguardLabs
-    url: https://github.com/vanteguardlabs
+    url: https://github.com/clavenar
 icon: https://warden.vanteguardlabs.com/favicon.svg

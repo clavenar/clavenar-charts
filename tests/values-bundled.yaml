@@ -18,7 +18,7 @@ nats:
         pvc:
           size: 5Gi
     # mTLS on :4222. Reuses the auto-mint smoke-tls Secret — the Job
-    # appends "nats" to BUNDLE_SERVICES (see warden.bundleServices in
+    # appends "nats" to BUNDLE_SERVICES (see clavenar.bundleServices in
     # _helpers.tpl) so service-nats.{crt,key} land alongside ca.crt
     # inside the same Secret. `merge.verify: true` is the only way to
     # require client certs on the upstream chart; the chart's typed
@@ -41,7 +41,7 @@ nats:
     enabled: true
     secretName: smoke-tls
     key: ca.crt
-  # nats-box is a debugging helper; not needed for the warden stack.
+  # nats-box is a debugging helper; not needed for the clavenar stack.
   natsBox:
     enabled: false
 
@@ -69,21 +69,21 @@ tlsBundle:
   secretName: smoke-tls
   autoMint: true
 
-# Bundled echo-MCP target. Deploys warden-upstream-stub as a sidecar
-# Deployment + Service and auto-wires WARDEN_UPSTREAM_URL on the
+# Bundled echo-MCP target. Deploys clavenar-upstream-stub as a sidecar
+# Deployment + Service and auto-wires CLAVENAR_UPSTREAM_URL on the
 # proxy. Pairs with agentVaultSeed below — without the stub credential
 # in Vault, the proxy 403s every request. With `exec.enabled: true`
-# below, the stub becomes the warden-exec fallback target (initialize,
+# below, the stub becomes the clavenar-exec fallback target (initialize,
 # resources/*, echo, add) rather than the proxy's upstream.
 upstreamStub:
   enabled: true
 
-# warden-exec sits between the proxy and the upstream-stub: it runs
+# clavenar-exec sits between the proxy and the upstream-stub: it runs
 # the seven Claude-Code-built-in-parity tools (bash, read_file, …)
 # locally and forwards every other MCP frame to the stub. The lab
 # Claude Code pod (lab/manifests/) has its built-ins denylisted, so
-# the only path to a shell or file op runs through warden-exec, which
-# means through the full warden security pipeline.
+# the only path to a shell or file op runs through clavenar-exec, which
+# means through the full clavenar security pipeline.
 exec:
   enabled: true
 

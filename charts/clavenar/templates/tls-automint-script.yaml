@@ -1,5 +1,5 @@
 {{/*
-ConfigMap carrying the two shell scripts that mint + apply the warden
+ConfigMap carrying the two shell scripts that mint + apply the clavenar
 TLS bundle. Loaded as a `helm.sh/hook: pre-install,pre-upgrade`
 resource so the hook Job (tls-automint-job.yaml) can mount it;
 deleted after the Job succeeds via hook-delete-policy.
@@ -23,11 +23,11 @@ metadata:
     helm.sh/hook-weight: "-15"
     helm.sh/hook-delete-policy: hook-succeeded,before-hook-creation
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
 data:
   mint.sh: |
     #!/bin/sh
-    # Generate the warden TLS material into /work. Runs in the
+    # Generate the clavenar TLS material into /work. Runs in the
     # openssl-only initContainer. apply.sh later decides whether to
     # ship it to the cluster.
     set -eu
@@ -41,15 +41,15 @@ data:
     # 1. CA root. 1-year lifetime mirrors gen_certs.sh.
     openssl genrsa -out ca.key 2048 2>/dev/null
     openssl req -new -x509 -days 365 -key ca.key -out ca.crt \
-        -subj "/CN=AgentWardenCA" 2>/dev/null
+        -subj "/CN=AgentClavenarCA" 2>/dev/null
 
     # 2. Proxy's agent-facing server cert. SAN list matches the
-    # compose stack (localhost + proxy + proxy.warden.local) so the
+    # compose stack (localhost + proxy + proxy.clavenar.local) so the
     # same script can serve out-of-cluster reach via NodePort, too.
     openssl genrsa -out server.key 2048 2>/dev/null
     openssl req -new -key server.key -out server.csr \
         -subj "/CN=localhost" \
-        -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.warden.local" \
+        -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local" \
         2>/dev/null
     openssl x509 -req -days 365 -in server.csr \
         -CA ca.crt -CAkey ca.key -CAcreateserial \
@@ -64,15 +64,15 @@ data:
         -out client.crt 2>/dev/null
 
     # 4. Per-service workload certs. SAN list covers every hostname
-    # warden code may dial:
+    # clavenar code may dial:
     #   - URI:spiffe://...  for server-side SPIFFE allowlists
     #   - DNS:${svc}        for the compose stack + chart-internal
     #                       short-name use
     #   - DNS:${RELEASE_NAME}-${svc}
     #                       for the in-cluster Service DNS that
-    #                       warden.serviceFullname / warden.natsUrl /
-    #                       warden.backendEnvs all hand to clients
-    #                       (e.g. `lab-warden-nats`). Without this,
+    #                       clavenar.serviceFullname / clavenar.natsUrl /
+    #                       clavenar.backendEnvs all hand to clients
+    #                       (e.g. `lab-clavenar-nats`). Without this,
     #                       rustls rejects every in-cluster mTLS
     #                       handshake with NotValidForName.
     #   - DNS:localhost     for cargo-run / host-side testing.
@@ -80,7 +80,7 @@ data:
         openssl genrsa -out "service-${svc}.key" 2048 2>/dev/null
         openssl req -new -key "service-${svc}.key" \
             -out "service-${svc}.csr" \
-            -subj "/CN=warden-${svc}" \
+            -subj "/CN=clavenar-${svc}" \
             -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${svc},DNS:${svc},DNS:${RELEASE_NAME}-${svc},DNS:localhost" \
             2>/dev/null
         openssl x509 -req -days 365 \
@@ -129,7 +129,7 @@ data:
          -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
         existing_scheme="$(
             kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
-                -o jsonpath='{.metadata.labels.warden\.vanteguardlabs\.com/san-scheme}' \
+                -o jsonpath='{.metadata.labels.clavenar\.vanteguardlabs\.com/san-scheme}' \
                 2>/dev/null || true
         )"
         if [ "$existing_scheme" = "$EXPECTED_SAN_SCHEME" ]; then

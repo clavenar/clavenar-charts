@@ -1,5 +1,5 @@
 {{/*
-Pre-install + pre-upgrade hook Job that mints the warden TLS bundle.
+Pre-install + pre-upgrade hook Job that mints the clavenar TLS bundle.
 Two stages share an emptyDir at /work:
   - initContainer `mint`  — openssl-only image, generates CA + per-
     service certs into /work.
@@ -22,14 +22,14 @@ metadata:
     helm.sh/hook-weight: "0"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "tls-automint") | nindent 4 }}
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 3
   template:
     metadata:
       labels:
-        {{- include "warden.selectorLabels" (dict "ctx" . "service" "tls-automint") | nindent 8 }}
+        {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "tls-automint") | nindent 8 }}
     spec:
       serviceAccountName: {{ .Release.Name }}-tls-automint
       restartPolicy: OnFailure
@@ -52,7 +52,7 @@ spec:
             - name: SPIFFE_TRUST_DOMAIN
               value: {{ .Values.tlsBundle.spiffeTrustDomain | quote }}
             - name: BUNDLE_SERVICES
-              value: {{ include "warden.bundleServices" . | quote }}
+              value: {{ include "clavenar.bundleServices" . | quote }}
             - name: RELEASE_NAME
               value: {{ .Release.Name | quote }}
           resources:
@@ -75,7 +75,7 @@ spec:
             - name: POD_NAMESPACE
               value: {{ .Release.Namespace | quote }}
             - name: BUNDLE_SERVICES
-              value: {{ include "warden.bundleServices" . | quote }}
+              value: {{ include "clavenar.bundleServices" . | quote }}
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits:   { cpu: 250m, memory: 128Mi }

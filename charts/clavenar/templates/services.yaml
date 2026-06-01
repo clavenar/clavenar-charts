@@ -1,7 +1,7 @@
 {{/*
 Emit a Deployment + Service per enabled service, plus a PVC when
-.Values.persistence.<service>.enabled. PVCs mount at /var/lib/warden,
-which matches the WARDEN_*_DB defaults.
+.Values.persistence.<service>.enabled. PVCs mount at /var/lib/clavenar,
+which matches the CLAVENAR_*_DB defaults.
 
 `$` is the root context — passed explicitly to helpers because `.`
 inside the range is the iterated value.
@@ -13,20 +13,20 @@ inside the range is the iterated value.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}
+  name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}
   labels:
-    {{- include "warden.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
 spec:
   replicas: {{ $cfg.replicas }}
   selector:
     matchLabels:
-      {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
+      {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 8 }}
+        {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 8 }}
       annotations:
-        {{- include "warden.metricsAnnotations" (dict "svcCfg" $cfg) | trim | nindent 8 }}
+        {{- include "clavenar.metricsAnnotations" (dict "svcCfg" $cfg) | trim | nindent 8 }}
         {{- if $.Values.tlsBundle.autoMint }}
         # Roll the pod when the auto-mint script changes — the SAN
         # scheme or extension shape might have shifted, which triggers
@@ -36,7 +36,7 @@ spec:
         checksum/tls-automint-script: {{ include (print $.Template.BasePath "/tls-automint-script.yaml") $ | sha256sum }}
         {{- end }}
     spec:
-      terminationGracePeriodSeconds: {{ include "warden.terminationGrace" $ }}
+      terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" $ }}
       {{- with $.Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -47,7 +47,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ $name | kebabcase }}
-          image: {{ include "warden.imageRef" (dict "ctx" $ "svcCfg" $cfg) }}
+          image: {{ include "clavenar.imageRef" (dict "ctx" $ "svcCfg" $cfg) }}
           imagePullPolicy: {{ $.Values.imagePullPolicy }}
           ports:
             - name: http
@@ -64,8 +64,8 @@ spec:
               protocol: TCP
             {{- end }}
           env:
-            {{- include "warden.commonEnv" (dict "ctx" $ "svcCfg" $cfg "service" $name) | nindent 12 }}
-            {{- $vaultTokenSecret := include "warden.vaultTokenSecretName" $ }}
+            {{- include "clavenar.commonEnv" (dict "ctx" $ "svcCfg" $cfg "service" $name) | nindent 12 }}
+            {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
             {{- if and $vaultTokenSecret (or (eq $name "proxy") (eq $name "identity")) }}
             - name: VAULT_TOKEN
               valueFrom:
@@ -81,35 +81,35 @@ spec:
             - name: VAULT_ADDR
               valueFrom:
                 configMapKeyRef:
-                  name: {{ include "warden.fullname" $ }}-config
+                  name: {{ include "clavenar.fullname" $ }}-config
                   key: VAULT_ADDR
             {{- end }}
             {{- if or (eq $name "hil") (eq $name "console") }}
-            # WARDEN_HIL_DECIDE_TOKEN: shared bearer for the
+            # CLAVENAR_HIL_DECIDE_TOKEN: shared bearer for the
             # console → HIL /decide hop. HIL rejects /decide without
             # a matching bearer when console runs in oidc/disabled
             # mode; console panics at boot if the env is empty.
-            - name: WARDEN_HIL_DECIDE_TOKEN
+            - name: CLAVENAR_HIL_DECIDE_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ $.Release.Name }}-shared-tokens
                   key: hil-decide-token
             {{- end }}
             {{- if eq $name "hil" }}
-            # WARDEN_HIL_SESSION_KEY: HIL session-cookie HMAC key
+            # CLAVENAR_HIL_SESSION_KEY: HIL session-cookie HMAC key
             # (64-char hex). HIL auto-mints an ephemeral key when unset,
             # which would invalidate every session on pod restart — pin
             # it to the chart-managed Secret so HIL is restart-safe.
-            - name: WARDEN_HIL_SESSION_KEY
+            - name: CLAVENAR_HIL_SESSION_KEY
               valueFrom:
                 secretKeyRef:
                   name: {{ $.Release.Name }}-shared-tokens
                   key: hil-session-key
             {{- end }}
           livenessProbe:
-            {{- include "warden.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "liveness") | nindent 12 }}
+            {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "liveness") | nindent 12 }}
           readinessProbe:
-            {{- include "warden.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
+            {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
@@ -117,7 +117,7 @@ spec:
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
-              mountPath: /var/lib/warden
+              mountPath: /var/lib/clavenar
             {{- end }}
             {{- if $mountsCert }}
             - name: certs
@@ -130,13 +130,13 @@ spec:
         {{- if $persist.enabled }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}-data
+            claimName: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-data
         {{- end }}
         {{- if $mountsCert }}
         - name: certs
           secret:
             secretName: {{ $.Values.tlsBundle.secretName }}
-            # 0644 on the key files — warden services run as nonroot
+            # 0644 on the key files — clavenar services run as nonroot
             # UID 65532, and `gen_certs.sh` chmods to the same mode on
             # the host. k8s Secret mounts default to 0644 anyway, but
             # pinning is explicit so a re-mode by a downstream patch
@@ -185,9 +185,9 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}
+  name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}
   labels:
-    {{- include "warden.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
 spec:
   type: {{ $cfg.serviceType }}
   ports:
@@ -205,15 +205,15 @@ spec:
       name: mtls
     {{- end }}
   selector:
-    {{- include "warden.selectorLabels" (dict "ctx" $ "service" $name) | nindent 4 }}
+    {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 4 }}
 {{- if $persist.enabled }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ include "warden.serviceFullname" (dict "ctx" $ "service" $name) }}-data
+  name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-data
   labels:
-    {{- include "warden.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
 spec:
   accessModes:
     - {{ $persist.accessMode | default "ReadWriteOnce" }}

@@ -1,6 +1,6 @@
 {
   "annotations": {"list": []},
-  "description": "Brain provider spend: token rate by (provider, model, kind), estimated $/hr, cache hit rate. Spend uses warden_brain_cost_estimated_usd_micros_total (USD * 1e6); panels divide by 1e6 in expr.",
+  "description": "Brain provider spend: token rate by (provider, model, kind), estimated $/hr, cache hit rate. Spend uses clavenar_brain_cost_estimated_usd_micros_total (USD * 1e6); panels divide by 1e6 in expr.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -22,7 +22,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (provider, kind) (rate(warden_brain_tokens_total[5m]))",
+          "expr": "sum by (provider, kind) (rate(clavenar_brain_tokens_total[5m]))",
           "legendFormat": "{{provider}} / {{kind}}",
           "refId": "A"
         }
@@ -45,7 +45,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (provider, model) (rate(warden_brain_cost_estimated_usd_micros_total[5m])) * 3600 / 1000000",
+          "expr": "sum by (provider, model) (rate(clavenar_brain_cost_estimated_usd_micros_total[5m])) * 3600 / 1000000",
           "legendFormat": "{{provider}} / {{model}}",
           "refId": "A"
         }
@@ -67,7 +67,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "topk(3, sum by (model) (increase(warden_brain_cost_estimated_usd_micros_total[24h])) / 1000000)",
+          "expr": "topk(3, sum by (model) (increase(clavenar_brain_cost_estimated_usd_micros_total[24h])) / 1000000)",
           "legendFormat": "{{model}}",
           "refId": "A"
         }
@@ -99,7 +99,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (rate(warden_brain_tokens_total{kind=\"cache_read\"}[5m])) / (sum (rate(warden_brain_tokens_total{kind=\"cache_read\"}[5m])) + sum (rate(warden_brain_tokens_total{kind=\"input\"}[5m])))",
+          "expr": "sum (rate(clavenar_brain_tokens_total{kind=\"cache_read\"}[5m])) / (sum (rate(clavenar_brain_tokens_total{kind=\"cache_read\"}[5m])) + sum (rate(clavenar_brain_tokens_total{kind=\"input\"}[5m])))",
           "refId": "A"
         }
       ],
@@ -121,19 +121,19 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (increase(warden_brain_cost_estimated_usd_micros_total[24h])) / 1000000",
+          "expr": "sum (increase(clavenar_brain_cost_estimated_usd_micros_total[24h])) / 1000000",
           "legendFormat": "24h",
           "refId": "A"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (increase(warden_brain_cost_estimated_usd_micros_total[7d])) / 1000000",
+          "expr": "sum (increase(clavenar_brain_cost_estimated_usd_micros_total[7d])) / 1000000",
           "legendFormat": "7d",
           "refId": "B"
         },
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum (increase(warden_brain_cost_estimated_usd_micros_total[30d])) / 1000000",
+          "expr": "sum (increase(clavenar_brain_cost_estimated_usd_micros_total[30d])) / 1000000",
           "legendFormat": "30d",
           "refId": "C"
         }
@@ -156,7 +156,7 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (provider, outcome) (rate(warden_brain_requests_total{outcome!=\"success\"}[5m])) / ignoring(outcome) group_left sum by (provider) (rate(warden_brain_requests_total[5m]))",
+          "expr": "sum by (provider, outcome) (rate(clavenar_brain_requests_total{outcome!=\"success\"}[5m])) / ignoring(outcome) group_left sum by (provider) (rate(clavenar_brain_requests_total[5m]))",
           "legendFormat": "{{provider}} / {{outcome}}",
           "refId": "A"
         }
@@ -167,7 +167,7 @@
   ],
   "refresh": "30s",
   "schemaVersion": 38,
-  "tags": ["warden", "cost"],
+  "tags": ["clavenar", "cost"],
   "templating": {
     "list": [
       {
@@ -187,8 +187,8 @@
   "time": {"from": "now-6h", "to": "now"},
   "timepicker": {},
   "timezone": "",
-  "title": "Warden — Brain Cost",
-  "uid": "warden-cost",
+  "title": "Clavenar — Brain Cost",
+  "uid": "clavenar-cost",
   "version": 1,
   "weekStart": ""
 }

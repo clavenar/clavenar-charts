@@ -1,18 +1,18 @@
 {{/*
 Optional echo MCP server bundled with the chart. Gated on
 `upstreamStub.enabled` — production deploys leave this off and point
-WARDEN_UPSTREAM_URL at a real MCP server via
+CLAVENAR_UPSTREAM_URL at a real MCP server via
 `services.proxy.extraEnv`. When enabled, this template emits a
-Deployment + Service running the `warden-upstream-stub` binary
-(shipped alongside the main simulator inside the warden-simulator
+Deployment + Service running the `clavenar-upstream-stub` binary
+(shipped alongside the main simulator inside the clavenar-simulator
 image). The binary echoes every MCP frame; useful for proving the
 Brain + Policy + HIL + ledger path end-to-end before bringing up a
 real tool server.
 
 The proxy's env wiring (in services.yaml) auto-injects
-`WARDEN_UPSTREAM_URL=http://<release>-upstream-stub:9000/mcp` when
+`CLAVENAR_UPSTREAM_URL=http://<release>-upstream-stub:9000/mcp` when
 this is enabled and the operator hasn't supplied their own
-WARDEN_UPSTREAM_URL via services.proxy.extraEnv.
+CLAVENAR_UPSTREAM_URL via services.proxy.extraEnv.
 */}}
 {{- if .Values.upstreamStub.enabled }}
 {{- $name := "upstream-stub" }}
@@ -24,18 +24,18 @@ kind: Deployment
 metadata:
   name: {{ $fullname }}
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" $name) | nindent 4 }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      {{- include "warden.selectorLabels" (dict "ctx" . "service" $name) | nindent 6 }}
+      {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 6 }}
   template:
     metadata:
       labels:
-        {{- include "warden.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
+        {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
     spec:
-      terminationGracePeriodSeconds: {{ include "warden.terminationGrace" . }}
+      terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" . }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -51,13 +51,13 @@ spec:
           # The simulator image bundles three binaries; select the
           # upstream-stub explicitly. Keeps us from shipping a second
           # image purely for the echo server.
-          command: ["warden-upstream-stub"]
+          command: ["clavenar-upstream-stub"]
           ports:
             - name: http
               containerPort: {{ .Values.upstreamStub.port }}
               protocol: TCP
           env:
-            - name: WARDEN_UPSTREAM_STUB_PORT
+            - name: CLAVENAR_UPSTREAM_STUB_PORT
               value: {{ .Values.upstreamStub.port | quote }}
           livenessProbe:
             httpGet:
@@ -84,7 +84,7 @@ kind: Service
 metadata:
   name: {{ $fullname }}
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" $name) | nindent 4 }}
 spec:
   type: ClusterIP
   ports:
@@ -93,5 +93,5 @@ spec:
       protocol: TCP
       name: http
   selector:
-    {{- include "warden.selectorLabels" (dict "ctx" . "service" $name) | nindent 4 }}
+    {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 4 }}
 {{- end }}

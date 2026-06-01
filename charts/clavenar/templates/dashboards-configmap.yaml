@@ -15,9 +15,9 @@ Helm template token would break the dashboard load.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "warden.fullname" . }}-dashboards
+  name: {{ include "clavenar.fullname" . }}-dashboards
   labels:
-    {{- include "warden.labels" (dict "ctx" . "service" "dashboards") | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" . "service" "dashboards") | nindent 4 }}
     grafana_dashboard: "1"
 data:
 {{- range $path, $_ := .Files.Glob "dashboards/*.json" }}

@@ -1,0 +1,19 @@
+{{/*
+Shared env. Per-service `extraEnv` is appended via clavenar.commonEnv.
+Vault wiring lands in service-specific env when VAULT_ADDR resolves
+to a non-empty string — either via .Values.vault.addr (BYO) or via
+the in-cluster service DNS when .Values.vault.bundled.enabled.
+*/}}
+{{- $vaultAddr := include "clavenar.vaultAddr" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-config
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "config") | nindent 4 }}
+data:
+  NATS_URL: {{ include "clavenar.natsUrl" . | quote }}
+  CLAVENAR_GRACEFUL_DRAIN_SECS: {{ .Values.drainCapSecs | quote }}
+  {{- if $vaultAddr }}
+  VAULT_ADDR: {{ $vaultAddr | quote }}
+  {{- end }}

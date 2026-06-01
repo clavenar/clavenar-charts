@@ -1,9 +1,9 @@
 groups:
-  - name: warden.critical
+  - name: clavenar.critical
     interval: 30s
     rules:
       - alert: LedgerChainCorrupted
-        expr: warden_ledger_chain_valid == 0
+        expr: clavenar_ledger_chain_valid == 0
         for: 1m
         labels:
           severity: critical
@@ -11,14 +11,14 @@ groups:
         annotations:
           summary: "Ledger hash-chain failed verification"
           description: |
-            warden_ledger_chain_valid is 0 — the most recent /verify walk
+            clavenar_ledger_chain_valid is 0 — the most recent /verify walk
             detected a chain break. Investigate immediately:
               1. Curl GET /verify on the ledger pod for the failing seq.
               2. Inspect the last successful R2 snapshot for the gap.
               3. Quarantine the ledger volume before any chain-mutating ops.
 
       - alert: BrainMockModeInProd
-        expr: warden_brain_mock_mode{env="prod"} == 1
+        expr: clavenar_brain_mock_mode{env="prod"} == 1
         for: 5m
         labels:
           severity: critical
@@ -26,11 +26,11 @@ groups:
         annotations:
           summary: "Brain is running in mock mode in prod"
           description: |
-            warden_brain_mock_mode=1 means every detector returns the
+            clavenar_brain_mock_mode=1 means every detector returns the
             heuristic fallback verdict — no LLM dispatch happens. In prod
             this almost certainly means the API key env var was lost on
-            redeploy. Fix WARDEN_BRAIN_MOCK_MODE=false +
-            WARDEN_BRAIN_ANTHROPIC_API_KEY then restart brain.
+            redeploy. Fix CLAVENAR_BRAIN_MOCK_MODE=false +
+            CLAVENAR_BRAIN_ANTHROPIC_API_KEY then restart brain.
 
       - alert: ProxyDown
         expr: up{job="proxy"} == 0
@@ -41,7 +41,7 @@ groups:
         annotations:
           summary: "Proxy is not responding to scrapes"
           description: |
-            Prometheus has been unable to scrape warden-proxy for 2m.
+            Prometheus has been unable to scrape clavenar-proxy for 2m.
             Agents are likely seeing connection refused — the proxy is
             the only agent-facing surface.
 
@@ -73,7 +73,7 @@ groups:
             long-poll until timeout and the agent will retry.
 
       - alert: SvidIssuanceFailing
-        expr: rate(warden_identity_svid_issue_errors_total[5m]) > 0
+        expr: rate(clavenar_identity_svid_issue_errors_total[5m]) > 0
         for: 5m
         labels:
           severity: critical
@@ -87,9 +87,9 @@ groups:
 
       - alert: ProxyErrorRateHigh
         expr: |
-          sum(rate(warden_proxy_requests_total{outcome=~"server_error|timeout"}[5m]))
+          sum(rate(clavenar_proxy_requests_total{outcome=~"server_error|timeout"}[5m]))
           /
-          sum(rate(warden_proxy_requests_total[5m]))
+          sum(rate(clavenar_proxy_requests_total[5m]))
           > 0.01
         for: 5m
         labels:
@@ -103,7 +103,7 @@ groups:
             (brain/policy/hil) outage likely.
 
       - alert: ProxyLatencyP95High
-        expr: max(warden_proxy_request_duration_seconds{quantile="0.95"}) > 1
+        expr: max(clavenar_proxy_request_duration_seconds{quantile="0.95"}) > 1
         for: 10m
         labels:
           severity: critical
@@ -116,9 +116,9 @@ groups:
 
       - alert: BrainDetectorFailing
         expr: |
-          sum(rate(warden_brain_requests_total{outcome!="success"}[5m]))
+          sum(rate(clavenar_brain_requests_total{outcome!="success"}[5m]))
           /
-          sum(rate(warden_brain_requests_total[5m]))
+          sum(rate(clavenar_brain_requests_total[5m]))
           > 0.05
         for: 5m
         labels:
@@ -131,12 +131,12 @@ groups:
             (transport_error/parse_error/empty). Likely an upstream
             LLM provider outage or expired credentials.
 
-  - name: warden.warning
+  - name: clavenar.warning
     interval: 1m
     rules:
       - alert: BrainCostRunaway
         expr: |
-          (sum(rate(warden_brain_cost_estimated_usd_micros_total[5m])) * 3600)
+          (sum(rate(clavenar_brain_cost_estimated_usd_micros_total[5m])) * 3600)
           / 1e6
           > 50
         for: 15m
@@ -150,7 +150,7 @@ groups:
             Inspect the offending agent_id via the cost dashboard.
 
       - alert: ProxyCertExpiringSoon
-        expr: min(warden_proxy_cert_expiry_seconds) < 7 * 86400
+        expr: min(clavenar_proxy_cert_expiry_seconds) < 7 * 86400
         for: 5m
         labels:
           severity: warning
@@ -158,8 +158,8 @@ groups:
         annotations:
           summary: "Proxy mTLS cert expires in < 7 days"
           description: |
-            The agent-facing server cert at $WARDEN_CERT_DIR/server.crt
-            expires soon. Run warden-proxy/scripts/gen_certs.sh and
+            The agent-facing server cert at $CLAVENAR_CERT_DIR/server.crt
+            expires soon. Run clavenar-proxy/scripts/gen_certs.sh and
             force-recreate the proxy container.
 
       - alert: LedgerDiskLow
@@ -181,7 +181,7 @@ groups:
 
       - alert: VerifySlow
         expr: |
-          warden_ledger_verify_duration_seconds{quantile="0.95",env="prod"}
+          clavenar_ledger_verify_duration_seconds{quantile="0.95",env="prod"}
           > 5
         for: 10m
         labels:
@@ -195,7 +195,7 @@ groups:
             the cold tier and resetting the vacuum cursor.
 
       - alert: SimulatorRunningTooLong
-        expr: min_over_time(warden_simulator_running{env="prod"}[24h]) == 1
+        expr: min_over_time(clavenar_simulator_running{env="prod"}[24h]) == 1
         labels:
           severity: warning
           component: simulator
