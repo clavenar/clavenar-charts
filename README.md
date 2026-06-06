@@ -63,7 +63,7 @@ Image versions are tracked by `VERSION` at this repo's root — a single
 semver line that reflects the **latest image set already published to**
 `ghcr.io/clavenar/<service>`. `charts/clavenar/Chart.yaml`
 `appVersion` mirrors `VERSION` so a fresh `helm install` pulls tags
-that actually exist on GHCR. Independent of `clavenar-specs/VERSION`
+that actually exist on GHCR. Independent of `clavenar-internal-specs/VERSION`
 (which tracks the demo VPS deploy, not the chart's published image
 set).
 
