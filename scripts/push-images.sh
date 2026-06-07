@@ -42,7 +42,7 @@ declare -A EXTRA_CONTEXTS=(
     [clavenar-brain]="clavenar-workload-identity"
     [clavenar-policy-engine]="clavenar-workload-identity"
     [clavenar-ledger]="clavenar-workload-identity"
-    [clavenar-console]="clavenar-sdk clavenar-workload-identity"
+    [clavenar-console]="clavenar-rust-sdk clavenar-workload-identity"
     [clavenar-identity]="clavenar-workload-identity"
     [clavenar-simulator]="clavenar-workload-identity"
 )
