@@ -9,14 +9,14 @@
 # ───── Stage 1: build clavenarctl from sibling repos ───────────────────
 FROM rust:1-bookworm AS clavenarctl-builder
 
-# Path-deps: clavenar-ctl pulls clavenar-rust-sdk by relative path. Mirror the
+# Path-deps: clavenar-ctl pulls clavenar-sdk by relative path. Mirror the
 # workspace tree inside the builder so cargo resolves both. The Rego
 # templates subtree is `include_str!`'d into clavenarctl's `policy`
 # subcommand at compile time (clavenar-ctl/src/cmd/policy.rs) — only the
 # templates/ subtree is needed, not the whole policy-engine repo.
 WORKDIR /workspace
 COPY clavenar-ctl                       ./clavenar-ctl
-COPY clavenar-rust-sdk                       ./clavenar-rust-sdk
+COPY clavenar-sdk                       ./clavenar-sdk
 COPY clavenar-policy-engine/policies    ./clavenar-policy-engine/policies
 
 WORKDIR /workspace/clavenar-ctl

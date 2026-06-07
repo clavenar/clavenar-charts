@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds the lab-only Claude-Code-+-clavenarctl image from the local
-# clavenar-ctl + clavenar-rust-sdk sibling checkouts. Tags the image at
+# clavenar-ctl + clavenar-sdk sibling checkouts. Tags the image at
 # ghcr.io/clavenar/clavenar-claude-code-agent:<chart-appVersion>
 # and ":latest". Push is opt-in via --push (operator must have run
 # `docker login ghcr.io` first).
@@ -31,10 +31,10 @@ done
 IMAGE="ghcr.io/clavenar/clavenar-claude-code-agent"
 DOCKERFILE="${CHARTS_ROOT}/lab/Dockerfile.claude-code"
 
-for repo in clavenar-ctl clavenar-rust-sdk; do
+for repo in clavenar-ctl clavenar-sdk; do
     if [ ! -d "${WORKSPACE_ROOT}/${repo}" ]; then
         echo "Sibling repo missing: ${WORKSPACE_ROOT}/${repo}" >&2
-        echo "The image build needs both clavenar-ctl and clavenar-rust-sdk checked" >&2
+        echo "The image build needs both clavenar-ctl and clavenar-sdk checked" >&2
         echo "out alongside clavenar-charts. Run \`gh repo clone clavenar/${repo}\`." >&2
         exit 1
     fi

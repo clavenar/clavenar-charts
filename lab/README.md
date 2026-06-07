@@ -82,7 +82,7 @@ among many), set `exec.enabled=false` and skip applying
    lab/scripts/build-agent-image.sh        # local build
    lab/scripts/build-agent-image.sh --push # build + push to GHCR
    ```
-   The script needs the `clavenar-ctl` and `clavenar-rust-sdk` sibling repos
+   The script needs the `clavenar-ctl` and `clavenar-sdk` sibling repos
    checked out next to `clavenar-charts/`. It tags as
    `ghcr.io/clavenar/clavenar-claude-code-agent:<chart-appVersion>`
    plus `:latest`. For a local kind cluster, `kind load
