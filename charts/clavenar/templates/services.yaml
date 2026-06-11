@@ -9,6 +9,13 @@ inside the range is the iterated value.
 {{- range $name, $cfg := .Values.services }}
 {{- if $cfg.enabled }}
 {{- $persist := index $.Values.persistence $name | default dict }}
+{{- /* SQLite on a shared PVC corrupts under concurrent writers, so a
+       persistence-enabled (SQLite-backed) service refuses replicas>1
+       at template time instead of corrupting at runtime. Postgres-mode
+       ledger deployments disable persistence and scale freely. */}}
+{{- if and $persist.enabled (gt (int $cfg.replicas) 1) }}
+{{- fail (printf "services.%s: replicas=%d with persistence.%s.enabled=true — SQLite-backed services must run replicas: 1 (see values.yaml)" $name (int $cfg.replicas) $name) }}
+{{- end }}
 ---
 apiVersion: apps/v1
 kind: Deployment
