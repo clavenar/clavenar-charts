@@ -149,6 +149,29 @@ groups:
             Estimated spend is exceeding $50/hr over the last 15m.
             Inspect the offending agent_id via the cost dashboard.
 
+      # Soft daily inspection-spend budget. Distinct from the hourly
+      # runaway above: this catches sustained spend creeping toward a
+      # monthly bill, not a momentary spike. Monitor-only — it never
+      # denies traffic. Edit the literal `> 200` to your daily budget
+      # (this file is loaded verbatim; `tpl` is not applied, so the
+      # threshold can't be a Helm value — see alerts-configmap.yaml).
+      - alert: BrainInspectionBudgetSoftCap
+        expr: |
+          (sum(increase(clavenar_brain_cost_estimated_usd_micros_total[24h])) / 1e6)
+          > 200
+        for: 30m
+        labels:
+          severity: warning
+          component: brain
+        annotations:
+          summary: "Brain inspection spend > $200/day (soft cap)"
+          description: |
+            Estimated inspection spend has crossed the soft daily budget
+            over the trailing 24h. Monitor-only — no traffic is denied.
+            Review the cache-economics + per-tenant panels on
+            /stats/cost-latency, then either raise the budget or narrow
+            scope on the heaviest agent.
+
       - alert: ProxyCertExpiringSoon
         expr: min(clavenar_proxy_cert_expiry_seconds) < 7 * 86400
         for: 5m
