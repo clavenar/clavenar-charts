@@ -78,7 +78,7 @@ atomically and auto-commits. Failed pushes leave `VERSION` untouched
 # One-time: log root's docker into ghcr.io (the script uses sudo -n docker)
 echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
 
-# Full publish — builds 8 images, pushes 16 tags, bumps VERSION
+# Full publish — builds 10 images, pushes 20 tags, bumps VERSION
 ./scripts/push-images.sh
 
 # Subset / iteration (implies --no-bump)

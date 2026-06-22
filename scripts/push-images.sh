@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Build and push all 8 clavenar service images to ghcr.io/clavenar.
+# Build and push all 10 clavenar service images to ghcr.io/clavenar.
 # VERSION holds the latest tag already published; the script bumps to
 # next patch, builds + pushes under that, then writes the new value
 # back to VERSION + Chart.appVersion. Failed pushes leave VERSION
@@ -65,7 +65,7 @@ repo's Dockerfile, pushes ghcr.io/clavenar/<service>:<target>
 and :latest, then writes <target> into VERSION + Chart.appVersion.
 
 Flags:
-  --only=<csv>     Subset of the 8 services. Implies --no-bump
+  --only=<csv>     Subset of the 10 services. Implies --no-bump
                    (re-pushes the current VERSION tag for those svcs).
   --allow-dirty    Skip the "sibling repos on main + clean" preflight.
   --no-bump        Re-push the current VERSION tag; do not bump or commit.
