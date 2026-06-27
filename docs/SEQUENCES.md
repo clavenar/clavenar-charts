@@ -4,10 +4,11 @@ Helm chart shape: eight Deployments + Services, optional NetworkPolicy
 perimeter, optional PodDisruptionBudgets, optional TLS bundle Secret,
 opt-in dashboards + alerts ConfigMaps, opt-in Alertmanager Secret. The
 templates live under `charts/clavenar/templates/`; the values surface is
-in `charts/clavenar/values.yaml`. Six flows below cover render + apply,
+in `charts/clavenar/values.yaml`. Seven flows below cover render + apply,
 pod boot, cross-service URL wiring, observability discovery, alert
-fan-out, and the NetworkPolicy ingress check — plus a flowchart of the
-value-driven render-time branches.
+fan-out, the NetworkPolicy ingress check, and the TLS auto-mint + Vault
+hook lifecycle — plus a flowchart of the value-driven render-time
+branches.
 
 ## 1. `helm install <release> charts/clavenar`
 
@@ -51,8 +52,9 @@ sequenceDiagram
 ## 2. Pod boot under `tlsBundle.secretName` set
 
 Each pod mounts only `ca.crt` + its own `service-<name>.{crt,key}` — the
-Secret-items filter in `services.yaml:109-125` scopes the projection so
-a compromised pod can't read another service's private key. Proxy also
+per-pod `items:` projection on the `certs` Secret volume in
+`services.yaml` scopes the projection so a compromised pod can't read
+another service's private key. Proxy also
 mounts `server.{crt,key}` + `client.{crt,key}`. Under TLS mode brain /
 policy / hil / identity / ledger move `/health` + `/readyz` + `/metrics`
 to a plain-HTTP `healthPort` so kubelet probes and Prometheus scrapes
@@ -228,6 +230,80 @@ sequenceDiagram
     Brain-->>Proxy: TLS handshake proceeds (see flow 3)
 ```
 
+## 7. Install-time hooks — TLS auto-mint then Vault bootstrap
+
+The prerequisite for flows 2 and 3. Under `tlsBundle.autoMint` the chart
+mints the `clavenar-certs` bundle from a `pre-install,pre-upgrade` hook
+Job before any workload pod schedules; under `vault.bundled.enabled` two
+`post-install,post-upgrade` hook Jobs provision the transit key + lab
+agent credential after the release lands. Hook weights order the
+pre-install set — RBAC `-20` (`tls-automint-rbac.yaml`) → script
+ConfigMap `-15` (`tls-automint-script.yaml`) → Job `0`
+(`tls-automint-job.yaml`) — so the ServiceAccount and `mint.sh`/`apply.sh`
+mount source both exist before the Job starts. The Job splits an
+`openssl` initContainer (`mint`, image `alpine/openssl`) from a `kubectl`
+main container (`apply`, image `alpine/k8s`) over a shared `/work`
+emptyDir; `apply.sh` is a no-op when the target Secret already carries
+`ca.crt` under the expected `san-scheme` label and re-mints on scheme
+drift, which keeps the CA stable across upgrades. The Vault Jobs run
+post-install at weights `0` (`vault-bootstrap-job.yaml`) then `1`
+(`vault-seed-job.yaml`).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Op as Operator
+    participant Helm as helm CLI
+    participant API as kube-apiserver
+    participant Mint as Job initContainer<br/>mint (alpine/openssl)
+    participant Apply as Job container<br/>apply (alpine/k8s)
+    participant Sec as Secret<br/>clavenar-certs
+    participant Vault as bundled Vault<br/>(dev-mode, unsealed)
+    participant VBoot as Job<br/>vault-bootstrap
+    participant VSeed as Job<br/>vault-agent-seed
+
+    Op->>Helm: helm install/upgrade<br/>tlsBundle.autoMint=true, vault.bundled.enabled=true
+
+    Note over Helm,API: pre-install / pre-upgrade hooks, by weight
+    Helm->>API: apply SA + Role + RoleBinding (weight -20)
+    Helm->>API: apply tls-automint script ConfigMap (weight -15)
+    Helm->>API: create tls-automint Job (weight 0)
+
+    API->>Mint: start initContainer mint
+    Mint->>Mint: openssl mints CA root + server + client + per-service certs into /work
+    Mint-->>API: initContainer exits 0
+    API->>Apply: start main container apply
+    Apply->>Sec: GET secret clavenar-certs (jsonpath .data.ca.crt)
+    alt ca.crt present AND san-scheme == release-prefixed-v2
+        Sec-->>Apply: existing bundle, scheme matches
+        Apply->>Apply: skip apply — CA stays stable across upgrade
+    else absent OR scheme drift
+        Apply->>Sec: kubectl create --dry-run then apply -f - (create-or-replace)
+        Apply->>Sec: label san-scheme=release-prefixed-v2
+    end
+    Apply-->>API: Job succeeded, hook-delete-policy reaps SA/Role/ConfigMap/Job
+
+    Note over Helm,API: main release — Deployments, Services, configmap,<br/>vault-token Secret, bundled Vault subchart
+    Helm->>API: POST release manifests
+    API->>Vault: bundled Vault StatefulSet schedules
+
+    Note over Helm,VSeed: post-install / post-upgrade hooks, by weight
+    Helm->>API: create vault-bootstrap Job (weight 0)
+    API->>VBoot: start
+    VBoot->>Vault: poll vault status until reachable (up to 60x, sleep 2)
+    VBoot->>Vault: secrets enable transit (tolerate exists); write transit/keys/clavenar-identity
+    VBoot->>Vault: read transit/keys/clavenar-identity (post-condition)
+    VBoot-->>API: Job succeeded
+
+    Helm->>API: create vault-agent-seed Job (weight 1)
+    API->>VSeed: start
+    VSeed->>Vault: poll vault status until reachable
+    VSeed->>Vault: kv put secret/agents/agent-001 api_key=stub-key
+    VSeed->>Vault: kv get secret/agents/agent-001 (post-condition)
+    VSeed-->>API: Job succeeded
+    Helm-->>Op: release deployed — pods mount clavenar-certs (flow 2);<br/>identity signs SVIDs via transit
+```
+
 ## Chart render decision tree
 
 Every value-driven branch in the chart in one tree. The leaves are the
@@ -272,4 +348,26 @@ flowchart TD
     Alerts --> Am{alertmanager.enabled?}
     Am -->|yes| AmSec[emit Alertmanager Secret with Slack plus SMTP routing]
     Am -->|no| NoAm[operator wires alerts into their own AM]
+
+    V --> Exec{exec.enabled?}
+    Exec -->|yes| ExecDep[emit exec Deployment + Service + workspace PVC]
+    Exec -->|no| NoExec[no exec gateway]
+
+    V --> Stub{upstreamStub.enabled?}
+    Stub -->|yes| StubDep[emit upstream-stub Deployment + Service, auto-wire proxy CLAVENAR_UPSTREAM_URL]
+
+    V --> Alias{proxyAlias.enabled?}
+    Alias -->|yes| AliasSvc[emit ExternalName Service named proxy]
+
+    V --> Auto{tlsBundle.autoMint?}
+    Auto -->|yes| AutoRbac[pre-install hook, weight -20, SA + Role + RoleBinding]
+    AutoRbac --> AutoCm[pre-install hook, weight -15, tls-automint script ConfigMap]
+    AutoCm --> AutoJob[pre-install hook, weight 0, mint then apply Secret unless ca.crt + scheme match]
+
+    V --> Vault{vault.bundled.enabled?}
+    Vault -->|yes| VaultTok[emit vault-token Secret with dev root token]
+    Vault -->|yes| VaultBoot[post-install hook, weight 0, enable transit + create clavenar-identity key]
+    VaultBoot --> Seed{agentVaultSeed.enabled?}
+    Seed -->|yes| SeedJob[post-install hook, weight 1, kv put secret/agents/agent-001]
+    Seed -->|no| NoSeed[BYO per-agent creds]
 ```
