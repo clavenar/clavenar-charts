@@ -42,6 +42,7 @@ charts/clavenar/
   values.yaml           # every commented block doubles as the values reference
   templates/
     _helpers.tpl        # serviceFullname, imageRef, natsUrl, backendEnvs, probe/metrics helpers — the load-bearing logic
+    NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
     services.yaml       # the 8 Deployments + Services
     configmap.yaml shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
@@ -50,9 +51,9 @@ charts/clavenar/
     dashboards-configmap.yaml alerts-configmap.yaml alertmanager-config-secret.yaml
   dashboards/ alerts/   # Grafana JSON + Prometheus rules, label-discovered by kube-prometheus-stack
 tests/values-bundled.yaml   # nats + vault subcharts + auto-mint TLS; CI bundled fixture
-scripts/push-images.sh      # builds/pushes the 8 images to GHCR, bumps VERSION + Chart.appVersion
+scripts/push-images.sh      # builds/pushes the 10 service images (8 core + simulator + exec) to GHCR, bumps VERSION + Chart.appVersion
 lab/                        # optional in-cluster Claude Code agent pod (proxy→brain→policy→hil→ledger demo)
-docs/SEQUENCES.md           # six flow diagrams + the render decision tree
+docs/SEQUENCES.md           # seven flow diagrams + the render decision tree
 ```
 Service ports (container; Service names are `<release>-<service>`):
 proxy 8443 (mTLS `/mcp`+`/metrics`, the only Service-published port) / 8080
@@ -75,7 +76,10 @@ upstream-stub 9000 · exec 9001.
   bundles, Iceberg metadata, egress sweeper → 503). Wire SIEM ingest directly.
 - **Image tag fallback:** `services.<svc>.image.tag → .Values.imageTag →
   .Chart.AppVersion`. `appVersion` (and root `VERSION`) track the image set
-  already published to `ghcr.io/clavenar/<service>`.
+  already published to `ghcr.io/clavenar/<service>`. Chart `version` (0.8.x,
+  the chart's own SemVer) is hand-bumped and deliberately decoupled;
+  push-images.sh syncs only `VERSION` + `appVersion` and errors if they
+  diverge going in.
 - **tlsBundle drives mTLS.** Empty `tlsBundle.secretName` → no `/certs` mount →
   proxy + identity panic at boot. When set, backend services flip their app port
   to rustls + SPIFFE-URI allowlist and move health/`/metrics` to a plain-HTTP
