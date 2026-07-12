@@ -1,7 +1,8 @@
 # clavenar helm chart
 
-Umbrella Helm chart for the eight-service Clavenar stack:
-**proxy, brain, policy-engine, ledger, hil, identity, deep-review, console.**
+Umbrella Helm chart for the nine-service Clavenar stack:
+**proxy, brain, policy-engine, ledger, hil, identity, deep-review,
+assurance, console.**
 
 This is the canonical chart — the older skeleton at
 `clavenar-e2e/charts/clavenar/` is preserved for HA_RUNBOOK reference

@@ -475,6 +475,41 @@ services:
     metrics:
       enabled: true
 
+  # Continuous-assurance daemon (built from clavenar-chaos-monkey).
+  # Fires the attack catalog at the proxy on a cadence and publishes
+  # assurance_run results the console's /assurance page reads. Boots
+  # paused — arm via POST /running {"running":true} or /run-now on the
+  # admin plane. Attack runs authenticate with the generic agent
+  # client cert from tlsBundle; the admin plane works without it.
+  assurance:
+    enabled: true
+    replicas: 1
+    image:
+      repository: clavenar-chaos-monkey
+      tag: ""
+    # Admin control plane (/status, /running, /run-now).
+    port: 8088
+    serviceType: ClusterIP
+    resources:
+      requests: { cpu: 50m, memory: 64Mi }
+      limits:   { cpu: 250m, memory: 256Mi }
+    # The admin plane has no /health or /readyz; /status is a cheap GET
+    # over the same router. Worth adding real health routes to
+    # clavenar-assurance-daemon as a follow-up.
+    probes:
+      type: httpGet
+      health: /status
+      ready: /status
+    extraEnv:
+      # Paused at boot; the daily cadence starts once un-paused.
+      - name: CLAVENAR_ASSURANCE_START_RUNNING
+        value: "false"
+      - name: CLAVENAR_ASSURANCE_INTERVAL_SECS
+        value: "86400"
+    # The admin plane serves no /metrics.
+    metrics:
+      enabled: false
+
   # Operator UI. Read-only against ledger + HIL + policy-engine +
   # identity (proxy to its own data-plane is via SDK). Three auth modes:
   # `oidc` (prod default), `basic-admin` (single-operator), `disabled`

@@ -306,6 +306,30 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ $mount }}/ca.crt"
 {{- end }}
 {{- end }}
+{{- if eq $name "assurance" }}
+- name: CLAVENAR_ASSURANCE_PROXY_URL
+  value: "https://{{ $rel }}-proxy:8443/mcp"
+# Assurance namespaces its NATS URL like deep-review does — mirror the
+# helper-computed value into the service-prefixed name.
+- name: CLAVENAR_ASSURANCE_NATS_URL
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "clavenar.fullname" .ctx }}-config
+      key: NATS_URL
+{{- if $tlsOn }}
+# The proxy attacks + NATS both authenticate with the generic agent
+# client cert (the designated chaos-monkey identity) — the automint
+# bundle ships client.{crt,key}, not a service-assurance cert.
+- name: CLAVENAR_ASSURANCE_CERT_DIR
+  value: {{ $mount | quote }}
+- name: NATS_TLS_CERT_PATH
+  value: "{{ $mount }}/client.crt"
+- name: NATS_TLS_KEY_PATH
+  value: "{{ $mount }}/client.key"
+- name: NATS_TLS_CA_PATH
+  value: "{{ $mount }}/ca.crt"
+{{- end }}
+{{- end }}
 {{- if eq $name "deepReview" }}
 - name: CLAVENAR_DEEP_REVIEW_LEDGER_URL
   value: "http://{{ $rel }}-ledger:8083"
