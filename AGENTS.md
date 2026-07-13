@@ -63,6 +63,7 @@ identity 8086 plain + 8186 mTLS · deep-review 8087 · console 8085 ·
 upstream-stub 9000 · exec 9001.
 
 ## Conventions & invariants
+- After adding or updating a feature, also update the relevant `MANUAL_TESTS*` file(s) when needed.
 - **`clavenar.serviceFullname` kebab-cases values keys.** camelCase values paths
   (`services.policyEngine`, `services.deepReview`) become RFC-1123 object names
   (`<release>-policy-engine`, `<release>-deep-review`). In NOTES.txt / README /
