@@ -102,6 +102,7 @@ upstream-stub 9000 · exec 9001.
 - **Helm template logic stays in helpers, not handlers.** Compute derived
   strings (image refs, backend URLs, kebab names) in `_helpers.tpl`; templates
   consume the result. Don't duplicate a fallback chain inline.
+- Commit subjects must start with a lowercase letter.
 
 ## Pointers
 README.md · charts/clavenar/README.md (quickstart + values reference) ·
