@@ -1,0 +1,310 @@
+# Governed listener and Service publication inventory. Keep this file in
+# lockstep with templates and run scripts/check-listener-matrix.py after edits.
+schemaVersion: "1.0"
+reviewedContractSha256: "af52fa1d7f714c91ac1620d68edbf647a968f5e180912d0c5c7a86d8c4126e8f"
+ownership:
+  core: "clavenar chart templates/services.yaml"
+  optional: "clavenar chart optional templates"
+  nats-subchart: "nats dependency 1.2.5; parent chart owns exposure policy"
+  vault-subchart: "vault dependency 0.30.0; parent chart owns exposure policy"
+
+# Exact selectors for non-component callers. The Vault chart applies
+# server.extraLabels to both the server and its helm-test Pod, so the
+# DoesNotExist expressions are required to exclude server self-access;
+# Vault 0.30 currently stamps the server discriminator as `component`.
+peerSelectors:
+  vault-server-test:
+    podSelector:
+      matchLabels:
+        clavenar.io/network-client: vault-server-test
+      matchExpressions:
+        - { key: app.kubernetes.io/component, operator: DoesNotExist }
+        - { key: component, operator: DoesNotExist }
+
+# Canonical NetworkPolicy contract. Rules resolve their destination port from
+# the named listener above/below; peers are release-scoped component selectors
+# unless they are a dynamic or exact peer token. The checker derives its
+# complete expected NetworkPolicy set from this section.
+# `allowedPeers` on each listener is the exact union of its peer tokens here.
+# Kubelet/node traffic is authorized metadata but is omitted from policy tokens
+# because Kubernetes NetworkPolicy does not block traffic to/from a pod's node.
+networkPolicies:
+  - service: proxy
+    owner: core
+    enabledWhen: "services.proxy.enabled"
+    rules:
+      - { listenerId: agent-mcp, peers: [any] }
+      - { listenerId: health, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
+  - service: brain
+    owner: core
+    enabledWhen: "services.brain.enabled"
+    rules:
+      - { listenerId: application, peers: [proxy] }
+      - { listenerId: application, peers: [policy-engine, console], disabledWhen: "tlsBundle.secretName" }
+      - { listenerId: health, peers: [policy-engine, console], enabledWhen: "tlsBundle.secretName" }
+      - { listenerId: application, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel", disabledWhen: "tlsBundle.secretName" }
+      - { listenerId: health, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel and tlsBundle.secretName" }
+  - service: policy-engine
+    owner: core
+    enabledWhen: "services.policyEngine.enabled"
+    rules:
+      - { listenerId: application, peers: [proxy, console] }
+      - { listenerId: application, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel", disabledWhen: "tlsBundle.secretName" }
+      - { listenerId: health, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel and tlsBundle.secretName" }
+  - service: ledger
+    owner: core
+    enabledWhen: "services.ledger.enabled"
+    rules:
+      - { listenerId: public-read, peers: [console, deep-review] }
+      - { listenerId: public-read, peers: [proxy, simulator], disabledWhen: "tlsBundle.secretName" }
+      - { listenerId: internal-mtls, peers: [proxy, console, deep-review, simulator], enabledWhen: "tlsBundle.secretName" }
+      - { listenerId: public-read, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
+  - service: hil
+    owner: core
+    enabledWhen: "services.hil.enabled"
+    rules:
+      - { listenerId: application, peers: [proxy, console, simulator] }
+      - { listenerId: application, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel", disabledWhen: "tlsBundle.secretName" }
+      - { listenerId: health, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel and tlsBundle.secretName" }
+  - service: identity
+    owner: core
+    enabledWhen: "services.identity.enabled"
+    rules:
+      - { listenerId: public, peers: [proxy, console, simulator], disabledWhen: "tlsBundle.secretName" }
+      - { listenerId: internal-mtls, peers: [proxy, console, simulator], enabledWhen: "tlsBundle.secretName" }
+      - { listenerId: public, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
+  - service: deep-review
+    owner: core
+    enabledWhen: "services.deepReview.enabled"
+    rules:
+      - { listenerId: operational, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
+  - service: assurance
+    owner: core
+    enabledWhen: "services.assurance.enabled"
+    rules:
+      - { listenerId: admin, peers: [console] }
+  - service: console
+    owner: core
+    enabledWhen: "services.console.enabled"
+    rules:
+      - { listenerId: operator-ui, peers: [configured-console-peers], enabledWhen: "networkPolicy.console.allowedPeers" }
+  - service: exec
+    owner: optional
+    enabledWhen: "exec.enabled"
+    rules:
+      - { listenerId: mcp, peers: [proxy] }
+  - service: upstream-stub
+    owner: optional
+    enabledWhen: "upstreamStub.enabled"
+    rules:
+      - { listenerId: mcp, peers: [proxy], disabledWhen: "exec.enabled" }
+      - { listenerId: mcp, peers: [exec], enabledWhen: "exec.enabled" }
+  - service: nats
+    owner: nats-subchart
+    enabledWhen: "nats.bundled.enabled"
+    rules:
+      - { listenerId: client, peers: [proxy, brain, policy-engine, ledger, hil, identity, deep-review, assurance] }
+      - { listenerId: monitor, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
+  - service: vault
+    owner: vault-subchart
+    enabledWhen: "vault.bundled.enabled"
+    rules:
+      - { listenerId: api, peers: [proxy, identity, vault-bootstrap, vault-agent-seed, vault-server-test] }
+      - { listenerId: cluster, peers: [vault] }
+
+listeners:
+  - { service: proxy, listenerId: agent-mcp, owner: core, enabledWhen: "services.proxy.enabled", bind: "0.0.0.0:8443", containerPort: 8443, servicePort: 8443, servicePublished: true, ingressPaths: ["/", "/health", "/readyz", "/mcp", "/tool/{name}"], transportProtocol: TCP, applicationProtocol: "HTTPS/MCP", authentication: "mutual TLS agent certificate", authorizedCallers: [authenticated-agents], allowedPeers: [any], bodyLimit: "2,097,152-byte Axum default", rateLimit: "disabled by default (per-agent and per-tenant qps=0, burst=0); environment-configurable", hostPublication: "forbidden", externalPublication: "operator-required via Ingress/Gateway when agents are outside the cluster" }
+  - { service: proxy, listenerId: health, owner: core, enabledWhen: "services.proxy.enabled", bind: "0.0.0.0:8080", containerPort: 8080, servicePort: "not-published", servicePublished: false, ingressPaths: ["/", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; operational endpoints only", authorizedCallers: [kubelet, prometheus], allowedPeers: [prometheus], bodyLimit: "not-applicable", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: brain, listenerId: application, owner: core, enabledWhen: "services.brain.enabled", bind: "0.0.0.0:8081", containerPort: 8081, servicePort: 8081, servicePublished: true, ingressPaths: ["/inspect", "/scan-response", "/scan-request", "/scan-definitions", "/scan-tool-name", "/ (without tlsBundle)", "/health (without tlsBundle)", "/readyz (without tlsBundle)", "/metrics (without tlsBundle)", "/explain-pattern (without tlsBundle)", "/narrate-decision (without tlsBundle)", "/model-snapshot (without tlsBundle)"], transportProtocol: TCP, applicationProtocol: "HTTP; HTTPS when tlsBundle is set", authentication: "none without tlsBundle; workload mTLS with tlsBundle", authorizedCallers: [proxy, policy-engine, console, kubelet, prometheus], allowedPeers: [proxy, policy-engine, console, prometheus], bodyLimit: "2 MiB Axum default", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: brain, listenerId: health, owner: core, enabledWhen: "services.brain.enabled and tlsBundle.secretName", bind: "0.0.0.0:9081", containerPort: 9081, servicePort: "not-published", servicePublished: false, ingressPaths: ["/", "/health", "/readyz", "/metrics", "/explain-pattern", "/narrate-decision", "/model-snapshot"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; internal narrative/model and operational endpoints", authorizedCallers: [policy-engine, console, kubelet, prometheus], allowedPeers: [policy-engine, console, prometheus], bodyLimit: "2 MiB Axum default", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: policy-engine, listenerId: application, owner: core, enabledWhen: "services.policyEngine.enabled", bind: "0.0.0.0:8082", containerPort: 8082, servicePort: 8082, servicePublished: true, ingressPaths: ["/evaluate", "/evaluate-egress", "/policies", "/policies/{name}", "/policies/{name}/versions", "/policies/{name}/versions/{version}", "/policies/{name}/diff", "/policies/validate", "/policies/{name}/activate", "/policies/{name}/deactivate", "/policies/{name}/rollback/{version}", "/policies/categories/{domain}/activate", "/policies/categories/{domain}/deactivate", "/policies/evaluate-batch", "/policies/mine", "/policies/tenant/{prefix}/provision", "/policies/tenant/{prefix}", "/policies/templates", "/policies/templates/{name}", "/policies/templates/{name}/install", "/policies/templates/{name}/lab", "/ (without tlsBundle)", "/health (without tlsBundle)", "/readyz (without tlsBundle)", "/metrics (without tlsBundle)"], transportProtocol: TCP, applicationProtocol: "HTTP; HTTPS when tlsBundle is set", authentication: "without tlsBundle: no transport authentication; with tlsBundle: mutual TLS plus SPIFFE allowlist [proxy, console] on every application route", authorizedCallers: [proxy, console, kubelet, prometheus], allowedPeers: [proxy, console, prometheus], bodyLimit: "2,097,152-byte Axum default; /policies/evaluate-batch is 16 MiB and caps inputs at 5000", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: policy-engine, listenerId: health, owner: core, enabledWhen: "services.policyEngine.enabled and tlsBundle.secretName", bind: "0.0.0.0:9082", containerPort: 9082, servicePort: "not-published", servicePublished: false, ingressPaths: ["/", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; operational endpoints only", authorizedCallers: [kubelet, prometheus], allowedPeers: [prometheus], bodyLimit: "not-applicable", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: ledger, listenerId: public-read, owner: core, enabledWhen: "services.ledger.enabled", bind: "0.0.0.0:8083", containerPort: 8083, servicePort: 8083, servicePublished: true, ingressPaths: ["/verify", "/", "/health", "/readyz", "/metrics", "/log (without tlsBundle)", "/agents (without tlsBundle)", "/audit/{agent_id} (without tlsBundle)", "/audit/{agent_id}/count (without tlsBundle)", "/audit/agent/{tenant}/{agent_id}/lifecycle (without tlsBundle)", "/audit/correlation/{correlation_id} (without tlsBundle)", "/audit/entry/{entry_id}/masked-params (without tlsBundle)", "/audit/replay/corpus (without tlsBundle)", "/analysis/agent-envelope-recommendations (without tlsBundle)", "/analysis/agent-behavioral-baseline (without tlsBundle)", "/analysis/fleet-behavioral-diff (without tlsBundle)", "/analysis/silent-agents (without tlsBundle)", "/silence-allowlist (without tlsBundle)", "/silence-allowlist/{agent_id} (without tlsBundle)", "/analysis/model-upgrade-canary (without tlsBundle)", "/audit/hunt (without tlsBundle)", "/finops/spend (without tlsBundle)", "/admin/tenants/{tenant}/tombstone (without tlsBundle)", "/cases (without tlsBundle)", "/cases/{id} (without tlsBundle)", "/cases/{id}/timeline (without tlsBundle)", "/cases/{id}/status (without tlsBundle)", "/cases/{id}/classify (without tlsBundle)", "/cases/{id}/attach (without tlsBundle)", "/stream/audit (without tlsBundle)", "/export (without tlsBundle)", "/exports (without tlsBundle)", "/export/regulatory (without tlsBundle)", "/compliance/evidence (without tlsBundle)"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "without tlsBundle: internal, public, and health routers are merged without transport authentication; with tlsBundle: public and health routers only, outside SPIFFE middleware", authorizedCallers: [proxy, console, deep-review, simulator, kubelet, prometheus], allowedPeers: [proxy, console, deep-review, simulator, prometheus], bodyLimit: "2,097,152-byte Axum default", rateLimit: "/verify?full=true is 3 requests/minute; all other routes have no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: ledger, listenerId: internal-mtls, owner: core, enabledWhen: "services.ledger.enabled and tlsBundle.secretName", bind: "0.0.0.0:8183", containerPort: 8183, servicePort: 8183, servicePublished: true, ingressPaths: ["/log", "/agents", "/audit/{agent_id}", "/audit/{agent_id}/count", "/audit/agent/{tenant}/{agent_id}/lifecycle", "/audit/correlation/{correlation_id}", "/audit/entry/{entry_id}/masked-params", "/audit/replay/corpus", "/analysis/agent-envelope-recommendations", "/analysis/agent-behavioral-baseline", "/analysis/fleet-behavioral-diff", "/analysis/silent-agents", "/silence-allowlist", "/silence-allowlist/{agent_id}", "/analysis/model-upgrade-canary", "/audit/hunt", "/finops/spend", "/admin/tenants/{tenant}/tombstone", "/cases", "/cases/{id}", "/cases/{id}/timeline", "/cases/{id}/status", "/cases/{id}/classify", "/cases/{id}/attach", "/stream/audit", "/export", "/exports", "/export/regulatory", "/compliance/evidence", "/verify", "/", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTPS, authentication: "mutual TLS; internal router additionally enforces SPIFFE allowlist [proxy, console, deep-review, simulator], while public and health routers are merged outside SPIFFE middleware", authorizedCallers: [proxy, console, deep-review, simulator], allowedPeers: [proxy, console, deep-review, simulator], bodyLimit: "2,097,152-byte Axum default", rateLimit: "/verify?full=true is 3 requests/minute; all other routes have no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: hil, listenerId: application, owner: core, enabledWhen: "services.hil.enabled", bind: "0.0.0.0:8084", containerPort: 8084, servicePort: 8084, servicePublished: true, ingressPaths: ["/decide/{id}", "/pending/{id}/decision-link", "/pending", "/pending/stream", "/pending/{id}", "/pending/{id}/incident", "/pending/{id}/assign", "/pending/by-correlation/{correlation_id}", "/approvals/stats", "/decision-link/verify", "/notifications/config", "/notifications/test", "/webhook/slack", "/webhook/teams", "/identities/upsert", "/identities/{oidc_sub}", "/identities/{oidc_sub}/slack", "/identities/{oidc_sub}/teams", "/auth/register/start", "/auth/register/finish", "/auth/login/start", "/auth/login/finish", "/auth/logout", "/auth/me", "/", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: "HTTP without tlsBundle; HTTPS with tlsBundle", authentication: "route-specific bearer, session/WebAuthn, signed decision-link, and webhook authentication; with tlsBundle the listener requires mutual TLS and the application branch additionally enforces SPIFFE allowlist [proxy, console, simulator], while health routes remain outside SPIFFE route middleware", authorizedCallers: [proxy, console, simulator, kubelet, prometheus], allowedPeers: [proxy, console, simulator, prometheus], bodyLimit: "2,097,152-byte Axum default", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: hil, listenerId: health, owner: core, enabledWhen: "services.hil.enabled and tlsBundle.secretName", bind: "0.0.0.0:9084", containerPort: 9084, servicePort: "not-published", servicePublished: false, ingressPaths: ["/", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; operational endpoints only", authorizedCallers: [kubelet, prometheus], allowedPeers: [prometheus], bodyLimit: "not-applicable", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: identity, listenerId: public, owner: core, enabledWhen: "services.identity.enabled", bind: "0.0.0.0:8086", containerPort: 8086, servicePort: 8086, servicePublished: true, ingressPaths: ["/stats", "/jwks.json", "/.well-known/spiffe-bundle", "/healthz", "/health", "/readyz", "/metrics", "/svid (without tlsBundle)", "/workload-svid (without tlsBundle)", "/grant (without tlsBundle)", "/revoke (without tlsBundle)", "/revocation/list (without tlsBundle)", "/grants (without tlsBundle)", "/sign (without tlsBundle)", "/sign/blob (without tlsBundle)", "/actor-token (without tlsBundle)", "/actor-token/redeem (without tlsBundle)", "/agents (without tlsBundle)", "/agents/orphans (without tlsBundle)", "/agents/{id} (without tlsBundle)", "/agents/{id}/suspend (without tlsBundle)", "/agents/{id}/unsuspend (without tlsBundle)", "/agents/{id}/containment (without tlsBundle)", "/agents/{id}/containment/clear (without tlsBundle)", "/agents/{id}/decommission (without tlsBundle)", "/agents/{id}/envelope/narrow (without tlsBundle)", "/agents/{id}/envelope/widen (without tlsBundle)", "/agents/{id}/attestation-kinds (without tlsBundle)", "/agents/{id}/owner-team (without tlsBundle)", "/agents/{id}/description (without tlsBundle)", "/agents/{id}/certification (without tlsBundle)", "/upstreams (without tlsBundle)", "/upstreams/{id} (without tlsBundle)", "/upstreams/{id}/retire (without tlsBundle)", "/decoys (without tlsBundle)", "/decoys/{name} (without tlsBundle)", "/tool-definitions/pin (without tlsBundle)", "/tenants/{tenant}/budget (without tlsBundle)", "/tenants/{tenant}/offboard (without tlsBundle)"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "without tlsBundle: internal, public, and health routers are merged without transport authentication; with tlsBundle: public and health routers only, outside SPIFFE middleware", authorizedCallers: [proxy, console, simulator, kubelet, prometheus], allowedPeers: [proxy, console, simulator, prometheus], bodyLimit: "2,097,152-byte Axum default", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: identity, listenerId: internal-mtls, owner: core, enabledWhen: "services.identity.enabled and tlsBundle.secretName", bind: "0.0.0.0:8186", containerPort: 8186, servicePort: 8186, servicePublished: true, ingressPaths: ["/svid", "/workload-svid", "/grant", "/revoke", "/revocation/list", "/grants", "/sign", "/sign/blob", "/actor-token", "/actor-token/redeem", "/agents", "/agents/orphans", "/agents/{id}", "/agents/{id}/suspend", "/agents/{id}/unsuspend", "/agents/{id}/containment", "/agents/{id}/containment/clear", "/agents/{id}/decommission", "/agents/{id}/envelope/narrow", "/agents/{id}/envelope/widen", "/agents/{id}/attestation-kinds", "/agents/{id}/owner-team", "/agents/{id}/description", "/agents/{id}/certification", "/upstreams", "/upstreams/{id}", "/upstreams/{id}/retire", "/decoys", "/decoys/{name}", "/tool-definitions/pin", "/tenants/{tenant}/budget", "/tenants/{tenant}/offboard", "/stats", "/jwks.json", "/.well-known/spiffe-bundle", "/healthz", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTPS, authentication: "mutual TLS; internal router additionally enforces SPIFFE allowlist [proxy, console, simulator], while public and health routers are merged outside SPIFFE middleware", authorizedCallers: [proxy, console, simulator], allowedPeers: [proxy, console, simulator], bodyLimit: "2,097,152-byte Axum default", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: deep-review, listenerId: operational, owner: core, enabledWhen: "services.deepReview.enabled", bind: "0.0.0.0:8087", containerPort: 8087, servicePort: 8087, servicePublished: true, ingressPaths: ["/", "/health", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; operational endpoints only", authorizedCallers: [kubelet, prometheus], allowedPeers: [prometheus], bodyLimit: "not-applicable (GET-only listener)", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: assurance, listenerId: admin, owner: core, enabledWhen: "services.assurance.enabled", bind: "0.0.0.0:8088", containerPort: 8088, servicePort: 8088, servicePublished: true, ingressPaths: ["/", "/health", "/status", "/running", "/run-now"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "application admin plane; no transport authentication", authorizedCallers: [console, kubelet], allowedPeers: [console], bodyLimit: "2 MiB Axum default for POST routes", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - service: console
+    listenerId: operator-ui
+    owner: core
+    enabledWhen: "services.console.enabled"
+    bind: "0.0.0.0:8085"
+    containerPort: 8085
+    servicePort: 8085
+    servicePublished: true
+    ingressPaths:
+      - "GET /"
+      - "GET /_partials/chain-pill"
+      - "GET /_partials/ops-signals"
+      - "GET /_partials/posture"
+      - "GET /_partials/landing-charts"
+      - "GET /_partials/recent-activity"
+      - "GET /health"
+      - "GET /readyz"
+      - "GET /favicon.svg"
+      - "GET /static/console.css"
+      - "GET /audit"
+      - "GET /audit/correlation/{correlation_id}"
+      - "GET /chains/{correlation_id}"
+      - "GET /receipt"
+      - "GET /api/receipt/{correlation_id}"
+      - "GET /api/receipt-sample"
+      - "GET /api/chain-status"
+      - "GET /jwks.json"
+      - "GET /static/receipt-verify.js"
+      - "GET /audit/narrative"
+      - "GET /audit/agents/{agent_id}/narrative"
+      - "GET /deep-review"
+      - "GET /hunt"
+      - "GET /incidents/hunt"
+      - "GET|POST /incidents"
+      - "GET /incidents/{id}"
+      - "POST /incidents/{id}/contain"
+      - "GET /incidents/{id}/_contain_confirm"
+      - "GET /incidents/{id}/_decommission_confirm"
+      - "POST /incidents/{id}/decommission"
+      - "POST /incidents/{id}/classify"
+      - "POST /incidents/{id}/close"
+      - "GET /incidents/{id}/export"
+      - "GET /incidents/{id}/report"
+      - "GET /stream/audit"
+      - "GET /stream/agent_audit/{cn}"
+      - "GET /exports"
+      - "POST /exports/run-now"
+      - "GET /compliance"
+      - "GET /velocity"
+      - "GET /assurance"
+      - "POST /assurance/run-now"
+      - "GET /topology"
+      - "GET /topology/edge"
+      - "GET /stats"
+      - "GET /stats/deny-rate"
+      - "GET /stats/intents"
+      - "GET /stats/cost-latency"
+      - "GET /_partials/stats/cost-latency/latency"
+      - "GET /stats/finops"
+      - "GET /billing/export"
+      - "GET /tenant/offboard/_confirm"
+      - "POST /tenant/offboard"
+      - "GET /timeline"
+      - "GET /hil"
+      - "GET /hil/retroactive-review"
+      - "GET /hil/analytics"
+      - "GET /hil/settings"
+      - "POST /hil/notifications/test"
+      - "POST /hil/bulk/approve"
+      - "POST /hil/bulk/deny"
+      - "POST /hil/{id}/approve"
+      - "POST /hil/{id}/deny"
+      - "POST /hil/{id}/modify"
+      - "POST /hil/{id}/assign"
+      - "GET|POST /decide/redeem"
+      - "GET /stream/hil"
+      - "POST /api/demo-session/exchange"
+      - "GET /api/demo-session/status"
+      - "GET /demo"
+      - "POST /demo/fire/{scenario}"
+      - "GET /demo/run/{cid}"
+      - "GET /demo/pipeline/{cid}"
+      - "POST /demo/assurance/fire"
+      - "GET /sim"
+      - "GET /_partials/sim-live"
+      - "POST /sim/multiplier"
+      - "POST /sim/running"
+      - "POST /sim/auto-decide"
+      - "POST /sim/agents"
+      - "GET /agents"
+      - "GET /agents/behavioral-diff"
+      - "GET /agents/model-canary"
+      - "GET /agents/liveness"
+      - "GET /agents/{id}"
+      - "POST /agents/{id}/envelope/narrow"
+      - "POST /agents/{id}/suspend"
+      - "POST /agents/{id}/unsuspend"
+      - "POST /agents/{id}/decommission"
+      - "POST /agents/{id}/containment/clear"
+      - "GET /_partials/fleet-scope-waste"
+      - "GET /_partials/fleet-drift"
+      - "GET /policies"
+      - "GET /policies/library"
+      - "GET /policies/library/{name}"
+      - "POST /policies/library/{name}/install"
+      - "POST /policies/library/{name}/lab/run"
+      - "POST /policies/validate"
+      - "POST /policies/lab/run-draft"
+      - "GET|POST /policies/new"
+      - "GET /policies/{name}"
+      - "GET|POST /policies/{name}/edit"
+      - "POST /policies/{name}/activate"
+      - "POST /policies/{name}/deactivate"
+      - "POST /policies/{name}/delete"
+      - "POST /policies/{name}/rollback/{version}"
+      - "GET /policies/{name}/diff"
+      - "GET /policies/{name}/lab"
+      - "POST /policies/{name}/lab/run"
+      - "GET /policies/mine"
+      - "POST /policies/mine/run"
+      - "POST /policies/mine/accept"
+      - "POST /policies/category/{domain}/activate"
+      - "POST /policies/category/{domain}/deactivate"
+      - "GET /policies/category/{domain}/_confirm"
+      - "GET /policies/{name}/_confirm"
+      - "GET /config"
+      - "GET /login"
+      - "GET /register"
+      - "GET /auth/me"
+      - "POST /auth/login/start"
+      - "POST /auth/login/finish"
+      - "POST /auth/register/start"
+      - "POST /auth/register/finish"
+      - "POST /auth/basic-login"
+      - "GET /auth/oidc/login"
+      - "GET /auth/oidc/callback"
+      - "POST /auth/logout"
+      - "GET /auth/slack/start"
+      - "GET /auth/slack/callback"
+      - "GET /auth/teams/start"
+      - "GET /auth/teams/callback"
+      - "GET /me/identities"
+      - "POST /me/identities/slack/unlink"
+      - "POST /me/identities/teams/unlink"
+      - "GET /metrics"
+    transportProtocol: TCP
+    applicationProtocol: HTTP
+    authentication: "mode-conditional: chart-default disabled mode grants synthetic Admin to a direct request with no X-Clavenar-Edge: public header; a public-edge request without a valid demo cookie is denied and a valid demo cookie is scoped; the chart does not stamp the edge header, so default-deny NetworkPolicy is the containment boundary and any explicitly selected direct peer reaches synthetic Admin (residual WP-01.2 risk); basic-admin grants Admin; OIDC/SAML/WebAuthn use sessions and mapped roles; public health/static/login/auth/demo-bootstrap routes bypass session role checks; most reads require Viewer; HIL, simulator, and incident actions require Approver; destructive writes require Admin or a demo-scoped grant; /metrics rejects demo cookies"
+    authorizedCallers: [configured-console-peers, kubelet]
+    allowedPeers: [configured-console-peers]
+    bodyLimit: "2,097,152-byte Axum default"
+    rateLimit: "no automated login or request-rate limiter"
+    hostPublication: "forbidden"
+    externalPublication: "operator-controlled Ingress/Gateway only"
+  - { service: exec, listenerId: mcp, owner: optional, enabledWhen: "exec.enabled", bind: "0.0.0.0:9001", containerPort: 9001, servicePort: 9001, servicePublished: true, ingressPaths: ["GET /health", "GET /readyz", "ANY unmatched method/path (fallback; includes POST /mcp and non-GET health/readiness requests)"], transportProtocol: TCP, applicationProtocol: "HTTP/MCP", authentication: "none at application layer; NetworkPolicy admits only proxy", authorizedCallers: [proxy, kubelet], allowedPeers: [proxy], bodyLimit: "4 MiB request body", rateLimit: "no request-rate limiter; 30-second default tool timeout is execution control", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: upstream-stub, listenerId: mcp, owner: optional, enabledWhen: "upstreamStub.enabled", bind: "0.0.0.0:9000", containerPort: 9000, servicePort: 9000, servicePublished: true, ingressPaths: ["GET /health", "/* (any method/path fallback)"], transportProtocol: TCP, applicationProtocol: "HTTP/MCP", authentication: "none at application layer; NetworkPolicy admits proxy, or exec when the execution gateway is enabled", authorizedCallers: [proxy, exec, kubelet], allowedPeers: [proxy, exec], bodyLimit: "1 MiB request body", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: nats, listenerId: client, owner: nats-subchart, enabledWhen: "nats.bundled.enabled", bind: "0.0.0.0:4222", containerPort: 4222, servicePort: 4222, servicePublished: true, ingressPaths: ["NATS subjects (not HTTP paths)"], transportProtocol: TCP, applicationProtocol: NATS, authentication: "mutual TLS when tlsBundle is set; subchart configuration otherwise", authorizedCallers: [proxy, brain, policy-engine, ledger, hil, identity, deep-review, assurance], allowedPeers: [proxy, brain, policy-engine, ledger, hil, identity, deep-review, assurance], bodyLimit: "NATS server configuration (not chart-governed)", rateLimit: "NATS server configuration (not chart-governed)", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: nats, listenerId: monitor, owner: nats-subchart, enabledWhen: "nats.bundled.enabled", bind: "0.0.0.0:8222", containerPort: 8222, servicePort: 8222, servicePublished: true, ingressPaths: ["NATS monitoring endpoints"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; operational endpoints only", authorizedCallers: [kubelet, prometheus], allowedPeers: [prometheus], bodyLimit: "not-applicable", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: vault, listenerId: api, owner: vault-subchart, enabledWhen: "vault.bundled.enabled", bind: "0.0.0.0:8200", containerPort: 8200, servicePort: 8200, servicePublished: true, ingressPaths: ["/v1/*"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "Vault token; bundled dev mode", authorizedCallers: [proxy, identity, vault-bootstrap, vault-agent-seed, vault-server-test], allowedPeers: [proxy, identity, vault-bootstrap, vault-agent-seed, vault-server-test], bodyLimit: "Vault server configuration (not chart-governed)", rateLimit: "Vault server configuration (not chart-governed)", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: vault, listenerId: cluster, owner: vault-subchart, enabledWhen: "vault.bundled.enabled", bind: "0.0.0.0:8201", containerPort: 8201, servicePort: 8201, servicePublished: true, ingressPaths: ["Vault cluster protocol (not HTTP paths)"], transportProtocol: TCP, applicationProtocol: "Vault cluster RPC", authentication: "Vault cluster transport", authorizedCallers: [vault], allowedPeers: [vault], bodyLimit: "Vault server configuration (not chart-governed)", rateLimit: "Vault server configuration (not chart-governed)", hostPublication: "forbidden", externalPublication: "forbidden" }
+  - { service: vault, listenerId: replication, owner: vault-subchart, enabledWhen: "vault.bundled.enabled", bind: "0.0.0.0:8202", containerPort: 8202, servicePort: "not-published", servicePublished: false, ingressPaths: ["Vault replication protocol (not HTTP paths)"], transportProtocol: TCP, applicationProtocol: "Vault replication RPC", authentication: "Vault replication transport", authorizedCallers: [vault-enterprise-replicas], allowedPeers: [], bodyLimit: "Vault server configuration (not chart-governed)", rateLimit: "Vault server configuration (not chart-governed)", hostPublication: "forbidden", externalPublication: "forbidden" }
+
+# Every rendered Service object, including duplicate/headless subchart
+# publications and the optional DNS alias. The checker expands {release}.
+serviceObjects:
+  - { id: proxy, selectorOwner: core, enabledWhen: "services.proxy.enabled", name: "{release}-proxy", type: ClusterIP, ports: [{ name: http, port: 8443, targetPort: http, protocol: TCP }] }
+  - { id: brain, selectorOwner: core, enabledWhen: "services.brain.enabled", name: "{release}-brain", type: ClusterIP, ports: [{ name: http, port: 8081, targetPort: http, protocol: TCP }] }
+  - { id: policy-engine, selectorOwner: core, enabledWhen: "services.policyEngine.enabled", name: "{release}-policy-engine", type: ClusterIP, ports: [{ name: http, port: 8082, targetPort: http, protocol: TCP }] }
+  - { id: ledger, selectorOwner: core, enabledWhen: "services.ledger.enabled", name: "{release}-ledger", type: ClusterIP, ports: [{ name: http, port: 8083, targetPort: http, protocol: TCP }], tlsPorts: [{ name: mtls, port: 8183, targetPort: mtls, protocol: TCP }] }
+  - { id: hil, selectorOwner: core, enabledWhen: "services.hil.enabled", name: "{release}-hil", type: ClusterIP, ports: [{ name: http, port: 8084, targetPort: http, protocol: TCP }] }
+  - { id: identity, selectorOwner: core, enabledWhen: "services.identity.enabled", name: "{release}-identity", type: ClusterIP, ports: [{ name: http, port: 8086, targetPort: http, protocol: TCP }], tlsPorts: [{ name: mtls, port: 8186, targetPort: mtls, protocol: TCP }] }
+  - { id: deep-review, selectorOwner: core, enabledWhen: "services.deepReview.enabled", name: "{release}-deep-review", type: ClusterIP, ports: [{ name: http, port: 8087, targetPort: http, protocol: TCP }] }
+  - { id: assurance, selectorOwner: core, enabledWhen: "services.assurance.enabled", name: "{release}-assurance", type: ClusterIP, ports: [{ name: http, port: 8088, targetPort: http, protocol: TCP }] }
+  - { id: console, selectorOwner: core, enabledWhen: "services.console.enabled", name: "{release}-console", type: ClusterIP, ports: [{ name: http, port: 8085, targetPort: http, protocol: TCP }] }
+  - { id: exec, selectorOwner: core, enabledWhen: "exec.enabled", name: "{release}-exec", type: ClusterIP, ports: [{ name: http, port: 9001, targetPort: http, protocol: TCP }] }
+  - { id: upstream-stub, selectorOwner: core, enabledWhen: "upstreamStub.enabled", name: "{release}-upstream-stub", type: ClusterIP, ports: [{ name: http, port: 9000, targetPort: http, protocol: TCP }] }
+  - { id: proxy-alias, selectorOwner: none, enabledWhen: "proxyAlias.enabled", name: proxy, type: ExternalName, externalName: "{release}-proxy.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8443, targetPort: 8443, protocol: TCP }] }
+  - { id: nats, selectorOwner: nats, enabledWhen: "nats.bundled.enabled", name: "{release}-nats", type: ClusterIP, ports: [{ name: nats, port: 4222, targetPort: nats, protocol: TCP, appProtocol: tlsWhenTlsElseTcp }] }
+  - { id: nats-headless, selectorOwner: nats, enabledWhen: "nats.bundled.enabled", name: "{release}-nats-headless", type: ClusterIP, headless: true, publishNotReadyAddresses: true, ports: [{ name: nats, port: 4222, targetPort: nats, protocol: TCP, appProtocol: tlsWhenTlsElseTcp }, { name: monitor, port: 8222, targetPort: monitor, protocol: TCP, appProtocol: http }] }
+  - { id: vault, selectorOwner: vault, enabledWhen: "vault.bundled.enabled", name: "{release}-vault", type: ClusterIP, publishNotReadyAddresses: true, ports: [{ name: http, port: 8200, targetPort: 8200, protocol: TCP }, { name: https-internal, port: 8201, targetPort: 8201, protocol: TCP }] }
+  - { id: vault-internal, selectorOwner: vault, enabledWhen: "vault.bundled.enabled", name: "{release}-vault-internal", type: ClusterIP, headless: true, publishNotReadyAddresses: true, ports: [{ name: http, port: 8200, targetPort: 8200, protocol: TCP }, { name: https-internal, port: 8201, targetPort: 8201, protocol: TCP }] }

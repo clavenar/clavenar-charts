@@ -213,7 +213,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # mTLS receive (B7 v1.x+2 session 4). Bundle mounted → engine binds
 # rustls + SPIFFE-URI allowlist on the application port; /health +
 # /readyz + /metrics move to the plain-HTTP health port. Session 5
-# adds console to the allowlist for /policies/* CRUD.
+# adds console to the allowlist for the explicit policy-management routes.
 - name: CLAVENAR_POLICY_TLS_DIR
   value: {{ $mount | quote }}
 - name: CLAVENAR_POLICY_ALLOWED_CALLERS
@@ -224,11 +224,12 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- if eq $name "hil" }}
 {{- if $tlsOn }}
-# mTLS receive (B7 v1.x+2 session 6). Single-mode listener — port 8084
-# becomes rustls when the bundle is mounted; only callers presenting a
-# workload cert from the allowlist are accepted. Health + /metrics move
-# to `services.hil.healthPort` (default 9084) so kubelet + Prometheus
-# can reach the plain-HTTP surface without a client cert.
+# mTLS receive (B7 v1.x+2 session 6). Port 8084 becomes rustls when the
+# bundle is mounted. Its application branch additionally enforces the
+# SPIFFE allowlist; the four operational routes remain merged on 8084
+# outside that route middleware and are also served on
+# `services.hil.healthPort` (default 9084), so kubelet
+# + Prometheus can use plain HTTP without a client cert.
 - name: CLAVENAR_HIL_TLS_DIR
   value: {{ $mount | quote }}
 - name: CLAVENAR_HIL_ALLOWED_CALLERS
@@ -263,11 +264,11 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 5). Bundle mounted → ledger runs
 # TWO listeners. Plain HTTP on `port` (default 8083) serves the public
-# `/verify` + `/audit/{agent_id}*` read surface + `/health` + `/metrics`
-# (kubelet + Ingress reach this without a client cert). mTLS on
+# `/verify`, `/`, `/health`, `/readyz`, and `/metrics` surface (kubelet
+# + internal readers reach this without a client cert). mTLS on
 # `mtlsPort` (default 8183) serves the full router; the internal write
-# + console-only read subset (`/log`, `/audit/correlation/*`,
-# `/stream/audit`, `/export*`, `/agents`) is SPIFFE-gated by the
+# + console-only read subset (the exact routes are governed by
+# `listeners.yaml`) is SPIFFE-gated by the
 # allowlist. The plain HTTP router STRIPS those routes so a cluster-
 # network attacker cannot bypass mTLS by hitting `port` directly.
 # Service template emits a second port (`name: mtls`) alongside
@@ -277,7 +278,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_LEDGER_TLS_DIR
   value: {{ $mount | quote }}
 - name: CLAVENAR_LEDGER_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/deep-review"
+  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/deep-review,spiffe://clavenar.local/service/simulator"
 - name: CLAVENAR_LEDGER_MTLS_ADDR
   value: "0.0.0.0:8183"
 {{- end }}
@@ -374,7 +375,11 @@ endpoint reachable. */}}
 {{- $svcCfg := .svcCfg -}}
 {{- $metrics := default dict $svcCfg.metrics -}}
 {{- if $metrics.enabled -}}
-{{- $port := default $svcCfg.port (default $svcCfg.healthPort $metrics.port) -}}
+{{- $port := $svcCfg.port -}}
+{{- if and .ctx.Values.tlsBundle.secretName $svcCfg.healthPort -}}
+{{- $port = $svcCfg.healthPort -}}
+{{- end -}}
+{{- if $metrics.port -}}{{- $port = $metrics.port -}}{{- end -}}
 {{- $path := default "/metrics" $metrics.path }}
 prometheus.io/scrape: "true"
 prometheus.io/path: {{ $path | quote }}
@@ -394,7 +399,11 @@ to land on the plain-HTTP health port under mTLS mode. */}}
 {{- $svcCfg := .svcCfg -}}
 {{- $kind := .kind -}}
 {{- $defaults := index $ctx.Values.probeDefaults $kind -}}
-{{- $probePort := default $svcCfg.port (default $svcCfg.healthPort $svcCfg.probes.port) -}}
+{{- $probePort := $svcCfg.port -}}
+{{- if and $ctx.Values.tlsBundle.secretName $svcCfg.healthPort -}}
+{{- $probePort = $svcCfg.healthPort -}}
+{{- end -}}
+{{- if $svcCfg.probes.port -}}{{- $probePort = $svcCfg.probes.port -}}{{- end -}}
 initialDelaySeconds: {{ $defaults.initialDelaySeconds }}
 periodSeconds: {{ $defaults.periodSeconds }}
 timeoutSeconds: {{ $defaults.timeoutSeconds }}
@@ -407,4 +416,17 @@ httpGet:
 tcpSocket:
   port: {{ $probePort }}
 {{- end }}
+{{- end -}}
+
+{{/* Effective Prometheus ingress port. Must stay in lockstep with the
+metrics annotation helper above. */}}
+{{- define "clavenar.metricsPort" -}}
+{{- $port := .svcCfg.port -}}
+{{- if and .ctx.Values.tlsBundle.secretName .svcCfg.healthPort -}}
+{{- $port = .svcCfg.healthPort -}}
+{{- end -}}
+{{- if (default dict .svcCfg.metrics).port -}}
+{{- $port = .svcCfg.metrics.port -}}
+{{- end -}}
+{{- $port -}}
 {{- end -}}

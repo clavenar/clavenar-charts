@@ -16,6 +16,9 @@ jobs:
         with:
           version: v3.16.3
 
+      - name: install listener-matrix test dependency
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.2
+
       # Materialize subchart tarballs from Chart.lock (nats, vault).
       # Tarballs are gitignored; this step replaces the manual
       # `helm dep update` an operator would run before `helm install`.
@@ -35,11 +38,7 @@ jobs:
         working-directory: charts/clavenar
         run: |
           helm template smoke . \
-            --set tlsBundle.secretName=clavenar-certs \
-            --set vault.addr=http://vault:8200 \
-            --set vault.tokenSecretName=clavenar-vault \
-            --set networkPolicy.enabled=true \
-            --set networkPolicy.prometheusNamespaceLabel=monitoring \
+            -f ../../tests/values-all-on.yaml \
             --set services.brain.replicas=3 \
             --set services.policyEngine.replicas=2 \
             > /tmp/all-on.yaml
@@ -63,15 +62,27 @@ jobs:
           helm template smoke . -f ../../tests/values-bundled.yaml \
             > /tmp/bundled.yaml
 
-      # Quick sanity: each render must produce at least the eight
+      - name: helm template — optional listeners
+        working-directory: charts/clavenar
+        run: helm template smoke . -f ../../tests/values-optional.yaml > /tmp/optional.yaml
+
+      - name: listener matrix + authorization policy checks
+        run: |
+          python3 scripts/check-listener-matrix.py --manifest /tmp/default.yaml
+          python3 scripts/check-listener-matrix.py --manifest /tmp/all-on.yaml --values tests/values-all-on.yaml
+          python3 scripts/check-listener-matrix.py --manifest /tmp/optional.yaml --values tests/values-optional.yaml
+          python3 scripts/check-listener-matrix.py --manifest /tmp/bundled.yaml --values tests/values-bundled.yaml
+          python3 -m unittest -v tests/test_listener_matrix.py
+
+      # Quick sanity: each render must produce at least the nine
       # Deployments. Catches a regression where a service template
       # silently stops emitting one.
       - name: smoke-check kind counts
         run: |
-          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml /tmp/bundled.yaml; do
+          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml /tmp/optional.yaml /tmp/bundled.yaml; do
             n=$(grep -c '^kind: Deployment' "$f" || true)
-            if [ "$n" -lt 8 ]; then
-              echo "::error::$f rendered only $n Deployments (expected 8)"
+            if [ "$n" -lt 9 ]; then
+              echo "::error::$f rendered only $n Deployments (expected 9)"
               exit 1
             fi
           done
@@ -92,6 +103,8 @@ jobs:
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/postgres.yaml
       - name: kubeconform — bundled
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/bundled.yaml
+      - name: kubeconform — optional
+        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/optional.yaml
 
   shellcheck:
     name: shellcheck

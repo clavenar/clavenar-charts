@@ -1,0 +1,38 @@
+{{/* Reject chart-controlled externally reachable Service types. */}}
+{{- range $name, $cfg := .Values.services }}
+{{- if and $cfg.enabled (ne (default "ClusterIP" $cfg.serviceType) "ClusterIP") }}
+{{- fail (printf "services.%s.serviceType must be ClusterIP; use an operator-controlled Ingress or Gateway for external publication" $name) }}
+{{- end }}
+{{- end }}
+{{- range $index, $peer := .Values.networkPolicy.console.allowedPeers }}
+{{- if hasKey $peer "ipBlock" }}
+{{- fail (printf "networkPolicy.console.allowedPeers[%d] must use podSelector and/or namespaceSelector, not ipBlock" $index) }}
+{{- end }}
+{{- $podLabels := dig "podSelector" "matchLabels" (dict) $peer }}
+{{- $podExpressions := dig "podSelector" "matchExpressions" (list) $peer }}
+{{- $namespaceLabels := dig "namespaceSelector" "matchLabels" (dict) $peer }}
+{{- $namespaceExpressions := dig "namespaceSelector" "matchExpressions" (list) $peer }}
+{{- if and (empty $podLabels) (empty $podExpressions) (empty $namespaceLabels) (empty $namespaceExpressions) }}
+{{- fail (printf "networkPolicy.console.allowedPeers[%d] must contain a non-empty podSelector or namespaceSelector" $index) }}
+{{- end }}
+{{- end }}
+{{- if .Values.vault.bundled.enabled }}
+{{- $vaultType := dig "server" "service" "type" "ClusterIP" .Values.vault }}
+{{- if ne (default "ClusterIP" $vaultType) "ClusterIP" }}
+{{- fail "vault.server.service.type must be ClusterIP in bundled mode" }}
+{{- end }}
+{{- if and .Values.vault.ui.enabled (ne (default "ClusterIP" .Values.vault.ui.serviceType) "ClusterIP") }}
+{{- fail "vault.ui.serviceType must be ClusterIP in bundled mode" }}
+{{- end }}
+{{- end }}
+{{- if .Values.nats.bundled.enabled }}
+{{- $natsType := dig "service" "merge" "spec" "type" "ClusterIP" .Values.nats }}
+{{- if ne (default "ClusterIP" $natsType) "ClusterIP" }}
+{{- fail "nats.service.merge.spec.type must be ClusterIP in bundled mode" }}
+{{- end }}
+{{- range $patch := .Values.nats.service.patch }}
+{{- if and (eq (default "" $patch.path) "/spec/type") (ne (default "ClusterIP" $patch.value) "ClusterIP") }}
+{{- fail "nats.service.patch must not set /spec/type to an externally reachable Service type" }}
+{{- end }}
+{{- end }}
+{{- end }}

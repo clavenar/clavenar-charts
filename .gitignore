@@ -8,3 +8,5 @@
 # non-tgz file with `Could not verify ... for deletion: file ...
 # does not appear to be a gzipped archive`.
 charts/clavenar/charts/*.tgz
+__pycache__/
+*.py[cod]

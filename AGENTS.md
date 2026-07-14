@@ -1,10 +1,10 @@
 <!-- public repo — do not add internal topology, secrets, deploy/runbook, strategy, or absolute host paths -->
-# clavenar-charts — Helm chart for the eight-service Clavenar sidecar control plane (k8s)
+# clavenar-charts — Helm chart for the nine-service Clavenar sidecar control plane (k8s)
 
 Umbrella chart that deploys the Clavenar stack — **proxy, brain, policy-engine,
-ledger, hil, identity, deep-review, console** — as Deployments + ClusterIP
+ledger, hil, identity, deep-review, assurance, console** — as Deployments + ClusterIP
 Services with `/health` + `/readyz` probes, PVCs for the SQLite-backed services,
-an optional NetworkPolicy perimeter, PodDisruptionBudgets, and an opt-in
+a default-on NetworkPolicy perimeter, PodDisruptionBudgets, and an opt-in
 auto-mint mTLS bundle. NATS + Vault are BYO by default; opt-in subcharts bundle
 them. (Pure-Terraform AWS/GCP/Azure modules are roadmap, not in-repo today.)
 
@@ -30,7 +30,7 @@ helm template smoke . -f ../../tests/values-bundled.yaml > /tmp/bundled.yaml    
 for f in /tmp/{default,all-on,postgres,bundled}.yaml; do
   kubeconform -summary -strict -kubernetes-version 1.30.0 "$f"; done
 ```
-Plus `shellcheck -S warning scripts/*.sh`. Every render must emit ≥ 8
+Plus `shellcheck -S warning scripts/*.sh`. Every render must emit ≥ 9
 `kind: Deployment` — CI fails the matrix otherwise (catches a service template
 that silently stops rendering).
 Run: Helm chart, no binary — `helm install <release> charts/clavenar -n clavenar --create-namespace`. All Services are ClusterIP; port-forward to reach them.
@@ -43,7 +43,7 @@ charts/clavenar/
   templates/
     _helpers.tpl        # serviceFullname, imageRef, natsUrl, backendEnvs, probe/metrics helpers — the load-bearing logic
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
-    services.yaml       # the 8 Deployments + Services
+    services.yaml       # the 9 Deployments + Services
     configmap.yaml shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
@@ -56,10 +56,11 @@ lab/                        # optional in-cluster Claude Code agent pod (proxy�
 docs/SEQUENCES.md           # seven flow diagrams + the render decision tree
 ```
 Service ports (container; Service names are `<release>-<service>`):
-proxy 8443 (mTLS `/mcp`+`/metrics`, the only Service-published port) / 8080
-(plain-HTTP health, kubelet probes) · brain 8081 (9081 health under mTLS) ·
+proxy 8443 (mTLS `/`, `/health`, `/readyz`, `/mcp`, `/tool/{name}`; the only
+Service-published port) / 8080 (plain HTTP `/`, `/health`, `/readyz`, `/metrics`
+for kubelet and Prometheus) · brain 8081 (9081 health under mTLS) ·
 policy-engine 8082 (9082) · ledger 8083 plain + 8183 mTLS · hil 8084 (9084) ·
-identity 8086 plain + 8186 mTLS · deep-review 8087 · console 8085 ·
+identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 · console 8085 ·
 upstream-stub 9000 · exec 9001.
 
 ## Conventions & invariants
@@ -91,8 +92,10 @@ upstream-stub 9000 · exec 9001.
   must also enable TLS on the bundled NATS subchart — the `clavenar.natsUrl`
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =
   `InvalidContentType` crash). Mirror `tests/values-bundled.yaml`.
-- **NetworkPolicy** is opt-in (`networkPolicy.enabled`); backends then accept
-  ingress only from proxy + console + deep-review. **PDB** emits only where
+- **NetworkPolicy** defaults on and is destination/port-specific. Proxy is
+  open to arbitrary sources only on 8443; console defaults denied until
+  `networkPolicy.console.allowedPeers` supplies explicit selectors. Keep
+  `listeners.yaml`, its checker, and policy templates in lockstep. **PDB** emits only where
   `replicas > 1` (SQLite singletons skip naturally; `minAvailable=ceil/2`).
 - **All pods run nonroot UID 65532** (`podSecurityContext`); `fsGroup` remounts
   the SQLite PVCs writable.

@@ -1,0 +1,15 @@
+upstreamStub:
+  enabled: true
+exec:
+  enabled: true
+proxyAlias:
+  enabled: true
+networkPolicy:
+  console:
+    allowedPeers:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: ingress-nginx

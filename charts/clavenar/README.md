@@ -76,14 +76,14 @@ apply walkthrough.
 
 ## What's wired
 
-- **Eight Deployments + eight Services**, ClusterIP, one replica each.
+- **Nine Deployments + nine Services**, ClusterIP, one replica each.
 - **HTTP probes** wired to `/health` (liveness) + `/readyz`
   (readiness) for every service. The proxy exposes a second
   container port (`healthPort: 8080`) bound to a non-mTLS listener
-  serving only `/health` + `/readyz`; kubelet probes target this
-  port. The agent-facing mTLS port (8443) stays exclusive to
-  `/mcp` + `/metrics` and is the only port published by the
-  proxy's k8s Service.
+  serving `/`, `/health`, `/readyz`, and `/metrics`; kubelet probes and
+  Prometheus target this port. The agent-facing mTLS port (8443) serves
+  `/`, `/health`, `/readyz`, `/mcp`, and `/tool/{name}` but never
+  `/metrics`, and it is the only port published by the proxy's k8s Service.
 - **terminationGracePeriodSeconds** set to `drainCapSecs + 5` so
   the in-process watchdog (env `CLAVENAR_GRACEFUL_DRAIN_SECS`) fires
   before kubelet's SIGKILL.
@@ -99,10 +99,23 @@ apply walkthrough.
   where to find ledger/hil/policy-engine/identity; deep-review
   knows where to find ledger. Service mesh overriding the
   Service names? Set `services.<svc>.extraEnv` to shadow.
-- **NetworkPolicy** (opt-in via `networkPolicy.enabled=true`) —
-  backend services accept ingress only from proxy + console +
-  deep-review. Spec §"Threat model" §"Cross-cutting" treats this
-  as the deployment perimeter.
+- **NetworkPolicy** (default on) — every enabled core, optional, and
+  bundled workload gets an ingress-isolating policy. Rules name the
+  exact destination port and caller selectors. Proxy admits an
+  unrestricted source only on agent mTLS port 8443; console is denied
+  until `networkPolicy.console.allowedPeers` explicitly selects an
+  ingress controller or operator workload. Console metrics share its UI
+  port, so Prometheus must also be selected there intentionally.
+  The chart-default console auth mode is `disabled`; a direct request
+  without `X-Clavenar-Edge: public` receives synthetic Admin. The empty
+  peer list contains that residual lab posture, but any peer explicitly
+  selected here can reach it. Configure real console auth before granting
+  a production peer (tracked for hardening in WP-01.2).
+- **Governed listener inventory** — `listeners.yaml` records every
+  application and probe-only bind, Service publication, protocol,
+  authentication/callers, limits, and external-publication posture.
+  It also records ownership of the NATS and Vault subchart listeners.
+  `scripts/check-listener-matrix.py` rejects inventory drift.
 - **PodDisruptionBudget** auto-emitted for any service where
   `replicas > 1`. SQLite-pinned services (`replicas: 1`) skip
   naturally; once an operator flips ledger to Postgres mode +
@@ -139,10 +152,11 @@ apply walkthrough.
   (in-memory, root token, no Raft, no auto-unseal). Production
   deployments must turn `vault.bundled.enabled` off and point at an
   externally-managed Vault via `vault.addr` + `vault.tokenSecretName`.
-- **No ingress / TLS termination.** Add an Ingress, Gateway, or
-  service-mesh layer downstream of this chart. The proxy's mTLS
-  port (8443) typically faces agents directly via LoadBalancer;
-  the console UI sits behind your OIDC-aware ingress.
+- **No ingress / TLS termination.** Add an operator-controlled Ingress,
+  Gateway, or service-mesh layer downstream of this chart. Chart-owned
+  Services are fixed to ClusterIP; `NodePort` and `LoadBalancer` values
+  fail rendering. Publish proxy 8443 through an mTLS-capable edge and
+  select that edge explicitly for console ingress.
 - **No HPA.** Add one against the proxy / brain / policy-engine
   Deployments if you need it. Ledger / hil / identity stay pinned
   to `replicas: 1` while SQLite-backed.
@@ -192,7 +206,9 @@ tlsBundle:
   mountPath: /certs
 
 networkPolicy:
-  enabled: false                         # Flip to true under a policy-supporting CNI
+  enabled: true                          # Baseline ingress isolation; requires a policy-capable CNI
+  console:
+    allowedPeers: []                     # Explicit selectors; empty denies console ingress
   prometheusNamespaceLabel: ""           # Set to allow scrapes from a specific namespace
 
 podDisruptionBudget:
@@ -249,6 +265,10 @@ helm template my-clavenar . \
   --set vault.tokenSecretName=clavenar-vault \
   --set networkPolicy.enabled=true \
   --set services.brain.replicas=3
+
+# Validate Service ports/types and exact NetworkPolicy caller rules:
+helm template smoke . > /tmp/clavenar.yaml
+python3 ../../scripts/check-listener-matrix.py --manifest /tmp/clavenar.yaml
 ```
 
 If you have `kubeval` or `helm unittest` installed, they run too.

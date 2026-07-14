@@ -1,0 +1,7 @@
+tlsBundle:
+  secretName: clavenar-certs
+vault:
+  addr: http://vault:8200
+  tokenSecretName: clavenar-vault
+networkPolicy:
+  prometheusNamespaceLabel: monitoring

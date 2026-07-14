@@ -2,13 +2,19 @@
 
 Helm chart for deploying [Clavenar](https://github.com/clavenar)
 as a sidecar control plane in your Kubernetes cluster. The chart deploys
-the eight-service stack — **proxy, brain, policy-engine, ledger, hil,
-identity, deep-review, console** — as Deployments + Services with
-`/health` and `/readyz` probes, PVCs for the SQLite-backed services, an
-optional NetworkPolicy perimeter, and PodDisruptionBudgets where they
+the nine-service stack — **proxy, brain, policy-engine, ledger, hil,
+identity, deep-review, assurance, console** — as Deployments + Services with
+`/health` and `/readyz` probes, PVCs for the SQLite-backed services, a
+default-deny NetworkPolicy perimeter, and PodDisruptionBudgets where they
 make sense.
 
-NATS and Vault are not bundled. Operators bring their own.
+The governed inventory at `charts/clavenar/listeners.yaml` records every
+listener, authentication boundary, caller, and Service publication. CI
+checks default, TLS, optional-listener, and bundled-subchart renders
+against it.
+
+NATS and Vault are not bundled by default. Operators can bring their own or
+enable the evaluation-only subcharts.
 
 Sequence diagrams for the six primary flows — `helm install` render +
 apply, pod boot under `tlsBundle.secretName`, cross-service backend URL
@@ -33,7 +39,7 @@ SECURITY.md           # vulnerability reporting policy
 
 If you don't have a Kubernetes cluster handy, the compose-native
 stack at [`clavenar-e2e`](https://github.com/clavenar/clavenar-e2e)
-boots the same eight services under `docker compose --profile stack`
+boots the same nine services under `docker compose --profile stack`
 on a single host. Same wire contracts, same TECH_SPEC.md, isolated
 prod / dev environments under `prod/` and `dev/`. That repo also
 hosts the MANUAL_TESTS.md scenarios and `bootstrap.sh` / `deploy.sh`

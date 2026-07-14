@@ -1,65 +1,218 @@
-{{/*
-NetworkPolicy gating. Spec §"Threat model" §"Cross-cutting" treats
-the k8s NetworkPolicy as the deployment perimeter — once enabled, the
-backend services accept ingress only from proxy + console + deep-review
-(the legitimate in-stack callers).
-
-Disabled by default so CNIs without policy support still render
-cleanly. Required for the perimeter claim in the threat model.
-*/}}
+{{/* Default-deny, destination/port-specific ingress policy. */}}
 {{- if .Values.networkPolicy.enabled }}
-{{- $front := dict "proxy" true "console" true }}
+{{- $ctx := . }}
+{{- $matrix := fromYaml (.Files.Get "listeners.yaml") }}
+{{- $_ := unset $matrix "reviewedContractSha256" }}
+{{- $matrixDigest := sha256sum (toJson $matrix) }}
+{{- $callers := dict
+      "policyEngine" (list "proxy" "console")
+      "ledger" (list "console" "deepReview")
+      "hil" (list "proxy" "console" "simulator")
+      "assurance" (list "console") -}}
 {{- range $name, $cfg := .Values.services }}
 {{- if $cfg.enabled }}
+{{- $rules := list -}}
+{{- if eq $name "proxy" -}}
+  {{- $rules = append $rules (dict "port" (int $cfg.port) "any" true) -}}
+{{- else if eq $name "brain" -}}
+  {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy")) -}}
+  {{- if $ctx.Values.tlsBundle.secretName -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.healthPort) "callers" (list "policyEngine" "console")) -}}
+  {{- else -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "policyEngine" "console")) -}}
+  {{- end -}}
+{{- else if eq $name "identity" -}}
+  {{- if $ctx.Values.tlsBundle.secretName -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "callers" (list "proxy" "console" "simulator")) -}}
+  {{- else -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy" "console" "simulator")) -}}
+  {{- end -}}
+{{- else if hasKey $callers $name -}}
+  {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (index $callers $name)) -}}
+  {{- if and (eq $name "ledger") (not $ctx.Values.tlsBundle.secretName) -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy" "simulator")) -}}
+  {{- end -}}
+  {{- if and (eq $name "ledger") $ctx.Values.tlsBundle.secretName -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "callers" (list "proxy" "console" "deepReview" "simulator")) -}}
+  {{- end -}}
+{{- end -}}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}
+  name: {{ include "clavenar.serviceFullname" (dict "ctx" $ctx "service" $name) }}
+  annotations:
+    clavenar.io/listener-matrix-sha256: {{ $matrixDigest | quote }}
   labels:
-    {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+    {{- include "clavenar.labels" (dict "ctx" $ctx "service" $name) | nindent 4 }}
 spec:
   podSelector:
     matchLabels:
-      {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}
-  policyTypes:
-    - Ingress
+      {{- include "clavenar.selectorLabels" (dict "ctx" $ctx "service" $name) | nindent 6 }}
+  policyTypes: [Ingress]
   ingress:
-    {{- if hasKey $front $name }}
-    # Front-door service: open to anything in the namespace + cluster
-    # (mTLS gates the proxy traffic; auth gates the console).
-    - {}
-    {{- else }}
-    # Backend service: only the in-stack callers can reach it. Match
-    # both selector labels via the same release-instance to avoid
-    # bleed across overlapping releases in the same namespace.
+    {{- if and (eq $name "console") (not (empty $ctx.Values.networkPolicy.console.allowedPeers)) }}
     - from:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: {{ $.Chart.Name }}
-              app.kubernetes.io/instance: {{ $.Release.Name }}
-              app.kubernetes.io/component: proxy
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: {{ $.Chart.Name }}
-              app.kubernetes.io/instance: {{ $.Release.Name }}
-              app.kubernetes.io/component: console
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: {{ $.Chart.Name }}
-              app.kubernetes.io/instance: {{ $.Release.Name }}
-              app.kubernetes.io/component: deep-review
+        {{- toYaml $ctx.Values.networkPolicy.console.allowedPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $cfg.port }} }
     {{- end }}
-    {{- if $.Values.networkPolicy.prometheusNamespaceLabel }}
-    # Scrape allowance for Prometheus running in a labelled namespace.
+    {{- range $rule := $rules }}
+    - {{- if not $rule.any }}
+      from:
+        {{- range $caller := $rule.callers }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $ctx.Chart.Name }}
+              app.kubernetes.io/instance: {{ $ctx.Release.Name }}
+              app.kubernetes.io/component: {{ $caller | kebabcase }}
+        {{- end }}
+      {{- end }}
+      ports:
+        - { protocol: TCP, port: {{ $rule.port }} }
+    {{- end }}
+    {{- $metrics := default dict $cfg.metrics }}
+    {{- if and (ne $name "console") $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel }}
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ $.Values.networkPolicy.prometheusNamespaceLabel | quote }}
+              kubernetes.io/metadata.name: {{ $ctx.Values.networkPolicy.prometheusNamespaceLabel | quote }}
       ports:
-        - protocol: TCP
-          port: {{ default $cfg.port (default dict $cfg.metrics).port }}
+        - { protocol: TCP, port: {{ include "clavenar.metricsPort" (dict "ctx" $ctx "svcCfg" $cfg) }} }
     {{- end }}
+    {{- if and (empty $rules) (not (and (eq $name "console") (not (empty $ctx.Values.networkPolicy.console.allowedPeers)))) (not (and (ne $name "console") $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel)) }} []{{- end }}
+{{ end }}
 {{- end }}
-{{- end }}
+
+{{- if .Values.exec.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-exec
+  annotations:
+    clavenar.io/listener-matrix-sha256: {{ $matrixDigest | quote }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "exec") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "exec") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "proxy") | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.exec.port }} }
+{{ end }}
+
+{{- if .Values.upstreamStub.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-upstream-stub
+  annotations:
+    clavenar.io/listener-matrix-sha256: {{ $matrixDigest | quote }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "upstream-stub") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "upstream-stub") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "clavenar.selectorLabels" (dict "ctx" . "service" (ternary "exec" "proxy" .Values.exec.enabled)) | nindent 14 }}
+      ports:
+        - { protocol: TCP, port: {{ .Values.upstreamStub.port }} }
+{{ end }}
+
+{{- if .Values.nats.bundled.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-nats
+  annotations:
+    clavenar.io/listener-matrix-sha256: {{ $matrixDigest | quote }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "nats") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nats
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: nats
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $caller := list "proxy" "brain" "policy-engine" "ledger" "hil" "identity" "deep-review" "assurance" }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: {{ $caller }}
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: 4222 }
+    {{- if .Values.networkPolicy.prometheusNamespaceLabel }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ .Values.networkPolicy.prometheusNamespaceLabel | quote }}
+      ports:
+        - { protocol: TCP, port: 8222 }
+    {{- end }}
+{{ end }}
+
+{{- if .Values.vault.bundled.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .Release.Name }}-vault
+  annotations:
+    clavenar.io/listener-matrix-sha256: {{ $matrixDigest | quote }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "vault") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vault
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      component: server
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $caller := list "proxy" "identity" "vault-bootstrap" "vault-agent-seed" }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: {{ $caller }}
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              clavenar.io/network-client: vault-server-test
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: DoesNotExist
+              - key: component
+                operator: DoesNotExist
+      ports:
+        - { protocol: TCP, port: 8200 }
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vault
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              component: server
+      ports:
+        - { protocol: TCP, port: 8201 }
+{{ end }}
 {{- end }}

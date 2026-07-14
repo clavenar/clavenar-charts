@@ -8,6 +8,9 @@ inside the range is the iterated value.
 */}}
 {{- range $name, $cfg := .Values.services }}
 {{- if $cfg.enabled }}
+{{- if ne (default "ClusterIP" $cfg.serviceType) "ClusterIP" }}
+{{- fail (printf "services.%s.serviceType must be ClusterIP; externally reachable Services must be published by an operator-controlled Ingress or Gateway" $name) }}
+{{- end }}
 {{- $persist := index $.Values.persistence $name | default dict }}
 {{- /* SQLite on a shared PVC corrupts under concurrent writers, so a
        persistence-enabled (SQLite-backed) service refuses replicas>1
@@ -33,7 +36,7 @@ spec:
       labels:
         {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 8 }}
       annotations:
-        {{- include "clavenar.metricsAnnotations" (dict "svcCfg" $cfg) | trim | nindent 8 }}
+        {{- include "clavenar.metricsAnnotations" (dict "ctx" $ "svcCfg" $cfg) | trim | nindent 8 }}
         {{- if $.Values.tlsBundle.autoMint }}
         # Roll the pod when the auto-mint script changes — the SAN
         # scheme or extension shape might have shifted, which triggers
@@ -60,7 +63,7 @@ spec:
             - name: http
               containerPort: {{ $cfg.port }}
               protocol: TCP
-            {{- if and $cfg.healthPort (ne (int $cfg.healthPort) (int $cfg.port)) }}
+            {{- if and $cfg.healthPort (ne (int $cfg.healthPort) (int $cfg.port)) (or (eq $name "proxy") $.Values.tlsBundle.secretName) }}
             - name: health
               containerPort: {{ $cfg.healthPort }}
               protocol: TCP

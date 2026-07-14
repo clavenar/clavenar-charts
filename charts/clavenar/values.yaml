@@ -33,6 +33,12 @@ nats:
     # Secret. The clavenar.natsUrl helper render-fails if you enable one
     # side without the other (avoids the `InvalidContentType` crash).
     enabled: false
+  # Parent-owned exposure invariant for the bundled subchart. The
+  # listener checker also rejects Service patch/merge drift.
+  service:
+    merge:
+      spec:
+        type: ClusterIP
 
 vault:
   # VAULT_ADDR for proxy + identity when bundled.enabled is false.
@@ -61,6 +67,16 @@ vault:
       # (default `clavenar-identity`). Override only if you've changed
       # the identity-side env explicitly.
       keyName: clavenar-identity
+  # Bundled Vault is internal infrastructure. External publication is
+  # rejected by templates/validate.yaml.
+  server:
+    # Vault chart >=0.30 also applies server.extraLabels to its helm-test
+    # Pod, allowing an exact NetworkPolicy peer instead of namespace-wide
+    # test access.
+    extraLabels:
+      clavenar.io/network-client: vault-server-test
+    service:
+      type: ClusterIP
 
 # Bundled lab-only echo MCP server. The clavenar-proxy forwards every
 # approved tool call to CLAVENAR_UPSTREAM_URL; production deploys point
@@ -493,13 +509,12 @@ services:
     resources:
       requests: { cpu: 50m, memory: 64Mi }
       limits:   { cpu: 250m, memory: 256Mi }
-    # The admin plane has no /health or /readyz; /status is a cheap GET
-    # over the same router. Worth adding real health routes to
-    # clavenar-assurance-daemon as a follow-up.
+    # The admin plane exposes /health (there is no distinct /readyz),
+    # so both probes use the side-effect-free health route.
     probes:
       type: httpGet
-      health: /status
-      ready: /status
+      health: /health
+      ready: /health
     extraEnv:
       # Paused at boot; the daily cadence starts once un-paused.
       - name: CLAVENAR_ASSURANCE_START_RUNNING
@@ -548,10 +563,12 @@ services:
       - name: CLAVENAR_CONSOLE_AUTH
         value: disabled
       # `disabled` + 0.0.0.0 bind would otherwise be rejected as a
-      # production footgun (unauthenticated access from anywhere on
-      # the cluster network). The chart's posture is deliberate for
-      # lab/dev installs — every Service is ClusterIP-only and the
-      # bundled stack matches the compose-stack threat model.
+      # production footgun. In disabled mode a request without
+      # `X-Clavenar-Edge: public` receives synthetic Admin; this chart
+      # does not stamp that edge header. Default-deny NetworkPolicy
+      # contains the risk until an operator configures an explicit
+      # console peer, but that selected peer then reaches Admin routes.
+      # This override is deliberate only for lab/dev installs.
       # Production operators should flip CLAVENAR_CONSOLE_AUTH to a
       # real mode (oidc/webauthn/saml) and drop this override.
       - name: CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK
@@ -645,15 +662,34 @@ tlsBundle:
     tag: "1.30.0"
     pullPolicy: IfNotPresent
 
-# NetworkPolicy gating. Spec §"Threat model" §"Cross-cutting" treats
-# k8s NetworkPolicy as the deployment perimeter. With this on, the
-# backend services (brain/policy-engine/hil/ledger/identity) accept
-# ingress only from proxy + console + deep-review. Proxy stays open
-# (it's the agent-facing surface). Default off so a CNI without
-# NetworkPolicy support (calico off, flannel without policy) still
-# renders cleanly.
+# NetworkPolicy gating. The chart emits an ingress-isolating policy for
+# every enabled workload by default. Rules are destination/port exact:
+# proxy is reachable from arbitrary sources only on 8443, internal
+# listeners name caller selectors, and console has no ingress until
+# allowedPeers explicitly selects an ingress/operator workload.
 networkPolicy:
-  enabled: false
+  # Default-deny ingress is part of the chart's baseline. A CNI must
+  # implement networking.k8s.io/v1 NetworkPolicy for this to take effect.
+  enabled: true
+  # The console has no open ingress rule by default. Add explicit
+  # NetworkPolicyPeer objects for an ingress controller or operator pod.
+  # Console metrics share the UI port, so the global Prometheus exception
+  # intentionally does not apply; select Prometheus here if it must scrape.
+  # Empty podSelector/namespaceSelector objects are rejected by the
+  # listener-matrix checker because they would silently allow the cluster.
+  console:
+    allowedPeers: []
+    # WARNING: the default console auth mode is disabled. Any peer
+    # selected here can make direct header-less requests, which the
+    # application treats as synthetic Admin. Configure OIDC/WebAuthn/
+    # SAML (or an edge that stamps X-Clavenar-Edge: public) before
+    # granting a production peer.
+    # - namespaceSelector:
+    #     matchLabels:
+    #       kubernetes.io/metadata.name: ingress-nginx
+    #   podSelector:
+    #     matchLabels:
+    #       app.kubernetes.io/name: ingress-nginx
   # Allow Prometheus to scrape /metrics on every pod. Set to the
   # namespace label selector your scraper runs in. Empty → no
   # additional ingress allowance beyond the proxy/console/deep-review
