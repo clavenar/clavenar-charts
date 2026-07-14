@@ -38,12 +38,14 @@ SERVICES=(
 # checkouts under WORKSPACE_ROOT — without these flags docker tries to
 # pull `docker.io/library/<name>` and fails.
 declare -A EXTRA_CONTEXTS=(
-    [clavenar-proxy]="clavenar-sandbox"
-    [clavenar-brain]="clavenar-workload-identity"
-    [clavenar-policy-engine]="clavenar-workload-identity"
-    [clavenar-ledger]="clavenar-workload-identity"
+    [clavenar-proxy]="clavenar-shared clavenar-sandbox clavenar-workload-identity"
+    [clavenar-brain]="clavenar-shared clavenar-workload-identity"
+    [clavenar-policy-engine]="clavenar-shared clavenar-workload-identity"
+    [clavenar-ledger]="clavenar-shared clavenar-workload-identity"
+    [clavenar-hil]="clavenar-shared clavenar-workload-identity"
     [clavenar-console]="clavenar-sdk clavenar-workload-identity clavenar-shared"
-    [clavenar-identity]="clavenar-workload-identity"
+    [clavenar-deep-review]="clavenar-shared"
+    [clavenar-identity]="clavenar-shared clavenar-workload-identity"
     [clavenar-simulator]="clavenar-workload-identity"
 )
 
@@ -191,6 +193,20 @@ check_sibling_clean() {
     for svc in "${TARGETS[@]}"; do
         if [ ! -f "$WORKSPACE_ROOT/$svc/Dockerfile" ]; then
             echo "missing Dockerfile: $WORKSPACE_ROOT/$svc/Dockerfile" >&2
+            exit 1
+        fi
+        # Every non-builder COPY source is a required BuildKit named context.
+        # Keep the publisher derived from the actual Dockerfile contract so a
+        # newly added path dependency cannot fall through to an accidental
+        # docker.io/library pull during a release.
+        dockerfile_contexts="$(sed -nE 's/^COPY[[:space:]]+--from=([^[:space:]]+).*/\1/p' \
+            "$WORKSPACE_ROOT/$svc/Dockerfile" | grep -v '^builder$' | LC_ALL=C sort -u || true)"
+        configured_contexts="$(for ctx in ${EXTRA_CONTEXTS[$svc]:-}; do printf '%s\n' "$ctx"; done \
+            | LC_ALL=C sort -u)"
+        if [ "$dockerfile_contexts" != "$configured_contexts" ]; then
+            echo "$svc named build contexts differ from Dockerfile COPY sources" >&2
+            echo "  Dockerfile: ${dockerfile_contexts//$'\n'/ }" >&2
+            echo "  configured: ${configured_contexts//$'\n'/ }" >&2
             exit 1
         fi
     done
