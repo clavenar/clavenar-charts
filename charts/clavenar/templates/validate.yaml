@@ -4,16 +4,95 @@
 {{- fail (printf "services.%s.serviceType must be ClusterIP; use an operator-controlled Ingress or Gateway for external publication" $name) }}
 {{- end }}
 {{- end }}
-{{- range $index, $peer := .Values.networkPolicy.console.allowedPeers }}
+{{- $console := .Values.services.console }}
+{{- $operatorMtls := $console.operatorMtls.enabled }}
+{{- $operatorTrust := trim $console.operatorMtls.publicTrustSecretName }}
+{{- if and (not $console.enabled) (or $operatorMtls $console.demo.enabled) }}
+{{- fail "services.console.operatorMtls.enabled and services.console.demo.enabled require services.console.enabled=true" }}
+{{- end }}
+{{- if ne (int $console.port) 8085 }}
+{{- fail "services.console.port is governed and must remain 8085" }}
+{{- end }}
+{{- if ne (int $console.demoPort) 9085 }}
+{{- fail "services.console.demoPort is governed and must remain 9085" }}
+{{- end }}
+{{- if ne (int $console.diagnosticsPort) 9185 }}
+{{- fail "services.console.diagnosticsPort is governed and must remain 9185" }}
+{{- end }}
+{{- if and $console.demo.enabled (not $operatorMtls) }}
+{{- fail "services.console.demo.enabled=true requires services.console.operatorMtls.enabled=true; demo-only mode already serves the curated demo router on port 8085" }}
+{{- end }}
+{{- if $operatorMtls }}
+{{- if empty $operatorTrust }}
+{{- fail "services.console.operatorMtls.enabled=true requires services.console.operatorMtls.publicTrustSecretName (Secret keys: ca.crt and operators.json)" }}
+{{- end }}
+{{- if empty .Values.tlsBundle.secretName }}
+{{- fail "services.console.operatorMtls.enabled=true requires tlsBundle.secretName with ca.crt and service-console.{crt,key}" }}
+{{- end }}
+{{- if ne .Values.tlsBundle.mountPath "/certs" }}
+{{- fail "services.console.operatorMtls.enabled=true requires tlsBundle.mountPath=/certs so the governed operator TLS paths cannot drift" }}
+{{- end }}
+{{- if eq $operatorTrust .Values.tlsBundle.secretName }}
+{{- fail "services.console.operatorMtls.publicTrustSecretName must differ from tlsBundle.secretName; operator and workload trust are separate authorities" }}
+{{- end }}
+{{- if and .Values.tlsBundle.autoMint (not (has "console" .Values.tlsBundle.bundleServices)) }}
+{{- fail "services.console.operatorMtls.enabled=true with tlsBundle.autoMint=true requires console in tlsBundle.bundleServices" }}
+{{- end }}
+{{- else if not (empty $operatorTrust) }}
+{{- fail "services.console.operatorMtls.publicTrustSecretName is set while operatorMtls.enabled=false; set both values together" }}
+{{- end }}
+{{- $operatorPeers := .Values.networkPolicy.console.operatorMtls.allowedPeers }}
+{{- $demoPeers := .Values.networkPolicy.console.demo.allowedPeers }}
+{{- if and (not $operatorMtls) (not (empty $operatorPeers)) }}
+{{- fail "networkPolicy.console.operatorMtls.allowedPeers is non-empty while operatorMtls.enabled=false" }}
+{{- end }}
+{{- if and $operatorMtls (not $console.demo.enabled) (not (empty $demoPeers)) }}
+{{- fail "networkPolicy.console.demo.allowedPeers is non-empty while the operator profile's separate demo listener is disabled" }}
+{{- end }}
+{{- if and (not $console.enabled) (or (not (empty $operatorPeers)) (not (empty $demoPeers))) }}
+{{- fail "console NetworkPolicy peers require services.console.enabled=true" }}
+{{- end }}
+{{- $governedConsoleEnv := list
+      "CLAVENAR_CONSOLE_AUTH"
+      "CLAVENAR_CONSOLE_BIND"
+      "CLAVENAR_CONSOLE_PORT"
+      "CLAVENAR_CONSOLE_DEMO_ADDR"
+      "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR"
+      "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH"
+      "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH"
+      "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH"
+      "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH"
+      "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX"
+      "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS"
+      "CLAVENAR_CONSOLE_RELEASE_VERSION"
+      "CLAVENAR_HIL_DECIDE_TOKEN"
+      "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK" -}}
+{{- range $index, $env := $console.extraEnv }}
+{{- if has (default "" $env.name) $governedConsoleEnv }}
+{{- fail (printf "services.console.extraEnv[%d].name=%s is chart-governed; use services.console.operatorMtls/demo values instead" $index $env.name) }}
+{{- end }}
+{{- end }}
+{{- $consolePeerClasses := dict
+      "operatorMtls" $operatorPeers
+      "demo" $demoPeers -}}
+{{- range $class, $peers := $consolePeerClasses }}
+{{- range $index, $peer := $peers }}
 {{- if hasKey $peer "ipBlock" }}
-{{- fail (printf "networkPolicy.console.allowedPeers[%d] must use podSelector and/or namespaceSelector, not ipBlock" $index) }}
+{{- fail (printf "networkPolicy.console.%s.allowedPeers[%d] must use an exact positive podSelector, not ipBlock" $class $index) }}
 {{- end }}
 {{- $podLabels := dig "podSelector" "matchLabels" (dict) $peer }}
 {{- $podExpressions := dig "podSelector" "matchExpressions" (list) $peer }}
 {{- $namespaceLabels := dig "namespaceSelector" "matchLabels" (dict) $peer }}
 {{- $namespaceExpressions := dig "namespaceSelector" "matchExpressions" (list) $peer }}
-{{- if and (empty $podLabels) (empty $podExpressions) (empty $namespaceLabels) (empty $namespaceExpressions) }}
-{{- fail (printf "networkPolicy.console.allowedPeers[%d] must contain a non-empty podSelector or namespaceSelector" $index) }}
+{{- if empty $podLabels }}
+{{- fail (printf "networkPolicy.console.%s.allowedPeers[%d] must contain non-empty podSelector.matchLabels for one explicit workload" $class $index) }}
+{{- end }}
+{{- if or (not (empty $podExpressions)) (not (empty $namespaceExpressions)) }}
+{{- fail (printf "networkPolicy.console.%s.allowedPeers[%d] must not use matchExpressions; use exact positive matchLabels" $class $index) }}
+{{- end }}
+{{- if and (hasKey $peer "namespaceSelector") (empty $namespaceLabels) }}
+{{- fail (printf "networkPolicy.console.%s.allowedPeers[%d].namespaceSelector must contain non-empty matchLabels when present" $class $index) }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- if .Values.vault.bundled.enabled }}

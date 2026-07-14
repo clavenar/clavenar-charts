@@ -4,12 +4,30 @@ exec:
   enabled: true
 proxyAlias:
   enabled: true
+tlsBundle:
+  secretName: optional-workload-tls
+services:
+  console:
+    operatorMtls:
+      enabled: true
+      publicTrustSecretName: optional-operator-trust
+    demo:
+      enabled: true
 networkPolicy:
   console:
-    allowedPeers:
-      - namespaceSelector:
-          matchLabels:
-            kubernetes.io/metadata.name: ingress-nginx
-        podSelector:
-          matchLabels:
-            app.kubernetes.io/name: ingress-nginx
+    operatorMtls:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: operator-access
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: operator-tls-passthrough
+    demo:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx

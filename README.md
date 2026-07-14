@@ -13,6 +13,18 @@ listener, authentication boundary, caller, and Service publication. CI
 checks default, TLS, optional-listener, and bundled-subchart renders
 against it.
 
+The console defaults to a curated `demo-only` router with no operator or
+Admin authority; a valid demo cookie carries only a prefix-scoped demo
+Viewer. Its optional operator path terminates mTLS
+inside the console process on `:8085`, maps only exact registered operator
+certificates to roles, and keeps demo (`:9085`) and diagnostics (`:9185`)
+on separate listeners and NetworkPolicy trust classes.
+
+The chart does not auto-mint a demo-session signing key or token issuer. A
+fresh install therefore serves the anonymous `/demo` preview safely, while
+signed demo routes stay closed until an operator supplies one dedicated key to
+console, HIL, and ledger as documented in the chart README.
+
 NATS and Vault are not bundled by default. Operators can bring their own or
 enable the evaluation-only subcharts.
 
@@ -59,6 +71,13 @@ helm install my-clavenar charts/clavenar \
   --set tlsBundle.secretName=clavenar-certs
 ```
 
+That default keeps console ingress denied and serves only the safe demo
+router if you port-forward it. Enabling operator mTLS additionally requires
+`services.console.operatorMtls.enabled=true` and a pre-existing
+`publicTrustSecretName` Secret containing the dedicated public operator CA
+(`ca.crt`) plus the sanitized exact identity registry (`operators.json`).
+Private operator authority and leaf keys never belong in the runtime Secret.
+
 See `charts/clavenar/README.md` for the full quickstart, the `values.yaml`
 reference, mTLS cert provisioning, the SQLite-on-shared-PVC constraints,
 and how to flip the ledger to Postgres mode.
@@ -74,7 +93,7 @@ that actually exist on GHCR. Independent of `clavenar-internal-specs/VERSION`
 set).
 
 `scripts/push-images.sh` reads `VERSION`, computes the next patch as
-the target, builds all 8 services from their sibling repos under
+the target, builds all 10 services from their sibling repos under
 `../clavenar-<name>/`, pushes both `:<target>` and `:latest` to GHCR,
 then writes the new tag back into `VERSION` + `Chart.appVersion`
 atomically and auto-commits. Failed pushes leave `VERSION` untouched
@@ -100,7 +119,7 @@ echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
 **First-time visibility flip (one-time per service).** GHCR's REST API
 does not expose package-visibility mutation — new packages land as
 `private`. After the first push, click through the UI for each of the
-8 packages at:
+10 packages at:
 
   `https://github.com/users/vanteguardlabs/packages/container/<service>/settings`
 

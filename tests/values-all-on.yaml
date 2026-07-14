@@ -1,7 +1,21 @@
 tlsBundle:
   secretName: clavenar-certs
+services:
+  console:
+    operatorMtls:
+      enabled: true
+      publicTrustSecretName: clavenar-operator-trust
 vault:
   addr: http://vault:8200
   tokenSecretName: clavenar-vault
 networkPolicy:
   prometheusNamespaceLabel: monitoring
+  console:
+    operatorMtls:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: operator-access
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: operator-tls-passthrough

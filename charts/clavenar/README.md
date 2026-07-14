@@ -31,7 +31,10 @@ cluster; **not** for production.
 
 ### BYO (production)
 
-Operator brings their own NATS + Vault + PKI bundle:
+Operator brings their own NATS + Vault + workload PKI bundle. To enable
+the R1 operator console, also pre-provision a separate public-trust Secret
+containing `ca.crt` and `operators.json`; never put the operator CA private
+key or an operator leaf private key in Kubernetes:
 
 ```bash
 # From the chart root (clavenar-charts/charts/clavenar)
@@ -44,6 +47,8 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
   --set vault.addr=https://vault.internal:8200 \
   --set vault.tokenSecretName=clavenar-vault-token \
   --set tlsBundle.secretName=clavenar-certs \
+  --set services.console.operatorMtls.enabled=true \
+  --set services.console.operatorMtls.publicTrustSecretName=clavenar-operator-trust \
   --set services.brain.extraEnv[0].name=ANTHROPIC_API_KEY \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.name=anthropic \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.key=key
@@ -58,6 +63,7 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
+| Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
 | Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes 7 Claude-Code-built-in-parity tools (`bash`, `read_file`, …) so an agent whose built-ins are denylisted still has a shell, but every call lands in the ledger | Lab-only; production still routes to a real MCP via `CLAVENAR_UPSTREAM_URL` |
 | Agent Vault credential | Stub `secret/data/agents/agent-001` seeded by post-install Job when `agentVaultSeed.enabled=true` | Operator seeds per-agent entries against their own Vault |
@@ -102,15 +108,20 @@ apply walkthrough.
 - **NetworkPolicy** (default on) — every enabled core, optional, and
   bundled workload gets an ingress-isolating policy. Rules name the
   exact destination port and caller selectors. Proxy admits an
-  unrestricted source only on agent mTLS port 8443; console is denied
-  until `networkPolicy.console.allowedPeers` explicitly selects an
-  ingress controller or operator workload. Console metrics share its UI
-  port, so Prometheus must also be selected there intentionally.
-  The chart-default console auth mode is `disabled`; a direct request
-  without `X-Clavenar-Edge: public` receives synthetic Admin. The empty
-  peer list contains that residual lab posture, but any peer explicitly
-  selected here can reach it. Configure real console auth before granting
-  a production peer (tracked for hardening in WP-01.2).
+  unrestricted source only on agent mTLS port 8443. Console operator and
+  demo ingress use independent, empty-by-default peer lists. Prometheus
+  can reach only the diagnostics listener (`9185`) when the global
+  namespace selector is configured. The chart-default console posture is
+  `demo-only`; a valid demo cookie creates only a prefix-scoped demo Viewer,
+  never an operator session or Admin authority. The chart does not auto-mint
+  that cookie's HMAC key or bundle a demo-token issuer: without operator
+  configuration the anonymous `/demo` preview works, session exchange returns
+  unavailable, and authenticated demo routes remain closed. To enable them,
+  create one dedicated Secret and reference its same key through
+  `services.console.extraEnv` (`CLAVENAR_CONSOLE_DEMO_SESSION_HS256`),
+  `services.hil.extraEnv` (`CLAVENAR_HIL_DEMO_SESSION_HS256`), and
+  `services.ledger.extraEnv` (`CLAVENAR_LEDGER_DEMO_SESSION_HS256`); keep it
+  separate from operator/workload trust and provide a reviewed token issuer.
 - **Governed listener inventory** — `listeners.yaml` records every
   application and probe-only bind, Service publication, protocol,
   authentication/callers, limits, and external-publication posture.
@@ -129,6 +140,12 @@ apply walkthrough.
   private key. Generate the bundle with
   `clavenar-proxy/scripts/gen_certs.sh --env prod` then
   `kubectl create secret generic clavenar-tls --from-file=clavenar-proxy/certs/`.
+- **Dedicated operator trust projection** — when
+  `services.console.operatorMtls.enabled=true`, the console additionally
+  mounts only `ca.crt` + `operators.json` from
+  `publicTrustSecretName`. Its `/certs` projection remains limited to the
+  public workload CA and `service-console.{crt,key}`. The two Secret names
+  must differ, and chart rendering fails on missing or partial settings.
 - **Deep-review** singleton — same posture as brain. Per-agent
   history rides NATS, daily token budget is per-pod (scale the
   cap, not the pods).
@@ -156,7 +173,9 @@ apply walkthrough.
   Gateway, or service-mesh layer downstream of this chart. Chart-owned
   Services are fixed to ClusterIP; `NodePort` and `LoadBalancer` values
   fail rendering. Publish proxy 8443 through an mTLS-capable edge and
-  select that edge explicitly for console ingress.
+  select console peers by trust class. Operator TLS must terminate inside
+  clavenar-console, so use end-to-end TLS passthrough or an SSH tunnel;
+  forwarded client-certificate headers are not supported.
 - **No HPA.** Add one against the proxy / brain / policy-engine
   Deployments if you need it. Ledger / hil / identity stay pinned
   to `replicas: 1` while SQLite-backed.
@@ -194,7 +213,12 @@ services:
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
   identity:     { ... }            # replicas: 1 (SQLite-pinned)
   deepReview:   { ... }            # singleton; daily token budget is per-pod
-  console:      { ... }            # CLAVENAR_CONSOLE_AUTH=disabled by default (lab); flip to oidc/webauthn/etc. for prod
+  console:
+    port: 8085                      # demo-only by default; operator mTLS when enabled
+    demoPort: 9085                  # optional curated demo beside operator mTLS
+    diagnosticsPort: 9185           # health/readiness/metrics; not Service-published
+    operatorMtls: { enabled: false, publicTrustSecretName: "" }
+    demo: { enabled: false }
 
 persistence:
   ledger:   { enabled: true, size: 5Gi, ... }
@@ -208,7 +232,8 @@ tlsBundle:
 networkPolicy:
   enabled: true                          # Baseline ingress isolation; requires a policy-capable CNI
   console:
-    allowedPeers: []                     # Explicit selectors; empty denies console ingress
+    operatorMtls: { allowedPeers: [] }   # TLS-passthrough/operator access peers
+    demo: { allowedPeers: [] }           # Public/demo reverse-proxy peers
   prometheusNamespaceLabel: ""           # Set to allow scrapes from a specific namespace
 
 podDisruptionBudget:
@@ -224,6 +249,80 @@ The values keys use camelCase (`policyEngine`, `deepReview`) for
 valid Go-template paths; the helper kebab-cases them for k8s object
 names (`my-clavenar-policy-engine`, `my-clavenar-deep-review`). Copy-
 paste the kebab-cased form into `kubectl` / port-forward commands.
+
+## Console trust classes
+
+The console has three separate listener contracts. They share a pod but
+not an authorization source:
+
+| Listener | Enabled when | Service | Authentication and surface |
+|---|---|---|---|
+| Primary `:8085` | Always | Published | Default: plain HTTP curated demo-only router with no operator roles. With `operatorMtls.enabled`: native HTTPS, required operator client certificate, exact fingerprint + SPIFFE registry match, and role-gated operator router. |
+| Demo `:9085` | `operatorMtls.enabled && demo.enabled` | Published | Plain HTTP curated demo router. Operator cookies/state are stripped; it cannot reach operator-only routes. |
+| Diagnostics `:9185` | Always | Not published | Plain HTTP `/health`, `/readyz`, and `/metrics` only. Kubelet probes and Prometheus annotations target this port. |
+
+The public operator trust Secret must contain exactly these projected keys:
+
+- `ca.crt` — dedicated public operator trust root.
+- `operators.json` — registry with `schemaVersion` and entries that bind
+  `name`, `spiffeId`, `certificateSha256`, `role`, optional `tenant`,
+  `status`, and `expiresAt`.
+
+`viewer`, `approver`, and `admin` authority comes only from the verified
+TLS leaf and an active, unexpired exact registry entry. A CA-valid unknown
+leaf, a mismatched fingerprint/SPIFFE pair, a cookie, or caller-supplied
+identity/role header fails closed. The bootstrap is an R1 operator path,
+not customer-facing production authentication.
+
+`GET /version.json` is the only release endpoint on the operator and demo
+listeners. The chart pins its value to `Chart.appVersion`; console `extraEnv`
+cannot replace that release marker or any listener/authentication setting.
+
+Example hardened values (the referenced Secrets must already exist):
+
+```yaml
+tlsBundle:
+  secretName: clavenar-workload-tls
+
+services:
+  console:
+    operatorMtls:
+      enabled: true
+      publicTrustSecretName: clavenar-operator-trust
+    demo:
+      enabled: false
+
+networkPolicy:
+  console:
+    operatorMtls:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: operator-access
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: operator-tls-passthrough
+    demo:
+      allowedPeers: []
+  prometheusNamespaceLabel: monitoring
+```
+
+Empty peer lists preserve default-deny. The operator peer must provide
+end-to-end TLS passthrough; it must not terminate client TLS and convert
+the certificate or role to headers. Each peer must name one workload with
+non-empty `podSelector.matchLabels`; an optional `namespaceSelector` must use
+non-empty `matchLabels`. Selector expressions, empty selectors, and `ipBlock`
+peers are rejected so a broad negative selector cannot silently admit arbitrary
+pods or namespaces.
+
+When `alerting.enabled=true`, the bundled rules alert if console
+diagnostics stay down (including fatal TLS/registry startup refusal), operator
+trust reports not ready, the governed `*-console` Service changes to NodePort
+or LoadBalancer, more than five operator authentication failures occur in five
+minutes, or any bounded operator/login limiter throttles a request. The
+Service-exposure rule has an executable promtool fixture in
+`tests/promtool-console-alerts.yml`. Failure metrics use only bounded
+`outcome`/`reason` labels and never certificate bodies or key bytes.
 
 ## SQLite vs. Postgres for ledger
 
@@ -269,6 +368,12 @@ helm template my-clavenar . \
 # Validate Service ports/types and exact NetworkPolicy caller rules:
 helm template smoke . > /tmp/clavenar.yaml
 python3 ../../scripts/check-listener-matrix.py --manifest /tmp/clavenar.yaml
+
+# Validate alert syntax and the actual console-Service exposure matcher:
+docker run --rm --entrypoint=/bin/promtool \
+  -v "$(cd ../.. && pwd):/workspace:ro" -w /workspace \
+  prom/prometheus:v2.55.0 \
+  test rules tests/promtool-console-alerts.yml
 ```
 
 If you have `kubeval` or `helm unittest` installed, they run too.

@@ -96,10 +96,20 @@ def expected_services(matrix, values, release, namespace="default"):
     for item in matrix["serviceObjects"]:
         if not condition_enabled(item["enabledWhen"], values):
             continue
-        ports = copy.deepcopy(item["ports"])
+        ports = [
+            copy.deepcopy(port_spec)
+            for port_spec in item["ports"]
+            if contract_enabled(port_spec, values)
+        ]
         if tls:
-            ports.extend(copy.deepcopy(item.get("tlsPorts", [])))
+            ports.extend(
+                copy.deepcopy(port_spec)
+                for port_spec in item.get("tlsPorts", [])
+                if contract_enabled(port_spec, values)
+            )
         for port_spec in ports:
+            port_spec.pop("enabledWhen", None)
+            port_spec.pop("disabledWhen", None)
             if port_spec.get("appProtocol") == "tlsWhenTlsElseTcp":
                 port_spec["appProtocol"] = "tls" if tls else "tcp"
             port_spec.setdefault("protocol", "TCP")
@@ -185,8 +195,14 @@ def expected_policies(matrix, values, release):
                         if not prometheus:
                             raise ValueError(f"NetworkPolicy contract {service} enabled Prometheus without a namespace")
                         sources.extend(prom_peer)
-                    elif token == "configured-console-peers":
-                        sources.extend(value_at(values, "networkPolicy.console.allowedPeers") or [])
+                    elif token == "configured-console-operator-peers":
+                        sources.extend(
+                            value_at(values, "networkPolicy.console.operatorMtls.allowedPeers") or []
+                        )
+                    elif token == "configured-console-demo-peers":
+                        sources.extend(
+                            value_at(values, "networkPolicy.console.demo.allowedPeers") or []
+                        )
                     elif token == "vault":
                         sources.append({"podSelector": {"matchLabels": target}})
                     elif token in matrix.get("peerSelectors", {}):
@@ -203,13 +219,45 @@ def expected_policies(matrix, values, release):
 
 
 def validate_console_peers(values, errors):
-    for index, configured in enumerate(value_at(values, "networkPolicy.console.allowedPeers") or []):
-        if not isinstance(configured, dict) or "ipBlock" in configured:
-            errors.append(f"networkPolicy.console.allowedPeers[{index}] must be selector-driven")
-            continue
-        selectors = [configured.get("podSelector"), configured.get("namespaceSelector")]
-        if not any(isinstance(s, dict) and (s.get("matchLabels") or s.get("matchExpressions")) for s in selectors):
-            errors.append(f"networkPolicy.console.allowedPeers[{index}] has an empty selector")
+    for trust_class in ("operatorMtls", "demo"):
+        path = f"networkPolicy.console.{trust_class}.allowedPeers"
+        for index, configured in enumerate(value_at(values, path) or []):
+            if not isinstance(configured, dict) or not set(configured).issubset(
+                {"podSelector", "namespaceSelector"}
+            ):
+                errors.append(f"{path}[{index}] must use only exact positive selectors")
+                continue
+            pod_selector = configured.get("podSelector")
+            pod_labels = pod_selector.get("matchLabels") if isinstance(pod_selector, dict) else None
+            if (
+                not isinstance(pod_selector, dict)
+                or set(pod_selector) != {"matchLabels"}
+                or not isinstance(pod_labels, dict)
+                or not pod_labels
+                or not all(isinstance(key, str) and isinstance(value, str) for key, value in pod_labels.items())
+            ):
+                errors.append(f"{path}[{index}] requires non-empty podSelector.matchLabels only")
+                continue
+            if "namespaceSelector" in configured:
+                namespace_selector = configured["namespaceSelector"]
+                namespace_labels = (
+                    namespace_selector.get("matchLabels")
+                    if isinstance(namespace_selector, dict)
+                    else None
+                )
+                if (
+                    not isinstance(namespace_selector, dict)
+                    or set(namespace_selector) != {"matchLabels"}
+                    or not isinstance(namespace_labels, dict)
+                    or not namespace_labels
+                    or not all(
+                        isinstance(key, str) and isinstance(value, str)
+                        for key, value in namespace_labels.items()
+                    )
+                ):
+                    errors.append(
+                        f"{path}[{index}] namespaceSelector requires non-empty matchLabels only"
+                    )
 
 
 def normalized_service_spec(spec):
@@ -299,7 +347,178 @@ def validate_vault_test_hook(matrix, values, docs, release, namespace, expected_
         errors.append("Vault test Pod has no exact NetworkPolicy path to Vault API port 8200")
 
 
-def validate(matrix, values, docs, release, namespace="default"):
+def validate_console_contract(
+    values, docs, release, errors, chart_app_version=None
+):
+    """Validate the WP-01.2 listener, env, probe, and Secret boundary."""
+    enabled = bool(value_at(values, "services.console.enabled"))
+    deployments = [
+        doc for doc in docs
+        if doc.get("kind") == "Deployment"
+        and doc.get("metadata", {}).get("name") == f"{release}-console"
+    ]
+    if not enabled:
+        if deployments:
+            errors.append("console Deployment rendered while services.console.enabled=false")
+        return
+    if len(deployments) != 1:
+        errors.append(f"console must render exactly one Deployment; found {len(deployments)}")
+        return
+
+    deployment = deployments[0]
+    pod_spec = deployment.get("spec", {}).get("template", {}).get("spec", {})
+    containers = [
+        container for container in pod_spec.get("containers", [])
+        if container.get("name") == "console"
+    ]
+    if len(containers) != 1:
+        errors.append(f"console Deployment must contain exactly one console container; found {len(containers)}")
+        return
+    container = containers[0]
+    operator_enabled = bool(value_at(values, "services.console.operatorMtls.enabled"))
+    demo_enabled = bool(value_at(values, "services.console.demo.enabled"))
+
+    expected_ports = {
+        "operator-mtls" if operator_enabled else "demo": 8085,
+        "diagnostics": 9185,
+    }
+    if demo_enabled:
+        expected_ports["demo"] = 9085
+    actual_ports = {
+        port_spec.get("name"): int(port_spec["containerPort"])
+        for port_spec in container.get("ports", [])
+        if "containerPort" in port_spec
+    }
+    if actual_ports != expected_ports:
+        errors.append(
+            f"console named container ports {actual_ports} != governed ports {expected_ports}"
+        )
+
+    env_entries = container.get("env", []) or []
+    env_names = [entry.get("name") for entry in env_entries]
+    governed_names = {
+        "CLAVENAR_CONSOLE_AUTH",
+        "CLAVENAR_CONSOLE_BIND",
+        "CLAVENAR_CONSOLE_PORT",
+        "CLAVENAR_CONSOLE_DEMO_ADDR",
+        "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR",
+        "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH",
+        "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH",
+        "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH",
+        "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH",
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX",
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS",
+        "CLAVENAR_CONSOLE_RELEASE_VERSION",
+    }
+    duplicates = sorted(name for name in governed_names if env_names.count(name) != 1 and name in env_names)
+    if duplicates:
+        errors.append(f"console has duplicate governed env entries: {duplicates}")
+    actual_env = {
+        entry.get("name"): entry.get("value")
+        for entry in env_entries
+        if entry.get("name") in governed_names
+    }
+    expected_env = {
+        "CLAVENAR_CONSOLE_AUTH": "operator-mtls" if operator_enabled else "demo-only",
+        "CLAVENAR_CONSOLE_BIND": "0.0.0.0",
+        "CLAVENAR_CONSOLE_PORT": "8085",
+        "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR": "0.0.0.0:9185",
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX": "10",
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS": "60",
+    }
+    release_values = [
+        entry.get("value")
+        for entry in env_entries
+        if entry.get("name") == "CLAVENAR_CONSOLE_RELEASE_VERSION"
+    ]
+    if len(release_values) != 1:
+        errors.append(
+            "console must carry exactly one chart-governed "
+            "CLAVENAR_CONSOLE_RELEASE_VERSION entry"
+        )
+    expected_env["CLAVENAR_CONSOLE_RELEASE_VERSION"] = (
+        str(chart_app_version)
+        if chart_app_version is not None
+        else (release_values[0] if len(release_values) == 1 else None)
+    )
+    if operator_enabled:
+        expected_env.update({
+            "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH": "/certs/service-console.crt",
+            "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH": "/certs/service-console.key",
+            "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH": "/operator-trust/ca.crt",
+            "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH": "/operator-trust/operators.json",
+        })
+        if demo_enabled:
+            expected_env["CLAVENAR_CONSOLE_DEMO_ADDR"] = "0.0.0.0:9085"
+    if actual_env != expected_env:
+        errors.append(
+            "console governed env does not exactly match listener/trust values: "
+            f"actual={json.dumps(actual_env, sort_keys=True)} "
+            f"expected={json.dumps(expected_env, sort_keys=True)}"
+        )
+    decide_token_count = env_names.count("CLAVENAR_HIL_DECIDE_TOKEN")
+    expected_decide_token_count = 1 if operator_enabled else 0
+    if decide_token_count != expected_decide_token_count:
+        errors.append(
+            "console HIL operator decision bearer projection does not match operator mTLS: "
+            f"actual={decide_token_count} expected={expected_decide_token_count}"
+        )
+
+    for probe_name, expected_path in (("livenessProbe", "/health"), ("readinessProbe", "/readyz")):
+        http_get = (container.get(probe_name) or {}).get("httpGet") or {}
+        if http_get.get("path") != expected_path or int(http_get.get("port", -1)) != 9185:
+            errors.append(
+                f"console {probe_name} must use diagnostics {expected_path} on port 9185"
+            )
+    annotations = deployment.get("spec", {}).get("template", {}).get("metadata", {}).get("annotations", {})
+    expected_scrape = {
+        "prometheus.io/scrape": "true",
+        "prometheus.io/path": "/metrics",
+        "prometheus.io/port": "9185",
+    }
+    actual_scrape = {key: annotations.get(key) for key in expected_scrape}
+    if actual_scrape != expected_scrape:
+        errors.append(f"console Prometheus annotations {actual_scrape} != {expected_scrape}")
+
+    volume_by_name = {volume.get("name"): volume for volume in pod_spec.get("volumes", []) or []}
+    mount_by_name = {mount.get("name"): mount for mount in container.get("volumeMounts", []) or []}
+    tls_secret = value_at(values, "tlsBundle.secretName")
+    if tls_secret:
+        cert_secret = (volume_by_name.get("certs") or {}).get("secret", {})
+        cert_items = {(item.get("key"), item.get("path")) for item in cert_secret.get("items", [])}
+        expected_cert_items = {
+            ("ca.crt", "ca.crt"),
+            ("service-console.crt", "service-console.crt"),
+            ("service-console.key", "service-console.key"),
+        }
+        if cert_secret.get("secretName") != tls_secret or cert_items != expected_cert_items:
+            errors.append("console workload Secret must project only public CA + service-console cert/key")
+        cert_mount = mount_by_name.get("certs") or {}
+        if cert_mount.get("mountPath") != value_at(values, "tlsBundle.mountPath") or not cert_mount.get("readOnly"):
+            errors.append("console workload Secret mount path/readOnly contract drifted")
+    elif "certs" in volume_by_name or "certs" in mount_by_name:
+        errors.append("console mounts workload TLS material while tlsBundle.secretName is empty")
+
+    if operator_enabled:
+        trust_secret = (volume_by_name.get("operator-trust") or {}).get("secret", {})
+        trust_items = {(item.get("key"), item.get("path")) for item in trust_secret.get("items", [])}
+        expected_trust_items = {("ca.crt", "ca.crt"), ("operators.json", "operators.json")}
+        if (
+            trust_secret.get("secretName")
+            != value_at(values, "services.console.operatorMtls.publicTrustSecretName")
+            or trust_items != expected_trust_items
+        ):
+            errors.append("console operator trust Secret must project only ca.crt + operators.json")
+        trust_mount = mount_by_name.get("operator-trust") or {}
+        if trust_mount.get("mountPath") != "/operator-trust" or not trust_mount.get("readOnly"):
+            errors.append("console operator trust mount must be read-only at /operator-trust")
+    elif "operator-trust" in volume_by_name or "operator-trust" in mount_by_name:
+        errors.append("console mounts operator trust while operatorMtls.enabled=false")
+
+
+def validate(
+    matrix, values, docs, release, namespace="default", chart_app_version=None
+):
     errors = []
     if matrix.get("schemaVersion") != "1.0":
         errors.append("listeners.yaml schemaVersion must be the string '1.0'")
@@ -346,7 +565,7 @@ def validate(matrix, values, docs, release, namespace="default"):
             errors.append(f"Service object {service_object['id']} has unsafe type {service_object['type']}")
         for port_spec in service_object.get("ports", []) + service_object.get("tlsPorts", []):
             required_port = {"name", "port", "targetPort", "protocol"}
-            allowed_port = required_port | {"appProtocol"}
+            allowed_port = required_port | {"appProtocol", "enabledWhen", "disabledWhen"}
             if set(port_spec) - allowed_port or required_port - set(port_spec):
                 errors.append(f"Service object {service_object['id']} has an inexact port contract {port_spec}")
     policy_services = set()
@@ -381,7 +600,7 @@ def validate(matrix, values, docs, release, namespace="default"):
 
     active_listeners = [
         item for item in matrix.get("listeners", [])
-        if condition_enabled(item["enabledWhen"], values)
+        if contract_enabled(item, values)
     ]
 
     service_docs = [d for d in docs if d.get("kind") == "Service"]
@@ -417,7 +636,13 @@ def validate(matrix, values, docs, release, namespace="default"):
         if not condition_enabled(obj["enabledWhen"], values):
             continue
         service = aliases.get(obj["id"], obj["id"])
-        ports = list(obj["ports"]) + (list(obj.get("tlsPorts", [])) if tls else [])
+        ports = [
+            port_spec
+            for port_spec in (
+                list(obj["ports"]) + (list(obj.get("tlsPorts", [])) if tls else [])
+            )
+            if contract_enabled(port_spec, values)
+        ]
         for port_spec in ports:
             port = int(port_spec["port"])
             published_by_objects.add((service, port))
@@ -565,6 +790,9 @@ def validate(matrix, values, docs, release, namespace="default"):
             if not entry.get("ports") or len(entry["ports"]) != 1:
                 errors.append(f"NetworkPolicy {name} has a portless or multi-port ingress rule")
     validate_vault_test_hook(matrix, values, docs, release, namespace, expected_p, errors)
+    validate_console_contract(
+        values, docs, release, errors, chart_app_version=chart_app_version
+    )
     return errors
 
 
@@ -579,9 +807,21 @@ def main(argv=None):
     args = parser.parse_args(argv)
     matrix_path = args.matrix or args.chart / "listeners.yaml"
     matrix = yaml.safe_load(matrix_path.read_text())
+    chart_metadata = yaml.safe_load((args.chart / "Chart.yaml").read_text())
+    chart_app_version = chart_metadata.get("appVersion")
+    if chart_app_version is None:
+        print("ERROR: Chart.yaml is missing appVersion", file=sys.stderr)
+        return 1
     values = effective_values(args.chart, args.values)
     docs = [d for d in yaml.safe_load_all(args.manifest.read_text()) if isinstance(d, dict)]
-    errors = validate(matrix, values, docs, args.release, args.namespace)
+    errors = validate(
+        matrix,
+        values,
+        docs,
+        args.release,
+        args.namespace,
+        chart_app_version=chart_app_version,
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)

@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "af52fa1d7f714c91ac1620d68edbf647a968f5e180912d0c5c7a86d8c4126e8f"
+reviewedContractSha256: "3941eb91eba2c60a4722de4a67e9fa25b7709472643862c52c6ef23d3c8e02bb"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -87,7 +87,10 @@ networkPolicies:
     owner: core
     enabledWhen: "services.console.enabled"
     rules:
-      - { listenerId: operator-ui, peers: [configured-console-peers], enabledWhen: "networkPolicy.console.allowedPeers" }
+      - { listenerId: operator-ui, peers: [configured-console-operator-peers], enabledWhen: "services.console.operatorMtls.enabled and networkPolicy.console.operatorMtls.allowedPeers" }
+      - { listenerId: primary-demo, peers: [configured-console-demo-peers], enabledWhen: "networkPolicy.console.demo.allowedPeers", disabledWhen: "services.console.operatorMtls.enabled" }
+      - { listenerId: demo, peers: [configured-console-demo-peers], enabledWhen: "services.console.demo.enabled and networkPolicy.console.demo.allowedPeers" }
+      - { listenerId: diagnostics, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
   - service: exec
     owner: optional
     enabledWhen: "exec.enabled"
@@ -130,20 +133,19 @@ listeners:
   - service: console
     listenerId: operator-ui
     owner: core
-    enabledWhen: "services.console.enabled"
+    enabledWhen: "services.console.enabled and services.console.operatorMtls.enabled"
     bind: "0.0.0.0:8085"
     containerPort: 8085
     servicePort: 8085
     servicePublished: true
     ingressPaths:
       - "GET /"
+      - "GET /version.json"
       - "GET /_partials/chain-pill"
       - "GET /_partials/ops-signals"
       - "GET /_partials/posture"
       - "GET /_partials/landing-charts"
       - "GET /_partials/recent-activity"
-      - "GET /health"
-      - "GET /readyz"
       - "GET /favicon.svg"
       - "GET /static/console.css"
       - "GET /audit"
@@ -271,16 +273,101 @@ listeners:
       - "GET /me/identities"
       - "POST /me/identities/slack/unlink"
       - "POST /me/identities/teams/unlink"
-      - "GET /metrics"
+    transportProtocol: TCP
+    applicationProtocol: HTTPS
+    authentication: "native mutual TLS terminates in clavenar-console; the verified client leaf must chain to the dedicated operator CA and exactly match both the SHA-256 fingerprint and SPIFFE URI of one active, unexpired operators.json entry; role and optional tenant come only from that registry; headers and cookies cannot create or replace operator identity"
+    authorizedCallers: [registered-operators, configured-console-operator-peers]
+    allowedPeers: [configured-console-operator-peers]
+    bodyLimit: "2,097,152-byte Axum default"
+    rateLimit: "10 failed authorization attempts per source IP in 60 seconds; bounded failure/throttle metrics"
+    hostPublication: "forbidden"
+    externalPublication: "operator-controlled end-to-end TLS passthrough or SSH tunnel only; TLS termination and forwarded client-certificate headers are forbidden"
+  - &console-demo-listener
+    service: console
+    listenerId: primary-demo
+    owner: core
+    enabledWhen: "services.console.enabled"
+    disabledWhen: "services.console.operatorMtls.enabled"
+    bind: "0.0.0.0:8085"
+    containerPort: 8085
+    servicePort: 8085
+    servicePublished: true
+    ingressPaths:
+      - "ANY / (303 redirect to /demo)"
+      - "GET /version.json (anonymous)"
+      - "GET /demo (anonymous)"
+      - "GET /favicon.svg (anonymous)"
+      - "GET /static/console.css (anonymous)"
+      - "GET /static/receipt-verify.js (anonymous)"
+      - "POST /api/demo-session/exchange (anonymous)"
+      - "GET /api/demo-session/status (anonymous)"
+      - "GET /_partials/chain-pill (valid demo cookie)"
+      - "GET /_partials/stats/cost-latency/latency (valid demo cookie)"
+      - "GET /api/chain-status (valid demo cookie)"
+      - "GET /api/receipt-sample (valid demo cookie)"
+      - "GET /assurance (valid demo cookie)"
+      - "GET /audit (valid demo cookie)"
+      - "GET /audit/narrative (valid demo cookie)"
+      - "POST /demo/assurance/fire (valid demo cookie)"
+      - "GET /hil (valid demo cookie)"
+      - "GET /hil/analytics (valid demo cookie)"
+      - "GET /hil/retroactive-review (valid demo cookie)"
+      - "GET /jwks.json (valid demo cookie)"
+      - "GET /receipt (valid demo cookie)"
+      - "GET /stats (valid demo cookie)"
+      - "GET /stats/cost-latency (valid demo cookie)"
+      - "GET /stats/deny-rate (valid demo cookie)"
+      - "GET /stats/intents (valid demo cookie)"
+      - "GET /stream/audit (valid demo cookie)"
+      - "GET /stream/hil (valid demo cookie)"
+      - "GET /timeline (valid demo cookie)"
+      - "GET /topology (valid demo cookie)"
+      - "GET /topology/edge (valid demo cookie)"
+      - "GET /velocity (valid demo cookie)"
+      - "GET /audit/correlation/{cid} (valid demo cookie)"
+      - "GET /chains/{cid} (valid demo cookie)"
+      - "GET /audit/agents/{agent}/narrative (valid demo cookie)"
+      - "GET /api/receipt/{cid} (valid demo cookie)"
+      - "POST /demo/fire/{scenario} (valid demo cookie)"
+      - "GET /demo/run/{cid} (valid demo cookie)"
+      - "GET /demo/pipeline/{cid} (valid demo cookie)"
+      - "POST /hil/{uuid}/approve (valid demo cookie)"
+      - "POST /hil/{uuid}/deny (valid demo cookie)"
+      - "POST /hil/{uuid}/modify (valid demo cookie)"
     transportProtocol: TCP
     applicationProtocol: HTTP
-    authentication: "mode-conditional: chart-default disabled mode grants synthetic Admin to a direct request with no X-Clavenar-Edge: public header; a public-edge request without a valid demo cookie is denied and a valid demo cookie is scoped; the chart does not stamp the edge header, so default-deny NetworkPolicy is the containment boundary and any explicitly selected direct peer reaches synthetic Admin (residual WP-01.2 risk); basic-admin grants Admin; OIDC/SAML/WebAuthn use sessions and mapped roles; public health/static/login/auth/demo-bootstrap routes bypass session role checks; most reads require Viewer; HIL, simulator, and incident actions require Approver; destructive writes require Admin or a demo-scoped grant; /metrics rejects demo cookies"
-    authorizedCallers: [configured-console-peers, kubelet]
-    allowedPeers: [configured-console-peers]
+    authentication: "demo-only mode; only preview/session-bootstrap routes are anonymous, every curated data/action route requires a valid signed prefix-scoped demo Viewer cookie, and no request can acquire an operator session or Admin authority; operator cookies and authority headers are stripped; every unlisted path returns 404"
+    authorizedCallers: [anonymous-demo-visitors, signed-demo-visitors, configured-console-demo-peers]
+    allowedPeers: [configured-console-demo-peers]
     bodyLimit: "2,097,152-byte Axum default"
-    rateLimit: "no automated login or request-rate limiter"
+    rateLimit: "no general request-rate limiter; the signed demo session grants no operator authority"
     hostPublication: "forbidden"
-    externalPublication: "operator-controlled Ingress/Gateway only"
+    externalPublication: "operator-controlled demo ingress only"
+  - <<: *console-demo-listener
+    listenerId: demo
+    enabledWhen: "services.console.enabled and services.console.demo.enabled"
+    disabledWhen: ""
+    bind: "0.0.0.0:9085"
+    containerPort: 9085
+    servicePort: 9085
+  - service: console
+    listenerId: diagnostics
+    owner: core
+    enabledWhen: "services.console.enabled"
+    bind: "0.0.0.0:9185"
+    containerPort: 9185
+    servicePort: "not-published"
+    servicePublished: false
+    ingressPaths: ["GET /health", "GET /readyz", "GET /metrics"]
+    transportProtocol: TCP
+    applicationProtocol: HTTP
+    authentication: "none; operational endpoints only; no application or operator routes"
+    authorizedCallers: [kubelet, prometheus]
+    allowedPeers: [prometheus]
+    bodyLimit: "not-applicable"
+    rateLimit: "unbounded"
+    hostPublication: "forbidden"
+    externalPublication: "forbidden"
   - { service: exec, listenerId: mcp, owner: optional, enabledWhen: "exec.enabled", bind: "0.0.0.0:9001", containerPort: 9001, servicePort: 9001, servicePublished: true, ingressPaths: ["GET /health", "GET /readyz", "ANY unmatched method/path (fallback; includes POST /mcp and non-GET health/readiness requests)"], transportProtocol: TCP, applicationProtocol: "HTTP/MCP", authentication: "none at application layer; NetworkPolicy admits only proxy", authorizedCallers: [proxy, kubelet], allowedPeers: [proxy], bodyLimit: "4 MiB request body", rateLimit: "no request-rate limiter; 30-second default tool timeout is execution control", hostPublication: "forbidden", externalPublication: "forbidden" }
   - { service: upstream-stub, listenerId: mcp, owner: optional, enabledWhen: "upstreamStub.enabled", bind: "0.0.0.0:9000", containerPort: 9000, servicePort: 9000, servicePublished: true, ingressPaths: ["GET /health", "/* (any method/path fallback)"], transportProtocol: TCP, applicationProtocol: "HTTP/MCP", authentication: "none at application layer; NetworkPolicy admits proxy, or exec when the execution gateway is enabled", authorizedCallers: [proxy, exec, kubelet], allowedPeers: [proxy, exec], bodyLimit: "1 MiB request body", rateLimit: "no request-rate limiter", hostPublication: "forbidden", externalPublication: "forbidden" }
   - { service: nats, listenerId: client, owner: nats-subchart, enabledWhen: "nats.bundled.enabled", bind: "0.0.0.0:4222", containerPort: 4222, servicePort: 4222, servicePublished: true, ingressPaths: ["NATS subjects (not HTTP paths)"], transportProtocol: TCP, applicationProtocol: NATS, authentication: "mutual TLS when tlsBundle is set; subchart configuration otherwise", authorizedCallers: [proxy, brain, policy-engine, ledger, hil, identity, deep-review, assurance], allowedPeers: [proxy, brain, policy-engine, ledger, hil, identity, deep-review, assurance], bodyLimit: "NATS server configuration (not chart-governed)", rateLimit: "NATS server configuration (not chart-governed)", hostPublication: "forbidden", externalPublication: "forbidden" }
@@ -300,7 +387,15 @@ serviceObjects:
   - { id: identity, selectorOwner: core, enabledWhen: "services.identity.enabled", name: "{release}-identity", type: ClusterIP, ports: [{ name: http, port: 8086, targetPort: http, protocol: TCP }], tlsPorts: [{ name: mtls, port: 8186, targetPort: mtls, protocol: TCP }] }
   - { id: deep-review, selectorOwner: core, enabledWhen: "services.deepReview.enabled", name: "{release}-deep-review", type: ClusterIP, ports: [{ name: http, port: 8087, targetPort: http, protocol: TCP }] }
   - { id: assurance, selectorOwner: core, enabledWhen: "services.assurance.enabled", name: "{release}-assurance", type: ClusterIP, ports: [{ name: http, port: 8088, targetPort: http, protocol: TCP }] }
-  - { id: console, selectorOwner: core, enabledWhen: "services.console.enabled", name: "{release}-console", type: ClusterIP, ports: [{ name: http, port: 8085, targetPort: http, protocol: TCP }] }
+  - id: console
+    selectorOwner: core
+    enabledWhen: "services.console.enabled"
+    name: "{release}-console"
+    type: ClusterIP
+    ports:
+      - { name: demo, port: 8085, targetPort: demo, protocol: TCP, appProtocol: http, disabledWhen: "services.console.operatorMtls.enabled" }
+      - { name: operator-mtls, port: 8085, targetPort: operator-mtls, protocol: TCP, appProtocol: https, enabledWhen: "services.console.operatorMtls.enabled" }
+      - { name: demo, port: 9085, targetPort: demo, protocol: TCP, appProtocol: http, enabledWhen: "services.console.demo.enabled" }
   - { id: exec, selectorOwner: core, enabledWhen: "exec.enabled", name: "{release}-exec", type: ClusterIP, ports: [{ name: http, port: 9001, targetPort: http, protocol: TCP }] }
   - { id: upstream-stub, selectorOwner: core, enabledWhen: "upstreamStub.enabled", name: "{release}-upstream-stub", type: ClusterIP, ports: [{ name: http, port: 9000, targetPort: http, protocol: TCP }] }
   - { id: proxy-alias, selectorOwner: none, enabledWhen: "proxyAlias.enabled", name: proxy, type: ExternalName, externalName: "{release}-proxy.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8443, targetPort: 8443, protocol: TCP }] }

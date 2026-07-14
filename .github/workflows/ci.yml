@@ -74,6 +74,17 @@ jobs:
           python3 scripts/check-listener-matrix.py --manifest /tmp/bundled.yaml --values tests/values-bundled.yaml
           python3 -m unittest -v tests/test_listener_matrix.py
 
+      - name: Prometheus rule syntax + console alert evaluation
+        run: |
+          docker run --rm --entrypoint=/bin/promtool \
+            -v "$PWD:/workspace:ro" -w /workspace \
+            prom/prometheus:v2.55.0 \
+            check rules charts/clavenar/alerts/clavenar-alerts.yaml
+          docker run --rm --entrypoint=/bin/promtool \
+            -v "$PWD:/workspace:ro" -w /workspace \
+            prom/prometheus:v2.55.0 \
+            test rules tests/promtool-console-alerts.yml
+
       # Quick sanity: each render must produce at least the nine
       # Deployments. Catches a regression where a service template
       # silently stops emitting one.

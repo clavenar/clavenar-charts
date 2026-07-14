@@ -33,6 +33,13 @@ for f in /tmp/{default,all-on,postgres,bundled}.yaml; do
 Plus `shellcheck -S warning scripts/*.sh`. Every render must emit ≥ 9
 `kind: Deployment` — CI fails the matrix otherwise (catches a service template
 that silently stops rendering).
+Prometheus rules must pass both syntax validation and the executable console
+alert fixture:
+```bash
+repo_root="$(git rev-parse --show-toplevel)"
+docker run --rm --entrypoint=/bin/promtool -v "$repo_root:/workspace:ro" -w /workspace \
+  prom/prometheus:v2.55.0 test rules tests/promtool-console-alerts.yml
+```
 Run: Helm chart, no binary — `helm install <release> charts/clavenar -n clavenar --create-namespace`. All Services are ClusterIP; port-forward to reach them.
 
 ## Layout
@@ -40,6 +47,7 @@ Run: Helm chart, no binary — `helm install <release> charts/clavenar -n claven
 charts/clavenar/
   Chart.yaml            # appVersion mirrors root VERSION (the image set on ghcr.io/clavenar); nats + vault deps
   values.yaml           # every commented block doubles as the values reference
+  values.schema.json    # fixed console listener/trust values and unsafe override rejection
   templates/
     _helpers.tpl        # serviceFullname, imageRef, natsUrl, backendEnvs, probe/metrics helpers — the load-bearing logic
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
@@ -60,7 +68,9 @@ proxy 8443 (mTLS `/`, `/health`, `/readyz`, `/mcp`, `/tool/{name}`; the only
 Service-published port) / 8080 (plain HTTP `/`, `/health`, `/readyz`, `/metrics`
 for kubelet and Prometheus) · brain 8081 (9081 health under mTLS) ·
 policy-engine 8082 (9082) · ledger 8083 plain + 8183 mTLS · hil 8084 (9084) ·
-identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 · console 8085 ·
+identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 · console
+8085 primary (demo-only by default; native operator mTLS when enabled) + 9085
+optional demo + 9185 diagnostics ·
 upstream-stub 9000 · exec 9001.
 
 ## Conventions & invariants
@@ -93,8 +103,9 @@ upstream-stub 9000 · exec 9001.
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =
   `InvalidContentType` crash). Mirror `tests/values-bundled.yaml`.
 - **NetworkPolicy** defaults on and is destination/port-specific. Proxy is
-  open to arbitrary sources only on 8443; console defaults denied until
-  `networkPolicy.console.allowedPeers` supplies explicit selectors. Keep
+  open to arbitrary sources only on 8443; console operator and demo trust
+  classes default denied until their independent `allowedPeers` lists supply
+  explicit selectors. Console probes/scrapes use diagnostics-only 9185. Keep
   `listeners.yaml`, its checker, and policy templates in lockstep. **PDB** emits only where
   `replicas > 1` (SQLite singletons skip naturally; `minAvailable=ceil/2`).
 - **All pods run nonroot UID 65532** (`podSecurityContext`); `fsGroup` remounts

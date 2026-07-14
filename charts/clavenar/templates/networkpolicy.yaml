@@ -51,11 +51,23 @@ spec:
       {{- include "clavenar.selectorLabels" (dict "ctx" $ctx "service" $name) | nindent 6 }}
   policyTypes: [Ingress]
   ingress:
-    {{- if and (eq $name "console") (not (empty $ctx.Values.networkPolicy.console.allowedPeers)) }}
+    {{- if and (eq $name "console") $cfg.operatorMtls.enabled (not (empty $ctx.Values.networkPolicy.console.operatorMtls.allowedPeers)) }}
     - from:
-        {{- toYaml $ctx.Values.networkPolicy.console.allowedPeers | nindent 8 }}
+        {{- toYaml $ctx.Values.networkPolicy.console.operatorMtls.allowedPeers | nindent 8 }}
       ports:
         - { protocol: TCP, port: {{ $cfg.port }} }
+    {{- end }}
+    {{- if and (eq $name "console") (not $cfg.operatorMtls.enabled) (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) }}
+    - from:
+        {{- toYaml $ctx.Values.networkPolicy.console.demo.allowedPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $cfg.port }} }
+    {{- end }}
+    {{- if and (eq $name "console") $cfg.demo.enabled (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) }}
+    - from:
+        {{- toYaml $ctx.Values.networkPolicy.console.demo.allowedPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $cfg.demoPort }} }
     {{- end }}
     {{- range $rule := $rules }}
     - {{- if not $rule.any }}
@@ -72,7 +84,7 @@ spec:
         - { protocol: TCP, port: {{ $rule.port }} }
     {{- end }}
     {{- $metrics := default dict $cfg.metrics }}
-    {{- if and (ne $name "console") $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel }}
+    {{- if and $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel }}
     - from:
         - namespaceSelector:
             matchLabels:
@@ -80,7 +92,10 @@ spec:
       ports:
         - { protocol: TCP, port: {{ include "clavenar.metricsPort" (dict "ctx" $ctx "svcCfg" $cfg) }} }
     {{- end }}
-    {{- if and (empty $rules) (not (and (eq $name "console") (not (empty $ctx.Values.networkPolicy.console.allowedPeers)))) (not (and (ne $name "console") $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel)) }} []{{- end }}
+    {{- $hasOperatorRule := and (eq $name "console") $cfg.operatorMtls.enabled (not (empty $ctx.Values.networkPolicy.console.operatorMtls.allowedPeers)) -}}
+    {{- $hasPrimaryDemoRule := and (eq $name "console") (not $cfg.operatorMtls.enabled) (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) -}}
+    {{- $hasSecondaryDemoRule := and (eq $name "console") $cfg.demo.enabled (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) -}}
+    {{- if and (empty $rules) (not $hasOperatorRule) (not $hasPrimaryDemoRule) (not $hasSecondaryDemoRule) (not (and $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel)) }} []{{- end }}
 {{ end }}
 {{- end }}
 

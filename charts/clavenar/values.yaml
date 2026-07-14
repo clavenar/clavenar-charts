@@ -525,21 +525,49 @@ services:
     metrics:
       enabled: false
 
-  # Operator UI. Read-only against ledger + HIL + policy-engine +
-  # identity (proxy to its own data-plane is via SDK). Three auth modes:
-  # `oidc` (prod default), `basic-admin` (single-operator), `disabled`
-  # (demo VPS — synthetic Admin every request; refuse non-loopback
-  # binds unless ALLOW_DISABLED_NETWORK is true). Defaults below mirror
-  # the prod compose stack's `oidc` posture; flip to `disabled` only
-  # for demo/eval clusters.
+  # Operator console. The safe chart default is `demo-only`: the primary
+  # port serves the curated demo router. A valid signed demo cookie is
+  # a prefix-scoped demo Viewer and can never create operator or Admin
+  # authority. Enabling operatorMtls converts that
+  # same primary port to native end-to-end mTLS and requires a dedicated
+  # public operator trust Secret. The operator CA private key and every
+  # operator leaf private key stay outside Kubernetes and are never
+  # projected into this pod.
   console:
     enabled: true
     replicas: 1
     image:
       repository: clavenar-console
       tag: ""
+    # Primary listener. In the default demo-only posture this is plain
+    # HTTP with the curated demo surface. With operatorMtls.enabled=true
+    # it is HTTPS with mandatory operator client certificates and the
+    # complete role-gated operator router.
     port: 8085
+    # Optional second plain-HTTP demo listener. It is meaningful only
+    # beside the operator-mTLS primary listener, so the chart rejects
+    # demo.enabled=true unless operatorMtls is enabled.
+    demoPort: 9085
+    # Plain HTTP operational listener. Only /health, /readyz, and
+    # /metrics are served here; it is never published by the Service.
+    diagnosticsPort: 9185
     serviceType: ClusterIP
+    operatorMtls:
+      # Disabled by default so a fresh install needs no operator PKI and
+      # cannot accidentally mint synthetic Admin authority. Enable only
+      # after provisioning both tlsBundle.secretName (console server
+      # certificate/key + public workload CA) and publicTrustSecretName.
+      enabled: false
+      # Existing Secret containing exactly the public operator trust
+      # inputs `ca.crt` and `operators.json`. The registry binds an exact
+      # leaf SHA-256 fingerprint + SPIFFE URI to viewer/approver/admin.
+      # No operator CA or leaf private key belongs in this Secret.
+      publicTrustSecretName: ""
+    demo:
+      # Adds the curated demo router on demoPort while operator mTLS owns
+      # the primary port. Disabled by default; NetworkPolicy peers must
+      # still be selected explicitly before another pod can reach it.
+      enabled: false
     resources:
       requests: { cpu: 50m, memory: 64Mi }
       limits:   { cpu: 250m, memory: 256Mi }
@@ -547,34 +575,23 @@ services:
       type: httpGet
       health: /health
       ready: /readyz
+      port: 9185
     # Backend URLs are derived from .Release.Name + service names via
     # the helper. Override via --set if you front the stack with a
     # service mesh that renames Services.
-    extraEnv:
-      - name: CLAVENAR_CONSOLE_BIND
-        value: 0.0.0.0
-      # Auth mode default is `disabled` so a fresh install boots
-      # without operator OIDC/SAML config. Other modes (oidc,
-      # webauthn, basic-admin, saml) require additional env that
-      # operators set via --set or a values overlay; see
-      # clavenar-console/src/auth_session.rs for the per-mode
-      # required env. Decide-token is wired regardless (the
-      # shared-tokens Secret) — every mode requires it.
-      - name: CLAVENAR_CONSOLE_AUTH
-        value: disabled
-      # `disabled` + 0.0.0.0 bind would otherwise be rejected as a
-      # production footgun. In disabled mode a request without
-      # `X-Clavenar-Edge: public` receives synthetic Admin; this chart
-      # does not stamp that edge header. Default-deny NetworkPolicy
-      # contains the risk until an operator configures an explicit
-      # console peer, but that selected peer then reaches Admin routes.
-      # This override is deliberate only for lab/dev installs.
-      # Production operators should flip CLAVENAR_CONSOLE_AUTH to a
-      # real mode (oidc/webauthn/saml) and drop this override.
-      - name: CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK
-        value: "true"
+    # Listener/auth/TLS env is derived from the values above and cannot
+    # be overridden through extraEnv. The release marker returned from
+    # /version.json is likewise fixed to Chart.appVersion. This keeps
+    # rendered ports, NetworkPolicy, release evidence, and the in-process
+    # trust boundary in lockstep.
+    extraEnv: []
     metrics:
+      # Console diagnostics annotations are chart-governed; unlike other
+      # services, this block deliberately accepts no extraAnnotations that
+      # could redirect a scraper to the operator or demo listener.
       enabled: true
+      port: 9185
+      path: /metrics
 
 # Persistence — SQLite-backed services only. Mounts at /var/lib/clavenar
 # (matches CLAVENAR_*_DB defaults). Disable for emptyDir.
@@ -671,25 +688,24 @@ networkPolicy:
   # Default-deny ingress is part of the chart's baseline. A CNI must
   # implement networking.k8s.io/v1 NetworkPolicy for this to take effect.
   enabled: true
-  # The console has no open ingress rule by default. Add explicit
-  # NetworkPolicyPeer objects for an ingress controller or operator pod.
-  # Console metrics share the UI port, so the global Prometheus exception
-  # intentionally does not apply; select Prometheus here if it must scrape.
-  # Empty podSelector/namespaceSelector objects are rejected by the
-  # listener-matrix checker because they would silently allow the cluster.
+  # Console trust classes are isolated by listener and port. Both peer
+  # lists are empty by default, preserving an exact default-deny ingress
+  # policy. Add explicit NetworkPolicyPeer objects only for the workload
+  # that owns the corresponding trust boundary. Every peer requires
+  # non-empty podSelector.matchLabels; an optional namespaceSelector must
+  # also use non-empty matchLabels. Expressions, empty selectors, and
+  # ipBlock peers are rejected because they can admit arbitrary pods.
   console:
-    allowedPeers: []
-    # WARNING: the default console auth mode is disabled. Any peer
-    # selected here can make direct header-less requests, which the
-    # application treats as synthetic Admin. Configure OIDC/WebAuthn/
-    # SAML (or an edge that stamps X-Clavenar-Edge: public) before
-    # granting a production peer.
-    # - namespaceSelector:
-    #     matchLabels:
-    #       kubernetes.io/metadata.name: ingress-nginx
-    #   podSelector:
-    #     matchLabels:
-    #       app.kubernetes.io/name: ingress-nginx
+    operatorMtls:
+      # TLS-passthrough private ingress, SSH-tunnel helper, or other
+      # explicitly selected operator access pod. TLS must terminate in
+      # clavenar-console; forwarded client-certificate headers are not
+      # an identity source.
+      allowedPeers: []
+    demo:
+      # Public/demo reverse proxy. This peer can reach only the curated
+      # demo router, never the operator listener or diagnostics.
+      allowedPeers: []
   # Allow Prometheus to scrape /metrics on every pod. Set to the
   # namespace label selector your scraper runs in. Empty → no
   # additional ingress allowance beyond the proxy/console/deep-review

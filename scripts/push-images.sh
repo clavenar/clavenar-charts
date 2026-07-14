@@ -33,7 +33,7 @@ SERVICES=(
     "clavenar-exec"
 )
 
-# Seven of the nine Dockerfiles `COPY --from=<name>` source from sibling
+# Seven of the ten Dockerfiles `COPY --from=<name>` source from sibling
 # library repos via BuildKit named contexts. Resolves them to the local
 # checkouts under WORKSPACE_ROOT — without these flags docker tries to
 # pull `docker.io/library/<name>` and fails.
@@ -42,7 +42,7 @@ declare -A EXTRA_CONTEXTS=(
     [clavenar-brain]="clavenar-workload-identity"
     [clavenar-policy-engine]="clavenar-workload-identity"
     [clavenar-ledger]="clavenar-workload-identity"
-    [clavenar-console]="clavenar-sdk clavenar-workload-identity"
+    [clavenar-console]="clavenar-sdk clavenar-workload-identity clavenar-shared"
     [clavenar-identity]="clavenar-workload-identity"
     [clavenar-simulator]="clavenar-workload-identity"
 )

@@ -72,6 +72,65 @@ groups:
             requests landing in the Review verdict will hang their
             long-poll until timeout and the agent will retry.
 
+      - alert: ConsoleDiagnosticsDown
+        expr: up{job="console"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: console
+        annotations:
+          summary: "Console diagnostics are unavailable"
+          description: |
+            Prometheus cannot reach the console diagnostics listener.
+            Operator mTLS refuses startup when its server certificate,
+            client trust root, or exact identity registry is missing or
+            invalid, so inspect the pod startup event and sanitized logs.
+            Never copy private authority or operator leaf key material
+            into the runtime Secret while recovering availability.
+
+      - alert: ConsoleOperatorAuthFailureBurst
+        expr: |
+          sum(increase(clavenar_console_auth_attempts_total{outcome="failure"}[5m]))
+          > 5
+        for: 1m
+        labels:
+          severity: critical
+          component: console
+        annotations:
+          summary: "Console operator authentication failures are bursting"
+          description: |
+            More than five operator-mTLS or supported login attempts failed in
+            five minutes. Inspect the bounded reason label and, for mTLS,
+            registry status/expiry; do not log or copy raw certificates or
+            keys.
+
+      - alert: ConsoleOperatorTrustNotReady
+        expr: clavenar_console_operator_trust_ready != 1
+        for: 1m
+        labels:
+          severity: critical
+          component: console
+        annotations:
+          summary: "Console operator trust is not ready"
+          description: |
+            The diagnostics listener cannot prove a validated operator CA,
+            exact registry, and native mTLS listener. Keep operator ingress
+            closed and restore the last accepted public trust Secret.
+
+      - alert: ConsoleOperatorServiceExposed
+        expr: kube_service_spec_type{service=~".*-console",type=~"LoadBalancer|NodePort"} == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: console
+        annotations:
+          summary: "Console operator Service is externally exposed"
+          description: |
+            The console Service carrying the operator-mTLS listener changed
+            from ClusterIP to NodePort or LoadBalancer. Revert the Service and
+            verify TLS passthrough plus the exact operator NetworkPolicy before
+            restoring access.
+
       - alert: SvidIssuanceFailing
         expr: rate(clavenar_identity_svid_issue_errors_total[5m]) > 0
         for: 5m
@@ -229,3 +288,19 @@ groups:
             never paused. It is generating continuous LLM cost via
             brain. Pause it from console /sim or set
             SIM_START_RUNNING=false on the next redeploy.
+
+      - alert: ConsoleOperatorAuthThrottled
+        expr: |
+          sum(increase(clavenar_console_auth_throttled_total[5m]))
+          > 0
+        labels:
+          severity: warning
+          component: console
+        annotations:
+          summary: "Console operator authentication was throttled"
+          description: |
+            At least one operator-mTLS source, identity, or supported login
+            path crossed its bounded authentication-attempt limit in the last
+            five minutes. Confirm expected operator activity and investigate
+            repeated failures without recording certificate bodies or key
+            bytes.

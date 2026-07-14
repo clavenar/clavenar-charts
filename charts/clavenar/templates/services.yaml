@@ -12,6 +12,8 @@ inside the range is the iterated value.
 {{- fail (printf "services.%s.serviceType must be ClusterIP; externally reachable Services must be published by an operator-controlled Ingress or Gateway" $name) }}
 {{- end }}
 {{- $persist := index $.Values.persistence $name | default dict }}
+{{- $operatorMtls := and (eq $name "console") (dig "operatorMtls" "enabled" false $cfg) }}
+{{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
 {{- /* SQLite on a shared PVC corrupts under concurrent writers, so a
        persistence-enabled (SQLite-backed) service refuses replicas>1
        at template time instead of corrupting at runtime. Postgres-mode
@@ -60,6 +62,25 @@ spec:
           image: {{ include "clavenar.imageRef" (dict "ctx" $ "svcCfg" $cfg) }}
           imagePullPolicy: {{ $.Values.imagePullPolicy }}
           ports:
+            {{- if eq $name "console" }}
+            {{- if $operatorMtls }}
+            - name: operator-mtls
+              containerPort: {{ $cfg.port }}
+              protocol: TCP
+            {{- else }}
+            - name: demo
+              containerPort: {{ $cfg.port }}
+              protocol: TCP
+            {{- end }}
+            {{- if $consoleDemo }}
+            - name: demo
+              containerPort: {{ $cfg.demoPort }}
+              protocol: TCP
+            {{- end }}
+            - name: diagnostics
+              containerPort: {{ $cfg.diagnosticsPort }}
+              protocol: TCP
+            {{- else }}
             - name: http
               containerPort: {{ $cfg.port }}
               protocol: TCP
@@ -72,6 +93,7 @@ spec:
             - name: mtls
               containerPort: {{ $cfg.mtlsPort }}
               protocol: TCP
+            {{- end }}
             {{- end }}
           env:
             {{- include "clavenar.commonEnv" (dict "ctx" $ "svcCfg" $cfg "service" $name) | nindent 12 }}
@@ -94,11 +116,12 @@ spec:
                   name: {{ include "clavenar.fullname" $ }}-config
                   key: VAULT_ADDR
             {{- end }}
-            {{- if or (eq $name "hil") (eq $name "console") }}
+            {{- if or (eq $name "hil") (and (eq $name "console") $operatorMtls) }}
             # CLAVENAR_HIL_DECIDE_TOKEN: shared bearer for the
             # console → HIL /decide hop. HIL rejects /decide without
-            # a matching bearer when console runs in oidc/disabled
-            # mode; console panics at boot if the env is empty.
+            # a matching bearer in operator-mTLS mode. The demo-only
+            # console never receives this operator decision credential;
+            # its scoped actions forward the signed demo cookie instead.
             - name: CLAVENAR_HIL_DECIDE_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -123,7 +146,8 @@ spec:
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
-          {{- if or $persist.enabled $mountsCert }}
+          {{- $mountsOperatorTrust := $operatorMtls }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -134,8 +158,13 @@ spec:
               mountPath: {{ $.Values.tlsBundle.mountPath }}
               readOnly: true
             {{- end }}
+            {{- if $mountsOperatorTrust }}
+            - name: operator-trust
+              mountPath: /operator-trust
+              readOnly: true
+            {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -190,6 +219,20 @@ spec:
                 path: ca.key
               {{- end }}
         {{- end }}
+        {{- if $mountsOperatorTrust }}
+        # Dedicated public operator trust. The Secret is projected by
+        # key so an accidental extra entry (especially private authority
+        # material) is never exposed to the console container.
+        - name: operator-trust
+          secret:
+            secretName: {{ $cfg.operatorMtls.publicTrustSecretName }}
+            defaultMode: 0444
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: operators.json
+                path: operators.json
+        {{- end }}
       {{- end }}
 ---
 apiVersion: v1
@@ -201,6 +244,28 @@ metadata:
 spec:
   type: {{ $cfg.serviceType }}
   ports:
+    {{- if eq $name "console" }}
+    {{- if $operatorMtls }}
+    - port: {{ $cfg.port }}
+      targetPort: operator-mtls
+      protocol: TCP
+      appProtocol: https
+      name: operator-mtls
+    {{- else }}
+    - port: {{ $cfg.port }}
+      targetPort: demo
+      protocol: TCP
+      appProtocol: http
+      name: demo
+    {{- end }}
+    {{- if $consoleDemo }}
+    - port: {{ $cfg.demoPort }}
+      targetPort: demo
+      protocol: TCP
+      appProtocol: http
+      name: demo
+    {{- end }}
+    {{- else }}
     - port: {{ $cfg.port }}
       targetPort: http
       protocol: TCP
@@ -213,6 +278,7 @@ spec:
       targetPort: mtls
       protocol: TCP
       name: mtls
+    {{- end }}
     {{- end }}
   selector:
     {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 4 }}

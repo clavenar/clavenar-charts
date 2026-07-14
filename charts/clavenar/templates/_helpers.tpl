@@ -284,6 +284,40 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "console" }}
+# Console ingress trust classes (WP-01.2). The chart derives these
+# values instead of accepting extraEnv overrides so the process binds
+# exactly the ports governed by listeners.yaml and NetworkPolicy.
+- name: CLAVENAR_CONSOLE_AUTH
+  value: {{ ternary "operator-mtls" "demo-only" .ctx.Values.services.console.operatorMtls.enabled | quote }}
+- name: CLAVENAR_CONSOLE_BIND
+  value: "0.0.0.0"
+- name: CLAVENAR_CONSOLE_PORT
+  value: {{ .ctx.Values.services.console.port | quote }}
+- name: CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR
+  value: "0.0.0.0:{{ .ctx.Values.services.console.diagnosticsPort }}"
+- name: CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX
+  value: "10"
+- name: CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS
+  value: "60"
+- name: CLAVENAR_CONSOLE_RELEASE_VERSION
+  value: {{ .ctx.Chart.AppVersion | quote }}
+{{- if .ctx.Values.services.console.operatorMtls.enabled }}
+# TLS terminates inside clavenar-console. The server certificate comes
+# from the workload bundle; client trust and the exact identity/role
+# registry come from the separately projected public operator Secret.
+- name: CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH
+  value: "/certs/service-console.crt"
+- name: CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH
+  value: "/certs/service-console.key"
+- name: CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH
+  value: "/operator-trust/ca.crt"
+- name: CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH
+  value: "/operator-trust/operators.json"
+{{- if .ctx.Values.services.console.demo.enabled }}
+- name: CLAVENAR_CONSOLE_DEMO_ADDR
+  value: "0.0.0.0:{{ .ctx.Values.services.console.demoPort }}"
+{{- end }}
+{{- end }}
 # Console → backend hops (B7 v1.x+2 sessions 5-6). All four hops flip
 # to https when the bundle is mounted: ledger on :8183 (mTLS listener),
 # policy-engine on :8082 (single-port mTLS), hil on :8084 (single-mode

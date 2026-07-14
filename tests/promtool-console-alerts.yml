@@ -1,0 +1,47 @@
+rule_files:
+  - ../charts/clavenar/alerts/clavenar-alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  - name: console operator Service exposure matches the rendered Service name
+    interval: 1m
+    input_series:
+      - series: 'kube_service_spec_type{service="smoke-console",type="NodePort"}'
+        values: '1+0x3'
+      - series: 'kube_service_spec_type{service="production-console",type="LoadBalancer"}'
+        values: '1+0x3'
+      - series: 'kube_service_spec_type{service="safe-console",type="ClusterIP"}'
+        values: '1+0x3'
+      - series: 'kube_service_spec_type{service="unrelated-api",type="NodePort"}'
+        values: '1+0x3'
+      - series: 'kube_service_spec_type{service="legacy-console-operator",type="NodePort"}'
+        values: '1+0x3'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ConsoleOperatorServiceExposed
+        exp_alerts:
+          - exp_labels:
+              component: console
+              service: smoke-console
+              severity: critical
+              type: NodePort
+            exp_annotations:
+              summary: Console operator Service is externally exposed
+              description: |
+                The console Service carrying the operator-mTLS listener changed
+                from ClusterIP to NodePort or LoadBalancer. Revert the Service and
+                verify TLS passthrough plus the exact operator NetworkPolicy before
+                restoring access.
+          - exp_labels:
+              component: console
+              service: production-console
+              severity: critical
+              type: LoadBalancer
+            exp_annotations:
+              summary: Console operator Service is externally exposed
+              description: |
+                The console Service carrying the operator-mTLS listener changed
+                from ClusterIP to NodePort or LoadBalancer. Revert the Service and
+                verify TLS passthrough plus the exact operator NetworkPolicy before
+                restoring access.

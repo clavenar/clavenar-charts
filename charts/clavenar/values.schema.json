@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Clavenar Helm values",
+  "type": "object",
+  "properties": {
+    "services": {
+      "type": "object",
+      "properties": {
+        "console": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "port",
+            "demoPort",
+            "diagnosticsPort",
+            "operatorMtls",
+            "demo",
+            "probes",
+            "metrics",
+            "extraEnv"
+          ],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "port": { "type": "integer", "const": 8085 },
+            "demoPort": { "type": "integer", "const": 9085 },
+            "diagnosticsPort": { "type": "integer", "const": 9185 },
+            "operatorMtls": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "publicTrustSecretName"],
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "publicTrustSecretName": { "type": "string" }
+              }
+            },
+            "demo": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "type": "boolean" }
+              }
+            },
+            "probes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "health", "ready", "port"],
+              "properties": {
+                "type": { "const": "httpGet" },
+                "health": { "const": "/health" },
+                "ready": { "const": "/readyz" },
+                "port": { "type": "integer", "const": 9185 }
+              }
+            },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled", "port", "path"],
+              "properties": {
+                "enabled": { "const": true },
+                "port": { "type": "integer", "const": 9185 },
+                "path": { "const": "/metrics" }
+              }
+            },
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "CLAVENAR_CONSOLE_AUTH",
+                        "CLAVENAR_CONSOLE_BIND",
+                        "CLAVENAR_CONSOLE_PORT",
+                        "CLAVENAR_CONSOLE_DEMO_ADDR",
+                        "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR",
+                        "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH",
+                        "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH",
+                        "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH",
+                        "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH",
+                        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX",
+                        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS",
+                        "CLAVENAR_CONSOLE_RELEASE_VERSION",
+                        "CLAVENAR_HIL_DECIDE_TOKEN",
+                        "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "operatorMtls": {
+                    "properties": { "enabled": { "const": true } },
+                    "required": ["enabled"]
+                  }
+                },
+                "required": ["operatorMtls"]
+              },
+              "then": {
+                "properties": {
+                  "operatorMtls": {
+                    "properties": {
+                      "publicTrustSecretName": { "minLength": 1 }
+                    }
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "operatorMtls": {
+                    "properties": {
+                      "publicTrustSecretName": { "const": "" }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "demo": {
+                    "properties": { "enabled": { "const": true } },
+                    "required": ["enabled"]
+                  }
+                },
+                "required": ["demo"]
+              },
+              "then": {
+                "properties": {
+                  "operatorMtls": {
+                    "properties": { "enabled": { "const": true } }
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "tlsBundle": {
+      "type": "object",
+      "properties": {
+        "secretName": { "type": "string" },
+        "mountPath": { "type": "string" }
+      }
+    },
+    "networkPolicy": {
+      "type": "object",
+      "properties": {
+        "console": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["operatorMtls", "demo"],
+          "properties": {
+            "operatorMtls": { "$ref": "#/definitions/consolePeerClass" },
+            "demo": { "$ref": "#/definitions/consolePeerClass" }
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "services": {
+            "properties": {
+              "console": {
+                "properties": {
+                  "operatorMtls": {
+                    "properties": { "enabled": { "const": true } },
+                    "required": ["enabled"]
+                  }
+                },
+                "required": ["operatorMtls"]
+              }
+            },
+            "required": ["console"]
+          }
+        },
+        "required": ["services"]
+      },
+      "then": {
+        "properties": {
+          "tlsBundle": {
+            "properties": {
+              "secretName": { "type": "string", "minLength": 1 },
+              "mountPath": { "const": "/certs" }
+            },
+            "required": ["secretName", "mountPath"]
+          }
+        },
+        "required": ["tlsBundle"]
+      }
+    }
+  ],
+  "definitions": {
+    "consolePeerClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedPeers"],
+      "properties": {
+        "allowedPeers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["podSelector"],
+            "properties": {
+              "podSelector": { "$ref": "#/definitions/exactPositiveSelector" },
+              "namespaceSelector": { "$ref": "#/definitions/exactPositiveSelector" }
+            }
+          }
+        }
+      }
+    },
+    "exactPositiveSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    }
+  }
+}
