@@ -124,6 +124,14 @@ class ListenerMatrixTest(unittest.TestCase):
             "/operator-trust/operators.json",
             operator_env["CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH"],
         )
+        self.assertEqual(
+            "https://console.example.test",
+            operator_env["CLAVENAR_CONSOLE_MUTATION_ORIGINS"],
+        )
+        self.assertEqual(
+            "https://smoke-assurance:8088",
+            operator_env["CLAVENAR_ASSURANCE_URL"],
+        )
         volumes = {volume["name"]: volume for volume in operator_pod["volumes"]}
         self.assertEqual(
             {("ca.crt", "ca.crt"), ("service-console.crt", "service-console.crt"),
@@ -153,6 +161,93 @@ class ListenerMatrixTest(unittest.TestCase):
         rules_by_port = {rule["ports"][0]["port"]: rule["from"] for rule in optional_policy}
         self.assertEqual({8085, 9085}, set(rules_by_port))
         self.assertNotEqual(rules_by_port[8085], rules_by_port[9085])
+
+    def test_assurance_renders_exact_mtls_and_diagnostics_boundary(self):
+        def resource(profile, kind):
+            return next(
+                doc for doc in self.rendered[profile]
+                if doc.get("kind") == kind
+                and doc.get("metadata", {}).get("name") == "smoke-assurance"
+            )
+
+        for profile in self.scenarios:
+            with self.subTest(profile=profile):
+                deployment = resource(profile, "Deployment")
+                pod = deployment["spec"]["template"]["spec"]
+                container = pod["containers"][0]
+                self.assertEqual(
+                    {"control-mtls": 8088, "diagnostics": 9088},
+                    {
+                        port["name"]: port["containerPort"]
+                        for port in container["ports"]
+                    },
+                )
+                env = {
+                    entry["name"]: entry.get("value")
+                    for entry in container["env"]
+                }
+                self.assertEqual("8088", env["CLAVENAR_ASSURANCE_ADMIN_PORT"])
+                self.assertEqual("9088", env["CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT"])
+                self.assertEqual("/certs", env["CLAVENAR_ASSURANCE_TLS_DIR"])
+                self.assertEqual(
+                    "spiffe://clavenar.local/service/console",
+                    env["CLAVENAR_ASSURANCE_ALLOWED_CALLERS"],
+                )
+                self.assertEqual(
+                    {"path": "/health", "port": 9088},
+                    container["livenessProbe"]["httpGet"],
+                )
+                self.assertEqual(
+                    {"path": "/readyz", "port": 9088},
+                    container["readinessProbe"]["httpGet"],
+                )
+                self.assertEqual(
+                    [{
+                        "port": 8088,
+                        "targetPort": "control-mtls",
+                        "protocol": "TCP",
+                        "appProtocol": "https",
+                        "name": "control-mtls",
+                    }],
+                    resource(profile, "Service")["spec"]["ports"],
+                )
+
+        bundled_pod = resource("bundled", "Deployment")["spec"]["template"]["spec"]
+        certs = next(
+            volume for volume in bundled_pod["volumes"]
+            if volume["name"] == "certs"
+        )["secret"]
+        self.assertEqual(
+            {
+                ("ca.crt", "ca.crt"),
+                ("service-assurance.crt", "service-assurance.crt"),
+                ("service-assurance.key", "service-assurance.key"),
+                ("client.crt", "client.crt"),
+                ("client.key", "client.key"),
+            },
+            {(item["key"], item["path"]) for item in certs["items"]},
+        )
+
+        automint = next(
+            doc for doc in self.rendered["bundled"]
+            if doc.get("kind") == "ConfigMap"
+            and doc.get("metadata", {}).get("name") == "smoke-tls-automint"
+        )
+        self.assertIn(
+            'EXPECTED_SAN_SCHEME="release-prefixed-v3-assurance"',
+            automint["data"]["apply.sh"],
+        )
+        job = next(
+            doc for doc in self.rendered["bundled"]
+            if doc.get("kind") == "Job"
+            and doc.get("metadata", {}).get("name") == "smoke-tls-automint"
+        )
+        mint = job["spec"]["template"]["spec"]["initContainers"][0]
+        bundle_services = next(
+            entry["value"] for entry in mint["env"]
+            if entry["name"] == "BUNDLE_SERVICES"
+        ).split()
+        self.assertIn("assurance", bundle_services)
 
     def test_console_peer_checker_rejects_broad_selectors(self):
         valid = {
@@ -255,6 +350,51 @@ class ListenerMatrixTest(unittest.TestCase):
                 )
                 self.assertTrue(errors)
 
+    def test_assurance_contract_render_mutations_fail_closed(self):
+        values_default = CHECKER.effective_values(ROOT / "charts/clavenar", [])
+        values_tls = CHECKER.effective_values(
+            ROOT / "charts/clavenar", self.scenarios["all-on"]
+        )
+        mutations = []
+
+        caller = copy.deepcopy(self.rendered["default"])
+        container = next(
+            doc for doc in caller
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-assurance"
+        )["spec"]["template"]["spec"]["containers"][0]
+        next(
+            entry for entry in container["env"]
+            if entry["name"] == "CLAVENAR_ASSURANCE_ALLOWED_CALLERS"
+        )["value"] = "spiffe://clavenar.local/service/proxy"
+        mutations.append(("caller identity", values_default, caller))
+
+        probe = copy.deepcopy(self.rendered["default"])
+        container = next(
+            doc for doc in probe
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-assurance"
+        )["spec"]["template"]["spec"]["containers"][0]
+        container["readinessProbe"]["httpGet"]["port"] = 8088
+        mutations.append(("control-plane probe", values_default, probe))
+
+        projection = copy.deepcopy(self.rendered["all-on"])
+        pod = next(
+            doc for doc in projection
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-assurance"
+        )["spec"]["template"]["spec"]
+        certs = next(
+            volume for volume in pod["volumes"] if volume["name"] == "certs"
+        )["secret"]["items"]
+        certs.remove(next(item for item in certs if item["key"] == "service-assurance.key"))
+        mutations.append(("missing server key", values_tls, projection))
+
+        for name, values, docs in mutations:
+            with self.subTest(name=name):
+                errors = CHECKER.validate(self.matrix, values, docs, "smoke")
+                self.assertTrue(errors)
+
     def test_console_values_schema_carries_fixed_listener_contract(self):
         schema = json.loads((ROOT / "charts/clavenar/values.schema.json").read_text())
         console = schema["properties"]["services"]["properties"]["console"]
@@ -266,6 +406,14 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertFalse(console["properties"]["operatorMtls"]["additionalProperties"])
         forbidden_env = console["properties"]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
         self.assertIn("CLAVENAR_CONSOLE_RELEASE_VERSION", forbidden_env)
+        self.assertIn("CLAVENAR_CONSOLE_MUTATION_ORIGINS", forbidden_env)
+
+        assurance = schema["properties"]["services"]["properties"]["assurance"]
+        self.assertEqual(8088, assurance["properties"]["port"]["const"])
+        self.assertEqual(9088, assurance["properties"]["healthPort"]["const"])
+        self.assertEqual(9088, assurance["properties"]["probes"]["properties"]["port"]["const"])
+        assurance_forbidden = assurance["properties"]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
+        self.assertIn("CLAVENAR_ASSURANCE_ALLOWED_CALLERS", assurance_forbidden)
 
     def test_console_auth_alerts_use_bounded_metrics(self):
         alerts = yaml.safe_load(
@@ -305,7 +453,6 @@ class ListenerMatrixTest(unittest.TestCase):
             "GET /assurance (valid demo cookie)",
             "GET /audit (valid demo cookie)",
             "GET /audit/narrative (valid demo cookie)",
-            "POST /demo/assurance/fire (valid demo cookie)",
             "GET /hil (valid demo cookie)",
             "GET /hil/analytics (valid demo cookie)",
             "GET /hil/retroactive-review (valid demo cookie)",
@@ -648,6 +795,16 @@ class ListenerMatrixTest(unittest.TestCase):
              "--set", "services.console.extraEnv[0].value=disabled"],
             ["--set", "services.console.extraEnv[0].name=CLAVENAR_CONSOLE_RELEASE_VERSION",
              "--set", "services.console.extraEnv[0].value=forged"],
+            ["--set", "services.assurance.port=8089"],
+            ["--set", "services.assurance.healthPort=8088"],
+            ["--set", "services.assurance.probes.port=8088"],
+            ["--set", "services.assurance.metrics.enabled=true"],
+            ["--set", "services.assurance.extraEnv[0].name=CLAVENAR_ASSURANCE_ALLOWED_CALLERS",
+             "--set", "services.assurance.extraEnv[0].value=spiffe://clavenar.local/service/proxy"],
+            ["-f", str(ROOT / "tests/values-all-on.yaml"),
+             "--set-json", "services.console.mutationOrigins=[]"],
+            ["-f", str(ROOT / "tests/values-all-on.yaml"),
+             "--set", "services.console.mutationOrigins[0]=https://console.example.test/path"],
             ["-f", str(ROOT / "tests/values-bundled.yaml"), "--set", "vault.server.service.type=NodePort"],
             ["-f", str(ROOT / "tests/values-bundled.yaml"), "--set", "nats.service.merge.spec.type=LoadBalancer"],
         )

@@ -45,6 +45,14 @@ Deployment, not the application Service:
   curl localhost:9185/health
   curl localhost:9185/readyz
 
+Assurance control on Service port 8088 requires a CA-valid client leaf with
+the exact `spiffe://clavenar.local/service/console` URI. Its plain diagnostics
+are container-only and expose no status or mutation routes:
+
+  kubectl -n {{ .Release.Namespace }} port-forward deploy/{{ .Release.Name }}-assurance 9088:9088
+  curl localhost:9088/health
+  curl localhost:9088/readyz
+
 Health/readiness:
 
   curl localhost:8081/health   # brain
@@ -54,7 +62,6 @@ Health/readiness:
   curl localhost:8084/readyz   # hil
   curl localhost:8086/readyz   # identity
   curl localhost:8087/health   # deep-review
-  curl localhost:8088/health   # assurance
 
 Proxy serves /mcp on its mTLS port (8443). /health, /readyz, and
 /metrics are on a non-mTLS health listener (8080 by default,
@@ -66,8 +73,8 @@ valid certs at https://localhost:8443/ per clavenar-proxy/README.md.
 
 WARNING: tlsBundle.secretName is empty.
 
-The proxy panics at boot without /certs mounted (see clavenar-proxy
-recurring-gotchas in CLAUDE.md). Three ways forward:
+The proxy and assurance control plane fail at boot without /certs mounted
+(see their recurring-gotchas documentation). Three ways forward:
 
   1. Auto-mint inside the cluster (quickstart path):
 

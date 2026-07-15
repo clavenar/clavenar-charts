@@ -8,6 +8,8 @@ tlsBundle:
   secretName: optional-workload-tls
 services:
   console:
+    mutationOrigins:
+      - https://console.example.test
     operatorMtls:
       enabled: true
       publicTrustSecretName: optional-operator-trust

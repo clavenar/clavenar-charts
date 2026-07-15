@@ -4,9 +4,10 @@ Two stages share an emptyDir at /work:
   - initContainer `mint`  — openssl-only image, generates CA + per-
     service certs into /work.
   - main container `apply` — kubectl-only image, no-op if the target
-    Secret already carries `ca.crt`; otherwise writes the bundle.
-Splitting keeps the CA stable across upgrades (apply gates on the
-existing Secret) and lets both containers run under the chart-wide
+    Secret already carries the current governed bundle-layout label;
+    otherwise writes the complete bundle.
+Splitting keeps the bundle stable across same-layout upgrades and lets
+both containers run under the chart-wide
 nonroot podSecurityContext — neither needs root.
 
 Hook weight 0 (default) lands after the RBAC + script ConfigMap

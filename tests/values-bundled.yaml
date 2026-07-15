@@ -64,8 +64,8 @@ vault:
 
 tlsBundle:
   # Pre-install Job mints CA + per-service workload certs into this
-  # Secret. Job is idempotent — re-running on an existing bundle is a
-  # no-op (script gates on `ca.crt`).
+  # Secret. Job is idempotent while its governed bundle-layout label
+  # matches; layout upgrades re-mint so no required identity is absent.
   secretName: smoke-tls
   autoMint: true
 

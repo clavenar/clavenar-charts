@@ -9,9 +9,10 @@ generates CA root + proxy server cert + agent client cert + per-
 service workload certs with SPIFFE URI SANs into a shared emptyDir.
 
 apply.sh runs in the kubectl main container (alpine/k8s) and writes
-the bundle into a single k8s Secret. Idempotent: re-runs are no-ops
-when the Secret already carries `ca.crt`, which keeps the CA stable
-across helm upgrades.
+the bundle into a single k8s Secret. Idempotent within one governed
+layout: re-runs are no-ops when the Secret carries the current layout
+label. Layout changes re-mint so required workload identities cannot
+be omitted.
 */}}
 {{- if .Values.tlsBundle.autoMint }}
 apiVersion: v1
@@ -121,7 +122,9 @@ data:
     #         services.yaml — every other service's /certs still
     #         omits ca.key, so a compromised brain/policy/hil/ledger
     #         pod cannot read the CA private key from disk).
-    EXPECTED_SAN_SCHEME="release-prefixed-v2"
+    #   v3 = bundleServices includes service-assurance so the daemon's
+    #         control listener can terminate exact-console workload mTLS.
+    EXPECTED_SAN_SCHEME="release-prefixed-v3-assurance"
 
     cd /work
 
@@ -129,7 +132,7 @@ data:
          -o jsonpath='{.data.ca\.crt}' 2>/dev/null | grep -q .; then
         existing_scheme="$(
             kubectl -n "${POD_NAMESPACE}" get secret "${TLS_SECRET_NAME}" \
-                -o jsonpath='{.metadata.labels.clavenar\.vanteguardlabs\.com/san-scheme}' \
+                -o jsonpath='{.metadata.labels.clavenar\.com/san-scheme}' \
                 2>/dev/null || true
         )"
         if [ "$existing_scheme" = "$EXPECTED_SAN_SCHEME" ]; then

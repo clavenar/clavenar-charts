@@ -49,6 +49,7 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
   --set tlsBundle.secretName=clavenar-certs \
   --set services.console.operatorMtls.enabled=true \
   --set services.console.operatorMtls.publicTrustSecretName=clavenar-operator-trust \
+  --set services.console.mutationOrigins[0]=https://console.example.com \
   --set services.brain.extraEnv[0].name=ANTHROPIC_API_KEY \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.name=anthropic \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.key=key
@@ -90,6 +91,9 @@ apply walkthrough.
   Prometheus target this port. The agent-facing mTLS port (8443) serves
   `/`, `/health`, `/readyz`, `/mcp`, and `/tool/{name}` but never
   `/metrics`, and it is the only port published by the proxy's k8s Service.
+  Assurance likewise splits required-mTLS control (`8088`) from plain,
+  container-only `/health` + `/readyz` diagnostics (`9088`); no mutation or
+  status route is installed on diagnostics.
 - **terminationGracePeriodSeconds** set to `drainCapSecs + 5` so
   the in-process watchdog (env `CLAVENAR_GRACEFUL_DRAIN_SECS`) fires
   before kubelet's SIGKILL.
@@ -102,7 +106,8 @@ apply walkthrough.
   injected into proxy + identity via secretKeyRef.
 - **Backend URL envs** wired automatically by component — proxy
   knows where to find brain/policy/hil/identity; console knows
-  where to find ledger/hil/policy-engine/identity; deep-review
+  where to find ledger/hil/policy-engine/identity and, in operator-mTLS
+  posture, assurance; deep-review
   knows where to find ledger. Service mesh overriding the
   Service names? Set `services.<svc>.extraEnv` to shadow.
 - **NetworkPolicy** (default on) — every enabled core, optional, and
@@ -136,7 +141,9 @@ apply walkthrough.
   mounted read-only at `/certs`. Each pod sees only what it needs:
   `ca.crt` + its own `service-<name>.{crt,key}`. Proxy additionally
   mounts `server.{crt,key}` (agent-facing mTLS) and `client.{crt,key}`
-  (legacy starter-agent client). No pod can read another service's
+  (legacy starter-agent client); assurance also mounts that generic client
+  pair for synthetic proxy attacks while its control listener uses only
+  `service-assurance.{crt,key}`. No pod can read another service's
   private key. Generate the bundle with
   `clavenar-proxy/scripts/gen_certs.sh --env prod` then
   `kubectl create secret generic clavenar-tls --from-file=clavenar-proxy/certs/`.
@@ -146,6 +153,8 @@ apply walkthrough.
   `publicTrustSecretName`. Its `/certs` projection remains limited to the
   public workload CA and `service-console.{crt,key}`. The two Secret names
   must differ, and chart rendering fails on missing or partial settings.
+  Admin mutation forms also require a principal-bound CSRF token and an exact
+  `services.console.mutationOrigins` match before any backend call.
 - **Deep-review** singleton — same posture as brain. Per-agent
   history rides NATS, daily token budget is per-pod (scale the
   cap, not the pods).
@@ -213,11 +222,15 @@ services:
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
   identity:     { ... }            # replicas: 1 (SQLite-pinned)
   deepReview:   { ... }            # singleton; daily token budget is per-pod
+  assurance:
+    port: 8088                      # exact-console workload mTLS control
+    healthPort: 9088                # plain /health + /readyz only; not published
   console:
     port: 8085                      # demo-only by default; operator mTLS when enabled
     demoPort: 9085                  # optional curated demo beside operator mTLS
     diagnosticsPort: 9185           # health/readiness/metrics; not Service-published
     operatorMtls: { enabled: false, publicTrustSecretName: "" }
+    mutationOrigins: []             # exact HTTPS Admin mutation origins
     demo: { enabled: false }
 
 persistence:
@@ -289,6 +302,8 @@ services:
     operatorMtls:
       enabled: true
       publicTrustSecretName: clavenar-operator-trust
+    mutationOrigins:
+      - https://console.example.com
     demo:
       enabled: false
 

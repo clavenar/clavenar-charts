@@ -377,6 +377,7 @@ def validate_console_contract(
     container = containers[0]
     operator_enabled = bool(value_at(values, "services.console.operatorMtls.enabled"))
     demo_enabled = bool(value_at(values, "services.console.demo.enabled"))
+    tls_secret = value_at(values, "tlsBundle.secretName")
 
     expected_ports = {
         "operator-mtls" if operator_enabled else "demo": 8085,
@@ -409,6 +410,8 @@ def validate_console_contract(
         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX",
         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS",
         "CLAVENAR_CONSOLE_RELEASE_VERSION",
+        "CLAVENAR_CONSOLE_MUTATION_ORIGINS",
+        "CLAVENAR_ASSURANCE_URL",
     }
     duplicates = sorted(name for name in governed_names if env_names.count(name) != 1 and name in env_names)
     if duplicates:
@@ -447,7 +450,12 @@ def validate_console_contract(
             "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH": "/certs/service-console.key",
             "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH": "/operator-trust/ca.crt",
             "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH": "/operator-trust/operators.json",
+            "CLAVENAR_CONSOLE_MUTATION_ORIGINS": ",".join(
+                value_at(values, "services.console.mutationOrigins") or []
+            ),
         })
+        if value_at(values, "services.assurance.enabled") and tls_secret:
+            expected_env["CLAVENAR_ASSURANCE_URL"] = f"https://{release}-assurance:8088"
         if demo_enabled:
             expected_env["CLAVENAR_CONSOLE_DEMO_ADDR"] = "0.0.0.0:9085"
     if actual_env != expected_env:
@@ -482,7 +490,6 @@ def validate_console_contract(
 
     volume_by_name = {volume.get("name"): volume for volume in pod_spec.get("volumes", []) or []}
     mount_by_name = {mount.get("name"): mount for mount in container.get("volumeMounts", []) or []}
-    tls_secret = value_at(values, "tlsBundle.secretName")
     if tls_secret:
         cert_secret = (volume_by_name.get("certs") or {}).get("secret", {})
         cert_items = {(item.get("key"), item.get("path")) for item in cert_secret.get("items", [])}
@@ -514,6 +521,130 @@ def validate_console_contract(
             errors.append("console operator trust mount must be read-only at /operator-trust")
     elif "operator-trust" in volume_by_name or "operator-trust" in mount_by_name:
         errors.append("console mounts operator trust while operatorMtls.enabled=false")
+
+
+def validate_assurance_contract(values, docs, release, errors):
+    """Validate the exact-console mTLS control and isolated diagnostics boundary."""
+    enabled = bool(value_at(values, "services.assurance.enabled"))
+    deployments = [
+        doc for doc in docs
+        if doc.get("kind") == "Deployment"
+        and doc.get("metadata", {}).get("name") == f"{release}-assurance"
+    ]
+    if not enabled:
+        if deployments:
+            errors.append("assurance Deployment rendered while services.assurance.enabled=false")
+        return
+    if len(deployments) != 1:
+        errors.append(f"assurance must render exactly one Deployment; found {len(deployments)}")
+        return
+
+    deployment = deployments[0]
+    pod_spec = deployment.get("spec", {}).get("template", {}).get("spec", {})
+    containers = [
+        container for container in pod_spec.get("containers", [])
+        if container.get("name") == "assurance"
+    ]
+    if len(containers) != 1:
+        errors.append(
+            "assurance Deployment must contain exactly one assurance container; "
+            f"found {len(containers)}"
+        )
+        return
+    container = containers[0]
+    expected_ports = {"control-mtls": 8088, "diagnostics": 9088}
+    actual_ports = {
+        port_spec.get("name"): int(port_spec["containerPort"])
+        for port_spec in container.get("ports", [])
+        if "containerPort" in port_spec
+    }
+    if actual_ports != expected_ports:
+        errors.append(
+            f"assurance named container ports {actual_ports} != governed ports {expected_ports}"
+        )
+
+    governed_env = {
+        "CLAVENAR_ASSURANCE_ADMIN_PORT": "8088",
+        "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT": "9088",
+        "CLAVENAR_ASSURANCE_TLS_DIR": str(value_at(values, "tlsBundle.mountPath")),
+        "CLAVENAR_ASSURANCE_ALLOWED_CALLERS": (
+            "spiffe://clavenar.local/service/console"
+        ),
+    }
+    env_entries = container.get("env", []) or []
+    env_names = [entry.get("name") for entry in env_entries]
+    duplicates = sorted(
+        name for name in governed_env if env_names.count(name) != 1
+    )
+    if duplicates:
+        errors.append(
+            f"assurance must carry each governed control env exactly once: {duplicates}"
+        )
+    actual_env = {
+        entry.get("name"): entry.get("value")
+        for entry in env_entries
+        if entry.get("name") in governed_env
+    }
+    if actual_env != governed_env:
+        errors.append(
+            "assurance governed control env does not match exact-console mTLS: "
+            f"actual={json.dumps(actual_env, sort_keys=True)} "
+            f"expected={json.dumps(governed_env, sort_keys=True)}"
+        )
+
+    for probe_name, expected_path in (
+        ("livenessProbe", "/health"),
+        ("readinessProbe", "/readyz"),
+    ):
+        http_get = (container.get(probe_name) or {}).get("httpGet") or {}
+        if http_get.get("path") != expected_path or int(http_get.get("port", -1)) != 9088:
+            errors.append(
+                f"assurance {probe_name} must use diagnostics {expected_path} on port 9088"
+            )
+
+    annotations = (
+        deployment.get("spec", {})
+        .get("template", {})
+        .get("metadata", {})
+        .get("annotations")
+        or {}
+    )
+    if any(key.startswith("prometheus.io/") for key in annotations):
+        errors.append("assurance must not advertise Prometheus until /metrics is governed")
+
+    volume_by_name = {
+        volume.get("name"): volume for volume in pod_spec.get("volumes", []) or []
+    }
+    mount_by_name = {
+        mount.get("name"): mount for mount in container.get("volumeMounts", []) or []
+    }
+    tls_secret = value_at(values, "tlsBundle.secretName")
+    if tls_secret:
+        cert_secret = (volume_by_name.get("certs") or {}).get("secret", {})
+        cert_items = {
+            (item.get("key"), item.get("path"))
+            for item in cert_secret.get("items", [])
+        }
+        expected_cert_items = {
+            ("ca.crt", "ca.crt"),
+            ("service-assurance.crt", "service-assurance.crt"),
+            ("service-assurance.key", "service-assurance.key"),
+            ("client.crt", "client.crt"),
+            ("client.key", "client.key"),
+        }
+        if cert_secret.get("secretName") != tls_secret or cert_items != expected_cert_items:
+            errors.append(
+                "assurance workload Secret must project only public CA, "
+                "service-assurance cert/key, and generic attack client cert/key"
+            )
+        cert_mount = mount_by_name.get("certs") or {}
+        if (
+            cert_mount.get("mountPath") != value_at(values, "tlsBundle.mountPath")
+            or not cert_mount.get("readOnly")
+        ):
+            errors.append("assurance workload Secret mount path/readOnly contract drifted")
+    elif "certs" in volume_by_name or "certs" in mount_by_name:
+        errors.append("assurance mounts workload TLS material while tlsBundle.secretName is empty")
 
 
 def validate(
@@ -793,6 +924,7 @@ def validate(
     validate_console_contract(
         values, docs, release, errors, chart_app_version=chart_app_version
     )
+    validate_assurance_contract(values, docs, release, errors)
     return errors
 
 

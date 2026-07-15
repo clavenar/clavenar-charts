@@ -59,7 +59,7 @@ charts/clavenar/
     dashboards-configmap.yaml alerts-configmap.yaml alertmanager-config-secret.yaml
   dashboards/ alerts/   # Grafana JSON + Prometheus rules, label-discovered by kube-prometheus-stack
 tests/values-bundled.yaml   # nats + vault subcharts + auto-mint TLS; CI bundled fixture
-scripts/push-images.sh      # builds/pushes the 10 service images (8 core + simulator + exec) to GHCR, bumps VERSION + Chart.appVersion
+scripts/push-images.sh      # builds/pushes the 11 service images (9 core + simulator + exec) to GHCR, bumps VERSION + Chart.appVersion
 lab/                        # optional in-cluster Claude Code agent pod (proxy→brain→policy→hil→ledger demo)
 docs/SEQUENCES.md           # seven flow diagrams + the render decision tree
 ```
@@ -68,7 +68,8 @@ proxy 8443 (mTLS `/`, `/health`, `/readyz`, `/mcp`, `/tool/{name}`; the only
 Service-published port) / 8080 (plain HTTP `/`, `/health`, `/readyz`, `/metrics`
 for kubelet and Prometheus) · brain 8081 (9081 health under mTLS) ·
 policy-engine 8082 (9082) · ledger 8083 plain + 8183 mTLS · hil 8084 (9084) ·
-identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 · console
+identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 mTLS
+control + 9088 plain diagnostics · console
 8085 primary (demo-only by default; native operator mTLS when enabled) + 9085
 optional demo + 9185 diagnostics ·
 upstream-stub 9000 · exec 9001.

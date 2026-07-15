@@ -2,6 +2,8 @@ tlsBundle:
   secretName: clavenar-certs
 services:
   console:
+    mutationOrigins:
+      - https://console.example.test
     operatorMtls:
       enabled: true
       publicTrustSecretName: clavenar-operator-trust

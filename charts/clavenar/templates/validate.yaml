@@ -38,8 +38,45 @@
 {{- if and .Values.tlsBundle.autoMint (not (has "console" .Values.tlsBundle.bundleServices)) }}
 {{- fail "services.console.operatorMtls.enabled=true with tlsBundle.autoMint=true requires console in tlsBundle.bundleServices" }}
 {{- end }}
+{{- if and .Values.services.assurance.enabled (empty $console.mutationOrigins) }}
+{{- fail "services.console.operatorMtls.enabled=true with services.assurance.enabled=true requires at least one exact services.console.mutationOrigins entry" }}
+{{- end }}
 {{- else if not (empty $operatorTrust) }}
 {{- fail "services.console.operatorMtls.publicTrustSecretName is set while operatorMtls.enabled=false; set both values together" }}
+{{- end }}
+{{- range $index, $origin := $console.mutationOrigins }}
+{{- if not (regexMatch "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$" $origin) }}
+{{- fail (printf "services.console.mutationOrigins[%d] must be an exact HTTPS origin without path, query, fragment, wildcard, or credentials" $index) }}
+{{- end }}
+{{- end }}
+{{- if ne (len $console.mutationOrigins) (len (uniq $console.mutationOrigins)) }}
+{{- fail "services.console.mutationOrigins must not contain duplicates" }}
+{{- end }}
+{{- $assurance := .Values.services.assurance }}
+{{- if ne (int $assurance.port) 8088 }}
+{{- fail "services.assurance.port is governed and must remain 8088" }}
+{{- end }}
+{{- if ne (int $assurance.healthPort) 9088 }}
+{{- fail "services.assurance.healthPort is governed and must remain 9088" }}
+{{- end }}
+{{- if or (ne $assurance.probes.type "httpGet") (ne $assurance.probes.health "/health") (ne $assurance.probes.ready "/readyz") (ne (int $assurance.probes.port) 9088) }}
+{{- fail "services.assurance probes are governed and must use plain diagnostics /health + /readyz on port 9088" }}
+{{- end }}
+{{- if $assurance.metrics.enabled }}
+{{- fail "services.assurance.metrics.enabled must remain false until the diagnostics router exposes a governed /metrics route" }}
+{{- end }}
+{{- if and .Values.services.assurance.enabled .Values.tlsBundle.autoMint (not (has "assurance" .Values.tlsBundle.bundleServices)) }}
+{{- fail "services.assurance.enabled=true with tlsBundle.autoMint=true requires assurance in tlsBundle.bundleServices" }}
+{{- end }}
+{{- $governedAssuranceEnv := list
+      "CLAVENAR_ASSURANCE_ADMIN_PORT"
+      "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT"
+      "CLAVENAR_ASSURANCE_TLS_DIR"
+      "CLAVENAR_ASSURANCE_ALLOWED_CALLERS" -}}
+{{- range $index, $env := $assurance.extraEnv }}
+{{- if has (default "" $env.name) $governedAssuranceEnv }}
+{{- fail (printf "services.assurance.extraEnv[%d].name=%s is chart-governed by the exact-console mTLS listener contract" $index $env.name) }}
+{{- end }}
 {{- end }}
 {{- $operatorPeers := .Values.networkPolicy.console.operatorMtls.allowedPeers }}
 {{- $demoPeers := .Values.networkPolicy.console.demo.allowedPeers }}
@@ -65,6 +102,7 @@
       "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX"
       "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS"
       "CLAVENAR_CONSOLE_RELEASE_VERSION"
+      "CLAVENAR_CONSOLE_MUTATION_ORIGINS"
       "CLAVENAR_HIL_DECIDE_TOKEN"
       "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK" -}}
 {{- range $index, $env := $console.extraEnv }}

@@ -54,11 +54,15 @@ sequenceDiagram
 Each pod mounts only `ca.crt` + its own `service-<name>.{crt,key}` — the
 per-pod `items:` projection on the `certs` Secret volume in
 `services.yaml` scopes the projection so a compromised pod can't read
-another service's private key. Proxy also
-mounts `server.{crt,key}` + `client.{crt,key}`. Under TLS mode brain /
+another service's private key. Proxy also mounts `server.{crt,key}` +
+`client.{crt,key}`. Assurance mounts the generic client pair only for its
+synthetic proxy/NATS traffic; `service-assurance.{crt,key}` terminates the
+exact-console control listener. Under TLS mode brain /
 policy / hil / identity / ledger move `/health` + `/readyz` + `/metrics`
 to a plain-HTTP `healthPort` so kubelet probes and Prometheus scrapes
-land without a client cert.
+land without a client cert. Assurance similarly moves only `/health` and
+`/readyz` to plain diagnostics `9088`; status and mutations remain on mTLS
+`8088`.
 
 ```mermaid
 sequenceDiagram
@@ -95,7 +99,8 @@ sequenceDiagram
 `https://` and injects `service-<caller>.{crt,key}` mount paths when
 `tlsBundle.secretName` is non-empty. Proxy → brain is the canonical
 hop; the same shape covers proxy → policy / hil / identity and console
-→ ledger / hil / policy / identity.
+→ ledger / hil / policy / identity / assurance. The assurance hop accepts
+only the exact console SPIFFE URI after the client certificate verifies.
 
 ```mermaid
 sequenceDiagram
@@ -244,8 +249,9 @@ mount source both exist before the Job starts. The Job splits an
 `openssl` initContainer (`mint`, image `alpine/openssl`) from a `kubectl`
 main container (`apply`, image `alpine/k8s`) over a shared `/work`
 emptyDir; `apply.sh` is a no-op when the target Secret already carries
-`ca.crt` under the expected `san-scheme` label and re-mints on scheme
-drift, which keeps the CA stable across upgrades. The Vault Jobs run
+`ca.crt` under the expected bundle-layout label and re-mints on layout
+drift so a newly required identity such as `service-assurance` cannot be
+silently absent. The Vault Jobs run
 post-install at weights `0` (`vault-bootstrap-job.yaml`) then `1`
 (`vault-seed-job.yaml`).
 
@@ -274,12 +280,12 @@ sequenceDiagram
     Mint-->>API: initContainer exits 0
     API->>Apply: start main container apply
     Apply->>Sec: GET secret clavenar-certs (jsonpath .data.ca.crt)
-    alt ca.crt present AND san-scheme == release-prefixed-v2
+    alt ca.crt present AND san-scheme == release-prefixed-v3-assurance
         Sec-->>Apply: existing bundle, scheme matches
         Apply->>Apply: skip apply — CA stays stable across upgrade
     else absent OR scheme drift
         Apply->>Sec: kubectl create --dry-run then apply -f - (create-or-replace)
-        Apply->>Sec: label san-scheme=release-prefixed-v2
+        Apply->>Sec: label san-scheme=release-prefixed-v3-assurance
     end
     Apply-->>API: Job succeeded, hook-delete-policy reaps SA/Role/ConfigMap/Job
 

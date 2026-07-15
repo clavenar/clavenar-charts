@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Build and push all 10 clavenar service images to ghcr.io/clavenar.
+# Build and push all 11 clavenar service images to ghcr.io/clavenar.
 # VERSION holds the latest tag already published; the script bumps to
 # next patch, builds + pushes under that, then writes the new value
 # back to VERSION + Chart.appVersion. Failed pushes leave VERSION
@@ -21,6 +21,9 @@ SERVICES=(
     "clavenar-hil"
     "clavenar-console"
     "clavenar-deep-review"
+    # The chart's assurance Deployment runs the long-lived daemon binary
+    # built by clavenar-chaos-monkey.
+    "clavenar-chaos-monkey"
     "clavenar-identity"
     # clavenar-simulator ships the clavenar-upstream-stub binary the chart's
     # bundled-lab upstreamStub Deployment runs. Operators enabling
@@ -33,8 +36,8 @@ SERVICES=(
     "clavenar-exec"
 )
 
-# Seven of the ten Dockerfiles `COPY --from=<name>` source from sibling
-# library repos via BuildKit named contexts. Resolves them to the local
+# Dockerfiles with sibling path dependencies `COPY --from=<name>` via
+# BuildKit named contexts. Resolve them to the local
 # checkouts under WORKSPACE_ROOT — without these flags docker tries to
 # pull `docker.io/library/<name>` and fails.
 declare -A EXTRA_CONTEXTS=(
@@ -45,8 +48,9 @@ declare -A EXTRA_CONTEXTS=(
     [clavenar-hil]="clavenar-shared clavenar-workload-identity"
     [clavenar-console]="clavenar-sdk clavenar-workload-identity clavenar-shared"
     [clavenar-deep-review]="clavenar-shared"
+    [clavenar-chaos-monkey]="clavenar-shared clavenar-chaos-catalog"
     [clavenar-identity]="clavenar-shared clavenar-workload-identity"
-    [clavenar-simulator]="clavenar-workload-identity"
+    [clavenar-simulator]="clavenar-workload-identity clavenar-shared"
 )
 
 ALLOW_DIRTY=0
@@ -67,7 +71,7 @@ repo's Dockerfile, pushes ghcr.io/clavenar/<service>:<target>
 and :latest, then writes <target> into VERSION + Chart.appVersion.
 
 Flags:
-  --only=<csv>     Subset of the 10 services. Implies --no-bump
+  --only=<csv>     Subset of the 11 services. Implies --no-bump
                    (re-pushes the current VERSION tag for those svcs).
   --allow-dirty    Skip the "sibling repos on main + clean" preflight.
   --no-bump        Re-push the current VERSION tag; do not bump or commit.

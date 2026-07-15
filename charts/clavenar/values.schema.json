@@ -14,6 +14,7 @@
             "demoPort",
             "diagnosticsPort",
             "operatorMtls",
+            "mutationOrigins",
             "demo",
             "probes",
             "metrics",
@@ -31,6 +32,14 @@
               "properties": {
                 "enabled": { "type": "boolean" },
                 "publicTrustSecretName": { "type": "string" }
+              }
+            },
+            "mutationOrigins": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$"
               }
             },
             "demo": {
@@ -83,6 +92,7 @@
                         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX",
                         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS",
                         "CLAVENAR_CONSOLE_RELEASE_VERSION",
+                        "CLAVENAR_CONSOLE_MUTATION_ORIGINS",
                         "CLAVENAR_HIL_DECIDE_TOKEN",
                         "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK"
                       ]
@@ -141,6 +151,62 @@
               }
             }
           ]
+        },
+        "assurance": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "port",
+            "healthPort",
+            "serviceType",
+            "probes",
+            "metrics",
+            "extraEnv"
+          ],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "port": { "type": "integer", "const": 8088 },
+            "healthPort": { "type": "integer", "const": 9088 },
+            "serviceType": { "const": "ClusterIP" },
+            "probes": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "health", "ready", "port"],
+              "properties": {
+                "type": { "const": "httpGet" },
+                "health": { "const": "/health" },
+                "ready": { "const": "/readyz" },
+                "port": { "type": "integer", "const": 9088 }
+              }
+            },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["enabled"],
+              "properties": {
+                "enabled": { "const": false }
+              }
+            },
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "CLAVENAR_ASSURANCE_ADMIN_PORT",
+                        "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT",
+                        "CLAVENAR_ASSURANCE_TLS_DIR",
+                        "CLAVENAR_ASSURANCE_ALLOWED_CALLERS"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

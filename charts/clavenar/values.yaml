@@ -494,34 +494,37 @@ services:
   # Continuous-assurance daemon (built from clavenar-chaos-monkey).
   # Fires the attack catalog at the proxy on a cadence and publishes
   # assurance_run results the console's /assurance page reads. Boots
-  # paused — arm via POST /running {"running":true} or /run-now on the
-  # admin plane. Attack runs authenticate with the generic agent
-  # client cert from tlsBundle; the admin plane works without it.
+  # paused — arm through the Admin console. Attack runs authenticate
+  # with the generic agent client cert from tlsBundle; control requires
+  # exact-console workload mTLS and never falls back to plaintext.
   assurance:
     enabled: true
     replicas: 1
     image:
       repository: clavenar-chaos-monkey
       tag: ""
-    # Admin control plane (/status, /running, /run-now).
+    # mTLS control plane (/status, /running, /run-now).
     port: 8088
+    # Plain, side-effect-free /health + /readyz diagnostics. No control
+    # or status route is installed on this listener.
+    healthPort: 9088
     serviceType: ClusterIP
     resources:
       requests: { cpu: 50m, memory: 64Mi }
       limits:   { cpu: 250m, memory: 256Mi }
-    # The admin plane exposes /health (there is no distinct /readyz),
-    # so both probes use the side-effect-free health route.
+    # Probes use the separate plaintext diagnostics listener.
     probes:
       type: httpGet
       health: /health
-      ready: /health
+      ready: /readyz
+      port: 9088
     extraEnv:
       # Paused at boot; the daily cadence starts once un-paused.
       - name: CLAVENAR_ASSURANCE_START_RUNNING
         value: "false"
       - name: CLAVENAR_ASSURANCE_INTERVAL_SECS
         value: "86400"
-    # The admin plane serves no /metrics.
+    # The diagnostics listener serves no /metrics.
     metrics:
       enabled: false
 
@@ -563,6 +566,10 @@ services:
       # leaf SHA-256 fingerprint + SPIFFE URI to viewer/approver/admin.
       # No operator CA or leaf private key belongs in this Secret.
       publicTrustSecretName: ""
+    # Exact HTTPS browser origins allowed to submit simulator/assurance
+    # mutations. Required when operator mTLS wires the assurance backend;
+    # each value is compared as a complete Origin, never by suffix/prefix.
+    mutationOrigins: []
     demo:
       # Adds the curated demo router on demoPort while operator mTLS owns
       # the primary port. Disabled by default; NetworkPolicy peers must
@@ -642,11 +649,12 @@ tlsBundle:
   # pre-upgrade Helm hook Job. Generates a self-signed CA root,
   # proxy server cert + client cert, and per-service workload certs
   # (one pair per name in `bundleServices`, with SPIFFE URI SANs).
-  # The Job is idempotent — it skips if the target Secret already
-  # carries `ca.crt`. Production deployments should leave this off
+  # The Job is idempotent while the target Secret carries the current
+  # governed bundle-layout label; layout changes re-mint the full bundle.
+  # Production deployments should leave this off
   # and supply the bundle from a managed PKI instead.
   autoMint: false
-  # Workload names that get a per-service cert. The 8 default
+  # Workload names that get a per-service cert. The 9 default
   # clavenar services live here; "nats" is auto-appended by
   # `clavenar.bundleServices` when `nats.bundled.enabled`.
   bundleServices:
@@ -658,6 +666,7 @@ tlsBundle:
     - identity
     - deep-review
     - console
+    - assurance
   # SPIFFE trust domain stamped into each workload cert's SAN URI
   # (URI:spiffe://<domain>/service/<name>). Matches the compose
   # stack's `clavenar.local`. Change only if you've adjusted the

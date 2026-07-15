@@ -20,6 +20,11 @@ inside the console process on `:8085`, maps only exact registered operator
 certificates to roles, and keeps demo (`:9085`) and diagnostics (`:9185`)
 on separate listeners and NetworkPolicy trust classes.
 
+Assurance control is separately fail-closed: `:8088` requires workload mTLS
+and the exact console SPIFFE identity, while plain `:9088` exposes only
+side-effect-free health and readiness routes. Demo visitors cannot trigger
+assurance runs.
+
 The chart does not auto-mint a demo-session signing key or token issuer. A
 fresh install therefore serves the anonymous `/demo` preview safely, while
 signed demo routes stay closed until an operator supplies one dedicated key to
@@ -76,7 +81,9 @@ router if you port-forward it. Enabling operator mTLS additionally requires
 `services.console.operatorMtls.enabled=true` and a pre-existing
 `publicTrustSecretName` Secret containing the dedicated public operator CA
 (`ca.crt`) plus the sanitized exact identity registry (`operators.json`).
-Private operator authority and leaf keys never belong in the runtime Secret.
+List every exact HTTPS browser origin allowed to submit simulator or assurance
+controls in `services.console.mutationOrigins`. Private operator authority and
+leaf keys never belong in the runtime Secret.
 
 See `charts/clavenar/README.md` for the full quickstart, the `values.yaml`
 reference, mTLS cert provisioning, the SQLite-on-shared-PVC constraints,
@@ -93,7 +100,7 @@ that actually exist on GHCR. Independent of `clavenar-internal-specs/VERSION`
 set).
 
 `scripts/push-images.sh` reads `VERSION`, computes the next patch as
-the target, builds all 10 services from their sibling repos under
+the target, builds all 11 services from their sibling repos under
 `../clavenar-<name>/`, pushes both `:<target>` and `:latest` to GHCR,
 then writes the new tag back into `VERSION` + `Chart.appVersion`
 atomically and auto-commits. Failed pushes leave `VERSION` untouched
@@ -103,7 +110,7 @@ atomically and auto-commits. Failed pushes leave `VERSION` untouched
 # One-time: log root's docker into ghcr.io (the script uses sudo -n docker)
 echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
 
-# Full publish — builds 10 images, pushes 20 tags, bumps VERSION
+# Full publish — builds 11 images, pushes 22 tags, bumps VERSION
 ./scripts/push-images.sh
 
 # Subset / iteration (implies --no-bump)
@@ -119,7 +126,7 @@ echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
 **First-time visibility flip (one-time per service).** GHCR's REST API
 does not expose package-visibility mutation — new packages land as
 `private`. After the first push, click through the UI for each of the
-10 packages at:
+11 packages at:
 
   `https://github.com/users/vanteguardlabs/packages/container/<service>/settings`
 

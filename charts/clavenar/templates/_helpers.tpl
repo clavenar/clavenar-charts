@@ -105,7 +105,7 @@ mode autogenerates `<release>-vault-token`; BYO mode honors
 {{- end -}}
 
 {{/* Workload names that need a per-service cert. Always includes
-the 8 in-chart clavenar services from .Values.tlsBundle.bundleServices;
+the 9 in-chart clavenar services from .Values.tlsBundle.bundleServices;
 "nats" is appended when nats.bundled.enabled so the bundled NATS
 StatefulSet (which mounts the same Secret for TLS) finds its own
 keypair. Emits a space-separated list — consumed by the auto-mint
@@ -313,6 +313,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "/operator-trust/ca.crt"
 - name: CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH
   value: "/operator-trust/operators.json"
+- name: CLAVENAR_CONSOLE_MUTATION_ORIGINS
+  value: {{ join "," .ctx.Values.services.console.mutationOrigins | quote }}
 {{- if .ctx.Values.services.console.demo.enabled }}
 - name: CLAVENAR_CONSOLE_DEMO_ADDR
   value: "0.0.0.0:{{ .ctx.Values.services.console.demoPort }}"
@@ -330,6 +332,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082"
 - name: CLAVENAR_CONSOLE_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+{{- if and $tlsOn .ctx.Values.services.console.operatorMtls.enabled .ctx.Values.services.assurance.enabled }}
+- name: CLAVENAR_ASSURANCE_URL
+  value: "https://{{ $rel }}-assurance:8088"
+{{- end }}
 {{- if $tlsOn }}
 # Outbound mTLS — same cert bundle the proxy uses. One
 # `service-console` identity authenticates every backend hop.
@@ -351,10 +357,20 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
     configMapKeyRef:
       name: {{ include "clavenar.fullname" .ctx }}-config
       key: NATS_URL
+# The receive-side boundary is chart-governed even when an operator has
+# not supplied tlsBundle.secretName yet. In that incomplete posture the
+# process fails closed while loading /certs; it never opens 8088 as HTTP.
+- name: CLAVENAR_ASSURANCE_ADMIN_PORT
+  value: "8088"
+- name: CLAVENAR_ASSURANCE_TLS_DIR
+  value: {{ $mount | quote }}
+- name: CLAVENAR_ASSURANCE_ALLOWED_CALLERS
+  value: "spiffe://clavenar.local/service/console"
+- name: CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT
+  value: "9088"
 {{- if $tlsOn }}
-# The proxy attacks + NATS both authenticate with the generic agent
-# client cert (the designated chaos-monkey identity) — the automint
-# bundle ships client.{crt,key}, not a service-assurance cert.
+# Proxy attacks + NATS use the generic agent identity. The receive-side
+# control listener uses service-assurance and authorizes only console.
 - name: CLAVENAR_ASSURANCE_CERT_DIR
   value: {{ $mount | quote }}
 - name: NATS_TLS_CERT_PATH

@@ -80,6 +80,13 @@ spec:
             - name: diagnostics
               containerPort: {{ $cfg.diagnosticsPort }}
               protocol: TCP
+            {{- else if eq $name "assurance" }}
+            - name: control-mtls
+              containerPort: {{ $cfg.port }}
+              protocol: TCP
+            - name: diagnostics
+              containerPort: {{ $cfg.healthPort }}
+              protocol: TCP
             {{- else }}
             - name: http
               containerPort: {{ $cfg.port }}
@@ -209,6 +216,15 @@ spec:
               - key: client.key
                 path: client.key
               {{- end }}
+              {{- if eq $name "assurance" }}
+              # The assurance runner reaches proxy/NATS as the generic
+              # synthetic agent while service-assurance terminates its
+              # exact-console control listener.
+              - key: client.crt
+                path: client.crt
+              - key: client.key
+                path: client.key
+              {{- end }}
               {{- if eq $name "identity" }}
               # Identity roots the trust chain and reads ca.key to mint
               # SVIDs / delegation grants. Only identity's pod opts into
@@ -265,6 +281,12 @@ spec:
       appProtocol: http
       name: demo
     {{- end }}
+    {{- else if eq $name "assurance" }}
+    - port: {{ $cfg.port }}
+      targetPort: control-mtls
+      protocol: TCP
+      appProtocol: https
+      name: control-mtls
     {{- else }}
     - port: {{ $cfg.port }}
       targetPort: http
