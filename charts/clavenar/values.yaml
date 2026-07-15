@@ -298,18 +298,33 @@ services:
     image:
       repository: clavenar-brain
       tag: ""
-    # Application port. Plain HTTP without tlsBundle.secretName set;
-    # rustls + SPIFFE-allowlist on the same port when the bundle is
-    # mounted. CLAVENAR_BRAIN_TLS_DIR + ALLOWED_CALLERS env vars are
-    # auto-injected by `clavenar.backendEnvs` when tlsBundle is set
-    # (B7 v1.x+2 session 3).
+    # Application port. Without tlsBundle.secretName the binary keeps its
+    # compatibility listener on pod loopback, so the Service cannot turn it
+    # into a plaintext provider path. With a bundle this port is rustls plus
+    # route-aware SPIFFE authorization. CLAVENAR_BRAIN_TLS_DIR and the
+    # inspect-only ALLOWED_CALLERS env are injected in that mode.
     port: 8081
-    # Plain-HTTP /health + /readyz + /metrics under TLS mode so
-    # kubelet probes and Prometheus scrapes don't need a client cert.
-    # Probes auto-aim at healthPort (see _helpers.tpl). Under plain
-    # HTTP mode brain serves everything on `port`; the chart's probe
-    # helper falls back to `port` when healthPort is unused.
+    # Plain-HTTP /, /health, /readyz, and /metrics under TLS mode so kubelet
+    # probes and Prometheus scrapes don't need a client cert. No model or
+    # provider operation is installed here. Probes auto-aim at healthPort
+    # under TLS; the render-only compatibility profile falls back to `port`.
     healthPort: 9081
+    # Provider-backed auxiliary operations are always configured in strict
+    # mode by the official chart. Explain is authorized only for the exact
+    # policy-engine workload; narrate and model-snapshot are authorized only
+    # for the exact console workload. These are complete SPIFFE URIs, never
+    # prefixes or comma-separated lists.
+    explainCallerSpiffe: spiffe://clavenar.local/service/policy-engine
+    narrateCallerSpiffe: spiffe://clavenar.local/service/console
+    # Independent fixed-minute request gates plus one shared fixed-hour
+    # provider-spend reservation. Values must be positive. The whole-call
+    # timeout and JSON body limit carry the same upper bounds enforced by
+    # clavenar-brain before either listener binds.
+    explainRateLimitPerMinute: 20
+    narrateRateLimitPerMinute: 60
+    auxSpendBudgetMicroUsdPerHour: 5000000
+    auxTimeoutMillis: 5000       # valid range 1..30000
+    auxBodyLimitBytes: 16384     # valid range 1..1048576
     serviceType: ClusterIP
     resources:
       requests: { cpu: 100m, memory: 128Mi }
@@ -694,9 +709,9 @@ tlsBundle:
     - console
     - assurance
   # SPIFFE trust domain stamped into each workload cert's SAN URI
-  # (URI:spiffe://<domain>/service/<name>). Matches the compose
-  # stack's `clavenar.local`. Change only if you've adjusted the
-  # `CLAVENAR_*_ALLOWED_CALLERS` allowlists on the consuming services.
+  # (URI:spiffe://<domain>/service/<name>). The official chart fixes this to
+  # `clavenar.local` so the exact Brain auxiliary callers and every generated
+  # workload identity remain in one canonical trust domain.
   spiffeTrustDomain: clavenar.local
   # Auto-mint Job runs two containers sharing an emptyDir:
   #   mintImage  — openssl-only, generates CA + per-service certs

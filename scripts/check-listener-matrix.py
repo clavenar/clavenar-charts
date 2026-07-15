@@ -412,6 +412,8 @@ def validate_console_contract(
         "CLAVENAR_CONSOLE_RELEASE_VERSION",
         "CLAVENAR_CONSOLE_MUTATION_ORIGINS",
         "CLAVENAR_ASSURANCE_URL",
+        "CLAVENAR_CONSOLE_BRAIN_URL",
+        "CLAVENAR_CONSOLE_TLS_DIR",
     }
     duplicates = sorted(name for name in governed_names if env_names.count(name) != 1 and name in env_names)
     if duplicates:
@@ -428,6 +430,7 @@ def validate_console_contract(
         "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR": "0.0.0.0:9185",
         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX": "10",
         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS": "60",
+        "CLAVENAR_CONSOLE_BRAIN_URL": f"https://{release}-brain:8081",
     }
     release_values = [
         entry.get("value")
@@ -458,6 +461,10 @@ def validate_console_contract(
             expected_env["CLAVENAR_ASSURANCE_URL"] = f"https://{release}-assurance:8088"
         if demo_enabled:
             expected_env["CLAVENAR_CONSOLE_DEMO_ADDR"] = "0.0.0.0:9085"
+    if tls_secret:
+        expected_env["CLAVENAR_CONSOLE_TLS_DIR"] = str(
+            value_at(values, "tlsBundle.mountPath")
+        )
     if actual_env != expected_env:
         errors.append(
             "console governed env does not exactly match listener/trust values: "
@@ -521,6 +528,176 @@ def validate_console_contract(
             errors.append("console operator trust mount must be read-only at /operator-trust")
     elif "operator-trust" in volume_by_name or "operator-trust" in mount_by_name:
         errors.append("console mounts operator trust while operatorMtls.enabled=false")
+
+
+def validate_brain_auxiliary_contract(values, docs, release, errors):
+    """Validate strict auxiliary controls and both exact mTLS callers."""
+    enabled = bool(value_at(values, "services.brain.enabled"))
+    deployments = [
+        doc for doc in docs
+        if doc.get("kind") == "Deployment"
+        and doc.get("metadata", {}).get("name") == f"{release}-brain"
+    ]
+    if not enabled:
+        if deployments:
+            errors.append("brain Deployment rendered while services.brain.enabled=false")
+        return
+    if len(deployments) != 1:
+        errors.append(f"brain must render exactly one Deployment; found {len(deployments)}")
+        return
+
+    deployment = deployments[0]
+    containers = [
+        container
+        for container in deployment.get("spec", {}).get("template", {}).get("spec", {}).get("containers", [])
+        if container.get("name") == "brain"
+    ]
+    if len(containers) != 1:
+        errors.append(
+            f"brain Deployment must contain exactly one brain container; found {len(containers)}"
+        )
+        return
+    container = containers[0]
+    tls_secret = value_at(values, "tlsBundle.secretName")
+    expected_ports = {"http": 8081}
+    if tls_secret:
+        expected_ports["health"] = 9081
+    actual_ports = {
+        port.get("name"): int(port["containerPort"])
+        for port in container.get("ports", [])
+        if "containerPort" in port
+    }
+    if actual_ports != expected_ports:
+        errors.append(
+            f"brain named container ports {actual_ports} != governed ports {expected_ports}"
+        )
+
+    governed_env = {
+        "CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS": "true",
+        "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE": str(
+            value_at(values, "services.brain.explainCallerSpiffe")
+        ),
+        "CLAVENAR_BRAIN_NARRATE_CALLER_SPIFFE": str(
+            value_at(values, "services.brain.narrateCallerSpiffe")
+        ),
+        "CLAVENAR_BRAIN_EXPLAIN_RATE_LIMIT_PER_MINUTE": str(
+            value_at(values, "services.brain.explainRateLimitPerMinute")
+        ),
+        "CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE": str(
+            value_at(values, "services.brain.narrateRateLimitPerMinute")
+        ),
+        "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR": str(
+            value_at(values, "services.brain.auxSpendBudgetMicroUsdPerHour")
+        ),
+        "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS": str(
+            value_at(values, "services.brain.auxTimeoutMillis")
+        ),
+        "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES": str(
+            value_at(values, "services.brain.auxBodyLimitBytes")
+        ),
+    }
+    if tls_secret:
+        governed_env.update({
+            "CLAVENAR_BRAIN_TLS_DIR": str(value_at(values, "tlsBundle.mountPath")),
+            "CLAVENAR_BRAIN_ALLOWED_CALLERS": "spiffe://clavenar.local/service/proxy",
+            "CLAVENAR_BRAIN_HEALTH_ADDR": "0.0.0.0:9081",
+        })
+    env_entries = container.get("env", []) or []
+    env_names = [entry.get("name") for entry in env_entries]
+    duplicates = sorted(name for name in governed_env if env_names.count(name) != 1)
+    if duplicates:
+        errors.append(
+            f"brain must carry each governed auxiliary env exactly once: {duplicates}"
+        )
+    actual_env = {
+        entry.get("name"): entry.get("value")
+        for entry in env_entries
+        if entry.get("name") in governed_env
+    }
+    if actual_env != governed_env:
+        errors.append(
+            "brain governed auxiliary env does not match exact callers and bounds: "
+            f"actual={json.dumps(actual_env, sort_keys=True)} "
+            f"expected={json.dumps(governed_env, sort_keys=True)}"
+        )
+    unexpected_transport = {
+        "CLAVENAR_BRAIN_TLS_DIR",
+        "CLAVENAR_BRAIN_ALLOWED_CALLERS",
+        "CLAVENAR_BRAIN_HEALTH_ADDR",
+    } & set(env_names)
+    if not tls_secret and unexpected_transport:
+        errors.append(
+            "brain renders network TLS/health env without tlsBundle.secretName: "
+            f"{sorted(unexpected_transport)}"
+        )
+    if "CLAVENAR_BRAIN_PLAIN_ADDR" in env_names:
+        errors.append("brain chart must not override the binary's loopback-only plain bind")
+
+    expected_probe_port = 9081 if tls_secret else 8081
+    for probe_name, expected_path in (
+        ("livenessProbe", "/health"),
+        ("readinessProbe", "/readyz"),
+    ):
+        http_get = (container.get(probe_name) or {}).get("httpGet") or {}
+        if (
+            http_get.get("path") != expected_path
+            or int(http_get.get("port", -1)) != expected_probe_port
+        ):
+            errors.append(
+                f"brain {probe_name} must use {expected_path} on port {expected_probe_port}"
+            )
+    annotations = (
+        deployment.get("spec", {})
+        .get("template", {})
+        .get("metadata", {})
+        .get("annotations", {})
+    )
+    if annotations.get("prometheus.io/port") != str(expected_probe_port):
+        errors.append(
+            f"brain Prometheus must use diagnostics port {expected_probe_port}"
+        )
+
+    expected_clients = {
+        f"{release}-policy-engine": {
+            "CLAVENAR_POLICY_ENGINE_BRAIN_URL": f"https://{release}-brain:8081",
+            "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE": (
+                "spiffe://clavenar.local/service/identity,"
+                "spiffe://clavenar.local/service/brain"
+            ),
+        },
+        f"{release}-console": {
+            "CLAVENAR_CONSOLE_BRAIN_URL": f"https://{release}-brain:8081",
+        },
+    }
+    for deployment_name, expected in expected_clients.items():
+        client_deployments = [
+            doc for doc in docs
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == deployment_name
+        ]
+        if not client_deployments:
+            continue
+        client_env_entries = (
+            client_deployments[0]["spec"]["template"]["spec"]["containers"][0].get("env", [])
+        )
+        client_names = [entry.get("name") for entry in client_env_entries]
+        missing_or_duplicate = sorted(
+            name for name in expected if client_names.count(name) != 1
+        )
+        if missing_or_duplicate:
+            errors.append(
+                f"{deployment_name} must carry each Brain client env exactly once: "
+                f"{missing_or_duplicate}"
+            )
+        actual = {
+            entry.get("name"): entry.get("value")
+            for entry in client_env_entries
+            if entry.get("name") in expected
+        }
+        if actual != expected:
+            errors.append(
+                f"{deployment_name} Brain client env {actual} != {expected}"
+            )
 
 
 def validate_assurance_contract(values, docs, release, errors):
@@ -939,6 +1116,7 @@ def validate(
     validate_console_contract(
         values, docs, release, errors, chart_app_version=chart_app_version
     )
+    validate_brain_auxiliary_contract(values, docs, release, errors)
     validate_assurance_contract(values, docs, release, errors)
     return errors
 

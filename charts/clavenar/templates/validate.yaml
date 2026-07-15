@@ -4,6 +4,61 @@
 {{- fail (printf "services.%s.serviceType must be ClusterIP; use an operator-controlled Ingress or Gateway for external publication" $name) }}
 {{- end }}
 {{- end }}
+{{- $brain := .Values.services.brain }}
+{{- if ne (int $brain.port) 8081 }}
+{{- fail "services.brain.port is governed and must remain 8081" }}
+{{- end }}
+{{- if ne (int $brain.healthPort) 9081 }}
+{{- fail "services.brain.healthPort is governed and must remain 9081" }}
+{{- end }}
+{{- if ne .Values.tlsBundle.spiffeTrustDomain "clavenar.local" }}
+{{- fail "tlsBundle.spiffeTrustDomain must remain clavenar.local for the canonical exact Brain auxiliary callers" }}
+{{- end }}
+{{- if ne $brain.explainCallerSpiffe "spiffe://clavenar.local/service/policy-engine" }}
+{{- fail "services.brain.explainCallerSpiffe must be the one canonical exact URI spiffe://clavenar.local/service/policy-engine" }}
+{{- end }}
+{{- if ne $brain.narrateCallerSpiffe "spiffe://clavenar.local/service/console" }}
+{{- fail "services.brain.narrateCallerSpiffe must be the one canonical exact URI spiffe://clavenar.local/service/console" }}
+{{- end }}
+{{- if lt (int $brain.explainRateLimitPerMinute) 1 }}
+{{- fail "services.brain.explainRateLimitPerMinute must be a positive integer" }}
+{{- end }}
+{{- if lt (int $brain.narrateRateLimitPerMinute) 1 }}
+{{- fail "services.brain.narrateRateLimitPerMinute must be a positive integer" }}
+{{- end }}
+{{- if lt (int $brain.auxSpendBudgetMicroUsdPerHour) 1 }}
+{{- fail "services.brain.auxSpendBudgetMicroUsdPerHour must be a positive integer" }}
+{{- end }}
+{{- if or (lt (int $brain.auxTimeoutMillis) 1) (gt (int $brain.auxTimeoutMillis) 30000) }}
+{{- fail "services.brain.auxTimeoutMillis must be between 1 and 30000" }}
+{{- end }}
+{{- if or (lt (int $brain.auxBodyLimitBytes) 1) (gt (int $brain.auxBodyLimitBytes) 1048576) }}
+{{- fail "services.brain.auxBodyLimitBytes must be between 1 and 1048576" }}
+{{- end }}
+{{- $governedBrainEnv := list
+      "CLAVENAR_BRAIN_TLS_DIR"
+      "CLAVENAR_BRAIN_ALLOWED_CALLERS"
+      "CLAVENAR_BRAIN_HEALTH_ADDR"
+      "CLAVENAR_BRAIN_PLAIN_ADDR"
+      "CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS"
+      "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE"
+      "CLAVENAR_BRAIN_NARRATE_CALLER_SPIFFE"
+      "CLAVENAR_BRAIN_EXPLAIN_RATE_LIMIT_PER_MINUTE"
+      "CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE"
+      "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR"
+      "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS"
+      "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES" -}}
+{{- range $index, $env := $brain.extraEnv }}
+{{- if has (default "" $env.name) $governedBrainEnv }}
+{{- fail (printf "services.brain.extraEnv[%d].name=%s is chart-governed by the Brain mTLS auxiliary-provider contract" $index $env.name) }}
+{{- end }}
+{{- end }}
+{{- $policy := .Values.services.policyEngine }}
+{{- range $index, $env := $policy.extraEnv }}
+{{- if has (default "" $env.name) (list "CLAVENAR_POLICY_ENGINE_BRAIN_URL" "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE") }}
+{{- fail (printf "services.policyEngine.extraEnv[%d].name=%s is chart-governed by the Brain explanation mTLS contract" $index $env.name) }}
+{{- end }}
+{{- end }}
 {{- $console := .Values.services.console }}
 {{- $operatorMtls := $console.operatorMtls.enabled }}
 {{- $operatorTrust := trim $console.operatorMtls.publicTrustSecretName }}
@@ -132,6 +187,8 @@
       "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS"
       "CLAVENAR_CONSOLE_RELEASE_VERSION"
       "CLAVENAR_CONSOLE_MUTATION_ORIGINS"
+      "CLAVENAR_CONSOLE_BRAIN_URL"
+      "CLAVENAR_CONSOLE_TLS_DIR"
       "CLAVENAR_HIL_DECIDE_TOKEN"
       "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK" -}}
 {{- range $index, $env := $console.extraEnv }}

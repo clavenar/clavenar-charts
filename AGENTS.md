@@ -66,7 +66,9 @@ docs/SEQUENCES.md           # seven flow diagrams + the render decision tree
 Service ports (container; Service names are `<release>-<service>`):
 proxy 8443 (mTLS `/`, `/health`, `/readyz`, `/mcp`, `/tool/{name}`; the only
 Service-published port) / 8080 (plain HTTP `/`, `/health`, `/readyz`, `/metrics`
-for kubelet and Prometheus) · brain 8081 (9081 health under mTLS) ·
+for kubelet and Prometheus) · brain 8081 (workload-mTLS application; exact
+policy-engine explain and console narrate/model callers) / 9081 (plain
+diagnostics only under mTLS; no provider routes) ·
 policy-engine 8082 (9082) · ledger 8083 plain + 8183 mTLS · hil 8084 (9084) ·
 identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 mTLS
 control + 9088 plain diagnostics · console
@@ -89,7 +91,7 @@ upstream-stub 9000 · exec 9001.
   bundles, Iceberg metadata, egress sweeper → 503). Wire SIEM ingest directly.
 - **Image tag fallback:** `services.<svc>.image.tag → .Values.imageTag →
   .Chart.AppVersion`. `appVersion` (and root `VERSION`) track the image set
-  already published to `ghcr.io/clavenar/<service>`. Chart `version` (0.8.x,
+  already published to `ghcr.io/clavenar/<service>`. Chart `version` (0.x,
   the chart's own SemVer) is hand-bumped and deliberately decoupled;
   push-images.sh syncs only `VERSION` + `appVersion` and errors if they
   diverge going in.
@@ -99,6 +101,12 @@ upstream-stub 9000 · exec 9001.
   health port (so kubelet + Prometheus need no client cert). Per-pod projection:
   each pod sees only `ca.crt` + its own `service-<name>.{crt,key}` — no pod reads
   another's private key. Don't collapse that isolation.
+- **Brain provider operations never use diagnostics.** The chart renders
+  strict exact callers and body/rate/spend/timeout controls for
+  `/explain-pattern` and `/narrate-decision`; `:9081` is only `/`, `/health`,
+  `/readyz`, and `/metrics`. Policy-engine and console dial HTTPS `:8081`, and
+  `CLAVENAR_BRAIN_ALLOWED_CALLERS` remains the inspect/scan prefix boundary —
+  do not add policy-engine merely to make explain work.
 - **Bundled-NATS + tlsBundle coupling:** if `tlsBundle.secretName` is set you
   must also enable TLS on the bundled NATS subchart — the `clavenar.natsUrl`
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =

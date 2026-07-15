@@ -53,10 +53,25 @@ are container-only and expose no status or mutation routes:
   curl localhost:9088/health
   curl localhost:9088/readyz
 
+{{- if .Values.tlsBundle.secretName }}
+
+Brain Service port 8081 is the workload-mTLS application listener. Explain
+requires the exact policy-engine identity; narrate/model-snapshot require the
+exact console identity. Plain diagnostics are container-only and expose no
+model or provider operation:
+
+  kubectl -n {{ .Release.Namespace }} port-forward deploy/{{ .Release.Name }}-brain 9081:9081
+  curl localhost:9081/health
+  curl localhost:9081/readyz
+{{- else }}
+
+Brain keeps its no-bundle compatibility listener on pod loopback. The
+published Service does not provide a plaintext auxiliary-provider path; supply
+tlsBundle.secretName before expecting the Brain Service to become reachable.
+{{- end }}
+
 Health/readiness:
 
-  curl localhost:8081/health   # brain
-  curl localhost:8081/readyz
   curl localhost:8082/readyz   # policy-engine
   curl localhost:8083/readyz   # ledger
   curl localhost:8084/readyz   # hil

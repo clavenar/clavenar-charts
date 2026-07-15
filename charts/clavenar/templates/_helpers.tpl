@@ -184,7 +184,8 @@ adding a service mesh that renames Services only needs the relevant
 in the same env list).
 
 Proxy → brain + policy + hil + identity
-Console → ledger + hil + policy-engine + identity
+Policy-engine → brain auxiliary explanation listener
+Console → brain + ledger + hil + policy-engine + identity
 Deep-review → ledger
 Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- define "clavenar.backendEnvs" -}}
@@ -234,6 +235,26 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "brain" }}
+# Brain auxiliary provider operations are a strict chart-owned contract.
+# The process validates every value before binding. Exact caller identities
+# are single complete SPIFFE URIs; they never inherit the broader inspect
+# prefix allowlist below.
+- name: CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS
+  value: "true"
+- name: CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE
+  value: {{ .ctx.Values.services.brain.explainCallerSpiffe | quote }}
+- name: CLAVENAR_BRAIN_NARRATE_CALLER_SPIFFE
+  value: {{ .ctx.Values.services.brain.narrateCallerSpiffe | quote }}
+- name: CLAVENAR_BRAIN_EXPLAIN_RATE_LIMIT_PER_MINUTE
+  value: {{ printf "%d" (int .ctx.Values.services.brain.explainRateLimitPerMinute) | quote }}
+- name: CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE
+  value: {{ printf "%d" (int .ctx.Values.services.brain.narrateRateLimitPerMinute) | quote }}
+- name: CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR
+  value: {{ printf "%d" (int .ctx.Values.services.brain.auxSpendBudgetMicroUsdPerHour) | quote }}
+- name: CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS
+  value: {{ printf "%d" (int .ctx.Values.services.brain.auxTimeoutMillis) | quote }}
+- name: CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES
+  value: {{ printf "%d" (int .ctx.Values.services.brain.auxBodyLimitBytes) | quote }}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 3). Bundle mounted → brain binds
 # rustls + SPIFFE-URI allowlist on the application port; /health +
@@ -248,6 +269,13 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "policyEngine" }}
+# Policy mining explanations use only Brain's workload-mTLS application
+# listener. The workload client additionally pins the exact Brain SPIFFE URI;
+# there is no plaintext health-listener fallback.
+- name: CLAVENAR_POLICY_ENGINE_BRAIN_URL
+  value: "https://{{ $rel }}-brain:8081"
+- name: CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE
+  value: "spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/brain"
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 4). Bundle mounted → engine binds
 # rustls + SPIFFE-URI allowlist on the application port; /health +
@@ -371,6 +399,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082"
 - name: CLAVENAR_CONSOLE_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+# Narration and model-snapshot reads never use Brain's plaintext diagnostics
+# listener. Without workload TLS these optional operations fail soft.
+- name: CLAVENAR_CONSOLE_BRAIN_URL
+  value: "https://{{ $rel }}-brain:8081"
 {{- if and $tlsOn .ctx.Values.services.console.operatorMtls.enabled .ctx.Values.services.assurance.enabled }}
 - name: CLAVENAR_ASSURANCE_URL
   value: "https://{{ $rel }}-assurance:8088"
@@ -378,6 +410,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if $tlsOn }}
 # Outbound mTLS — same cert bundle the proxy uses. One
 # `service-console` identity authenticates every backend hop.
+- name: CLAVENAR_CONSOLE_TLS_DIR
+  value: {{ $mount | quote }}
 - name: CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH
   value: "{{ $mount }}/service-console.crt"
 - name: CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH

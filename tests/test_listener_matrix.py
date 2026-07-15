@@ -237,6 +237,173 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         self.assertIn("simulator", listener["authorizedCallers"])
 
+    def test_brain_auxiliary_routes_render_exact_mtls_callers_and_limits(self):
+        expected_aux_env = {
+            "CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS": "true",
+            "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE": (
+                "spiffe://clavenar.local/service/policy-engine"
+            ),
+            "CLAVENAR_BRAIN_NARRATE_CALLER_SPIFFE": (
+                "spiffe://clavenar.local/service/console"
+            ),
+            "CLAVENAR_BRAIN_EXPLAIN_RATE_LIMIT_PER_MINUTE": "20",
+            "CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE": "60",
+            "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR": "5000000",
+            "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS": "5000",
+            "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES": "16384",
+        }
+        for profile, overlays in self.scenarios.items():
+            with self.subTest(profile=profile):
+                values = CHECKER.effective_values(ROOT / "charts/clavenar", overlays)
+                tls_enabled = bool(values["tlsBundle"]["secretName"])
+                brain = next(
+                    doc for doc in self.rendered[profile]
+                    if doc.get("kind") == "Deployment"
+                    and doc["metadata"]["name"] == "smoke-brain"
+                )
+                container = brain["spec"]["template"]["spec"]["containers"][0]
+                env = {
+                    entry["name"]: entry.get("value")
+                    for entry in container["env"]
+                }
+                self.assertEqual(
+                    expected_aux_env,
+                    {name: env[name] for name in expected_aux_env},
+                )
+                self.assertEqual(
+                    {"http": 8081, **({"health": 9081} if tls_enabled else {})},
+                    {
+                        port["name"]: port["containerPort"]
+                        for port in container["ports"]
+                    },
+                )
+                if tls_enabled:
+                    self.assertEqual(
+                        "spiffe://clavenar.local/service/proxy",
+                        env["CLAVENAR_BRAIN_ALLOWED_CALLERS"],
+                    )
+                    self.assertNotIn("policy-engine", env["CLAVENAR_BRAIN_ALLOWED_CALLERS"])
+                    self.assertEqual("0.0.0.0:9081", env["CLAVENAR_BRAIN_HEALTH_ADDR"])
+                else:
+                    self.assertNotIn("CLAVENAR_BRAIN_ALLOWED_CALLERS", env)
+                    self.assertNotIn("CLAVENAR_BRAIN_HEALTH_ADDR", env)
+
+                policy = next(
+                    doc for doc in self.rendered[profile]
+                    if doc.get("kind") == "Deployment"
+                    and doc["metadata"]["name"] == "smoke-policy-engine"
+                )
+                policy_env = {
+                    entry["name"]: entry.get("value")
+                    for entry in policy["spec"]["template"]["spec"]["containers"][0]["env"]
+                }
+                self.assertEqual(
+                    "https://smoke-brain:8081",
+                    policy_env["CLAVENAR_POLICY_ENGINE_BRAIN_URL"],
+                )
+                self.assertEqual(
+                    "spiffe://clavenar.local/service/identity,"
+                    "spiffe://clavenar.local/service/brain",
+                    policy_env["CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE"],
+                )
+
+                console = next(
+                    doc for doc in self.rendered[profile]
+                    if doc.get("kind") == "Deployment"
+                    and doc["metadata"]["name"] == "smoke-console"
+                )
+                console_env = {
+                    entry["name"]: entry.get("value")
+                    for entry in console["spec"]["template"]["spec"]["containers"][0]["env"]
+                }
+                self.assertEqual(
+                    "https://smoke-brain:8081",
+                    console_env["CLAVENAR_CONSOLE_BRAIN_URL"],
+                )
+                if tls_enabled:
+                    self.assertEqual("/certs", console_env["CLAVENAR_CONSOLE_TLS_DIR"])
+                else:
+                    self.assertNotIn("CLAVENAR_CONSOLE_TLS_DIR", console_env)
+
+        application = next(
+            listener for listener in self.matrix["listeners"]
+            if listener["service"] == "brain"
+            and listener["listenerId"] == "application"
+        )
+        self.assertTrue(
+            {"/explain-pattern", "/narrate-decision", "/model-snapshot"}
+            <= set(application["ingressPaths"])
+        )
+        self.assertIn("exact policy-engine SPIFFE URI", application["authentication"])
+        self.assertIn("exact console SPIFFE URI", application["authentication"])
+        self.assertIn("16,384 bytes", application["bodyLimit"])
+        self.assertIn("20/minute", application["rateLimit"])
+        self.assertIn("5,000 ms", application["rateLimit"])
+
+        health = next(
+            listener for listener in self.matrix["listeners"]
+            if listener["service"] == "brain"
+            and listener["listenerId"] == "health"
+        )
+        self.assertEqual(
+            {"/", "/health", "/readyz", "/metrics"},
+            set(health["ingressPaths"]),
+        )
+        self.assertEqual(["kubelet", "prometheus"], health["authorizedCallers"])
+        self.assertEqual(["prometheus"], health["allowedPeers"])
+        self.assertFalse(health["servicePublished"])
+        self.assertEqual("forbidden", health["hostPublication"])
+
+        default_policy = next(
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "NetworkPolicy"
+            and doc["metadata"]["name"] == "smoke-brain"
+        )
+        self.assertEqual([8081], [rule["ports"][0]["port"] for rule in default_policy["spec"]["ingress"]])
+        self.assertEqual(
+            {"proxy", "policy-engine", "console"},
+            {
+                peer["podSelector"]["matchLabels"]["app.kubernetes.io/component"]
+                for peer in default_policy["spec"]["ingress"][0]["from"]
+            },
+        )
+
+    def test_brain_auxiliary_manifest_drift_is_rejected(self):
+        values = CHECKER.effective_values(ROOT / "charts/clavenar", [])
+        mutations = {}
+
+        wrong_caller = copy.deepcopy(self.rendered["default"])
+        brain = next(
+            doc for doc in wrong_caller
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-brain"
+        )
+        next(
+            entry for entry in brain["spec"]["template"]["spec"]["containers"][0]["env"]
+            if entry["name"] == "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE"
+        )["value"] = "spiffe://clavenar.local/service/proxy"
+        mutations["wrong exact caller"] = wrong_caller
+
+        plaintext_policy = copy.deepcopy(self.rendered["default"])
+        policy = next(
+            doc for doc in plaintext_policy
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-policy-engine"
+        )
+        next(
+            entry for entry in policy["spec"]["template"]["spec"]["containers"][0]["env"]
+            if entry["name"] == "CLAVENAR_POLICY_ENGINE_BRAIN_URL"
+        )["value"] = "http://smoke-brain:9081"
+        mutations["plaintext policy Brain URL"] = plaintext_policy
+
+        for name, docs in mutations.items():
+            with self.subTest(name=name):
+                errors = CHECKER.validate(self.matrix, values, docs, "smoke")
+                self.assertTrue(
+                    any("brain" in error.lower() for error in errors),
+                    errors,
+                )
+
     def test_console_profiles_render_exact_trust_classes(self):
         def resource(profile, kind):
             return next(
@@ -589,7 +756,7 @@ class ListenerMatrixTest(unittest.TestCase):
                 errors = CHECKER.validate(self.matrix, values, docs, "smoke")
                 self.assertTrue(errors)
 
-    def test_console_values_schema_carries_fixed_listener_contract(self):
+    def test_values_schema_carries_fixed_listener_contracts(self):
         schema = json.loads((ROOT / "charts/clavenar/values.schema.json").read_text())
         auth_secrets = schema["properties"]["authSecrets"]
         self.assertFalse(auth_secrets["additionalProperties"])
@@ -608,6 +775,42 @@ class ListenerMatrixTest(unittest.TestCase):
         forbidden_env = console["properties"]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
         self.assertIn("CLAVENAR_CONSOLE_RELEASE_VERSION", forbidden_env)
         self.assertIn("CLAVENAR_CONSOLE_MUTATION_ORIGINS", forbidden_env)
+        self.assertIn("CLAVENAR_CONSOLE_BRAIN_URL", forbidden_env)
+
+        brain = schema["properties"]["services"]["properties"]["brain"]
+        self.assertEqual(8081, brain["properties"]["port"]["const"])
+        self.assertEqual(9081, brain["properties"]["healthPort"]["const"])
+        self.assertEqual(
+            "spiffe://clavenar.local/service/policy-engine",
+            brain["properties"]["explainCallerSpiffe"]["const"],
+        )
+        self.assertEqual(
+            "spiffe://clavenar.local/service/console",
+            brain["properties"]["narrateCallerSpiffe"]["const"],
+        )
+        self.assertEqual(30000, brain["properties"]["auxTimeoutMillis"]["maximum"])
+        self.assertEqual(1048576, brain["properties"]["auxBodyLimitBytes"]["maximum"])
+        self.assertTrue(
+            {
+                "explainCallerSpiffe",
+                "narrateCallerSpiffe",
+                "explainRateLimitPerMinute",
+                "narrateRateLimitPerMinute",
+                "auxSpendBudgetMicroUsdPerHour",
+                "auxTimeoutMillis",
+                "auxBodyLimitBytes",
+            }
+            <= set(brain["required"])
+        )
+        brain_forbidden = (
+            brain["properties"]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
+        )
+        self.assertIn("CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS", brain_forbidden)
+        self.assertIn("CLAVENAR_BRAIN_ALLOWED_CALLERS", brain_forbidden)
+        self.assertEqual(
+            "clavenar.local",
+            schema["properties"]["tlsBundle"]["properties"]["spiffeTrustDomain"]["const"],
+        )
 
         assurance = schema["properties"]["services"]["properties"]["assurance"]
         self.assertEqual(8088, assurance["properties"]["port"]["const"])
@@ -971,10 +1174,56 @@ class ListenerMatrixTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertTrue(CHECKER.validate(self.matrix, values, docs, "smoke"))
 
+    def test_brain_required_auxiliary_values_cannot_be_omitted(self):
+        required = (
+            "explainCallerSpiffe",
+            "narrateCallerSpiffe",
+            "explainRateLimitPerMinute",
+            "narrateRateLimitPerMinute",
+            "auxSpendBudgetMicroUsdPerHour",
+            "auxTimeoutMillis",
+            "auxBodyLimitBytes",
+        )
+        for field in required:
+            with self.subTest(field=field):
+                command = [
+                    "helm",
+                    "template",
+                    "smoke",
+                    str(ROOT / "charts/clavenar"),
+                    "--set-json",
+                    f"services.brain.{field}=null",
+                ]
+                result = subprocess.run(command, text=True, capture_output=True)
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn(field, result.stderr)
+
     def test_unsafe_service_type_and_console_configuration_are_rejected(self):
         cases = (
             ["--set", "authSecrets.existingSecretName=Invalid_Name"],
             ["--set", "authSecrets.unreviewedKey=value"],
+            ["--set-string", "tlsBundle.spiffeTrustDomain=example.internal"],
+            ["--set-string", "services.brain.explainCallerSpiffe="],
+            ["--set-string", "services.brain.explainCallerSpiffe=spiffe://clavenar.local/service/policy"],
+            ["--set-string", "services.brain.explainCallerSpiffe=spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/proxy"],
+            ["--set-string", "services.brain.narrateCallerSpiffe=https://console"],
+            ["--set", "services.brain.explainRateLimitPerMinute=0"],
+            ["--set", "services.brain.narrateRateLimitPerMinute=0"],
+            ["--set", "services.brain.auxSpendBudgetMicroUsdPerHour=0"],
+            ["--set", "services.brain.auxTimeoutMillis=0"],
+            ["--set", "services.brain.auxTimeoutMillis=30001"],
+            ["--set", "services.brain.auxBodyLimitBytes=0"],
+            ["--set", "services.brain.auxBodyLimitBytes=1048577"],
+            ["--set", "services.brain.extraEnv[0].name=CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS",
+             "--set", "services.brain.extraEnv[0].value=false"],
+            ["--set", "services.brain.extraEnv[0].name=CLAVENAR_BRAIN_ALLOWED_CALLERS",
+             "--set", "services.brain.extraEnv[0].value=spiffe://clavenar.local/service/policy-engine"],
+            ["--set", "services.policyEngine.extraEnv[0].name=CLAVENAR_POLICY_ENGINE_BRAIN_URL",
+             "--set", "services.policyEngine.extraEnv[0].value=http://smoke-brain:9081"],
+            ["--set", "services.policyEngine.extraEnv[0].name=CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE",
+             "--set", "services.policyEngine.extraEnv[0].value=spiffe://clavenar.local/service/proxy"],
+            ["--set", "services.console.extraEnv[0].name=CLAVENAR_CONSOLE_BRAIN_URL",
+             "--set", "services.console.extraEnv[0].value=http://smoke-brain:9081"],
             ["--set", "services.console.serviceType=LoadBalancer"],
             ["--set-json", 'networkPolicy.console.demo.allowedPeers=[{"podSelector":{}}]'],
             ["--set-json", 'networkPolicy.console.operatorMtls.allowedPeers=[{"ipBlock":{"cidr":"0.0.0.0/0"}}]'],

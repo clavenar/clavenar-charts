@@ -1,6 +1,16 @@
 tlsBundle:
   secretName: clavenar-certs
 services:
+  # Repeat the strict auxiliary boundary in the canonical hardened fixture so
+  # render evidence does not rely on an implicit fallback.
+  brain:
+    explainCallerSpiffe: spiffe://clavenar.local/service/policy-engine
+    narrateCallerSpiffe: spiffe://clavenar.local/service/console
+    explainRateLimitPerMinute: 20
+    narrateRateLimitPerMinute: 60
+    auxSpendBudgetMicroUsdPerHour: 5000000
+    auxTimeoutMillis: 5000
+    auxBodyLimitBytes: 16384
   console:
     mutationOrigins:
       - https://console.example.test

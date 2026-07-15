@@ -194,6 +194,10 @@ apply walkthrough.
   status route is installed on diagnostics. Its request, whole-run, and
   publish/ack deadlines are chart-governed, and durable completion requires an
   acknowledgement from the configured exact forensic JetStream stream.
+  Brain similarly keeps auxiliary `/explain-pattern`,
+  `/narrate-decision`, and `/model-snapshot` on the workload-mTLS application
+  listener (`8081`). Its plain `9081` listener contains only `/`, `/health`,
+  `/readyz`, and `/metrics`; it is container-only and has no provider path.
 - **terminationGracePeriodSeconds** set to `drainCapSecs + 5` so
   the in-process watchdog (env `CLAVENAR_GRACEFUL_DRAIN_SECS`) fires
   before kubelet's SIGKILL.
@@ -204,12 +208,12 @@ apply walkthrough.
   and (when set) `VAULT_ADDR`.
 - **Vault token** (when `vault.tokenSecretName` is set) is
   injected into proxy + identity via secretKeyRef.
-- **Backend URL envs** wired automatically by component — proxy
-  knows where to find brain/policy/hil/identity; console knows
-  where to find ledger/hil/policy-engine/identity and, in operator-mTLS
-  posture, assurance; deep-review
-  knows where to find ledger. Service mesh overriding the
-  Service names? Set `services.<svc>.extraEnv` to shadow.
+- **Backend URL envs** wired automatically by component — proxy knows where to
+  find brain/policy/hil/identity; policy-engine receives the Brain HTTPS
+  application URL plus its exact expected server identity; console knows where
+  to find brain/ledger/hil/policy-engine/identity and, in operator-mTLS posture,
+  assurance; deep-review knows where to find ledger. Brain auxiliary URLs and
+  identities are chart-governed and cannot be shadowed through `extraEnv`.
 - **NetworkPolicy** (default on) — every enabled core, optional, and
   bundled workload gets an ingress-isolating policy. Rules name the
   exact destination port and caller selectors. Proxy admits an
@@ -322,7 +326,17 @@ probeDefaults:
 
 services:
   proxy:        { ... extraEnv: [{name: CLAVENAR_PROXY_HEALTH_ADDR, value: 0.0.0.0:8080}] }
-  brain:        { ... extraEnv: [{name: ANTHROPIC_API_KEY, value: mock-key}] }
+  brain:
+    port: 8081                       # workload-mTLS application listener
+    healthPort: 9081                 # diagnostics only; not Service-published
+    explainCallerSpiffe: spiffe://clavenar.local/service/policy-engine
+    narrateCallerSpiffe: spiffe://clavenar.local/service/console
+    explainRateLimitPerMinute: 20
+    narrateRateLimitPerMinute: 60
+    auxSpendBudgetMicroUsdPerHour: 5000000
+    auxTimeoutMillis: 5000           # valid range 1..30000
+    auxBodyLimitBytes: 16384         # valid range 1..1048576
+    extraEnv: [{name: ANTHROPIC_API_KEY, value: mock-key}]
   policyEngine: { ... }
   ledger:       { ... }            # replicas: 1 under SQLite; lift to N with CLAVENAR_LEDGER_BACKEND=postgres
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
@@ -352,6 +366,7 @@ persistence:
 tlsBundle:
   secretName: ""                         # Required for any non-trivial deploy
   mountPath: /certs
+  spiffeTrustDomain: clavenar.local      # governed exact-caller trust domain
 
 networkPolicy:
   enabled: true                          # Baseline ingress isolation; requires a policy-capable CNI
@@ -368,6 +383,16 @@ Per-service `image.tag` overrides global `imageTag`, which falls
 back to `Chart.appVersion`. Per-service `extraEnv` is appended
 after the common env block (NATS_URL + CLAVENAR_GRACEFUL_DRAIN_SECS +
 auto-wired backend URLs).
+
+The Brain caller and limit fields above are required in every official render.
+The chart sets `CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS=true`, so the binary also
+validates them before binding. Caller values are fixed to one complete SPIFFE
+URI each; empty values, prefixes, lists, wrong schemes, and attempts to replace
+the generated env through `extraEnv` fail Helm rendering. Rate and spend values
+must be positive; timeout and body values additionally retain the Brain's
+30-second and 1 MiB startup caps. The official chart consequently fixes
+`tlsBundle.spiffeTrustDomain` to `clavenar.local` so auto-minted identities
+cannot drift away from those canonical callers.
 
 The values keys use camelCase (`policyEngine`, `deepReview`) for
 valid Go-template paths; the helper kebab-cases them for k8s object

@@ -1,6 +1,6 @@
 # clavenar-charts — sequence diagrams
 
-Helm chart shape: eight Deployments + Services, optional NetworkPolicy
+Helm chart shape: nine Deployments + Services, optional NetworkPolicy
 perimeter, optional PodDisruptionBudgets, optional TLS bundle Secret,
 opt-in dashboards + alerts ConfigMaps, opt-in Alertmanager Secret. The
 templates live under `charts/clavenar/templates/`; the values surface is
@@ -80,12 +80,13 @@ sequenceDiagram
     API-->>Kube: NATS_URL, CLAVENAR_GRACEFUL_DRAIN_SECS, optional VAULT_ADDR
     Kube->>Pod: mount /certs (defaultMode 0644), inject env, start container
 
-    Note over Pod: chart-injected envs:<br/>CLAVENAR_BRAIN_TLS_DIR=/certs<br/>CLAVENAR_BRAIN_ALLOWED_CALLERS=spiffe://clavenar.local/service/proxy<br/>CLAVENAR_BRAIN_HEALTH_ADDR=0.0.0.0:9081
+    Note over Pod: chart-injected envs:<br/>CLAVENAR_BRAIN_TLS_DIR=/certs<br/>CLAVENAR_BRAIN_ALLOWED_CALLERS=proxy-only inspect prefix<br/>EXPLAIN_CALLER=exact policy-engine<br/>NARRATE_CALLER=exact console<br/>strict body/rate/spend/timeout controls<br/>CLAVENAR_BRAIN_HEALTH_ADDR=0.0.0.0:9081
 
     Pod->>Brain: PID 1 startup
     Brain->>Brain: read /certs/ca.crt, service-brain.crt, service-brain.key
-    Brain->>Brain: bind rustls + SPIFFE-URI allowlist on :8081
-    Brain->>Brain: bind plain HTTP /health, /readyz, /metrics on :9081
+    Brain->>Brain: bind rustls + route-aware SPIFFE authorization on :8081
+    Brain->>Brain: bind plain HTTP /, /health, /readyz, /metrics on :9081
+    Note over Brain: no explain, narrate, model, or provider operation on :9081
 
     Kube->>Brain: httpGet /readyz on healthPort 9081
     Brain-->>Kube: 200 OK
@@ -95,12 +96,16 @@ sequenceDiagram
 
 ## 3. Cross-service backend URL wiring under `tlsBundle.secretName` set
 
-`_helpers.tpl::clavenar.backendEnvs` flips every cross-service URL to
+`_helpers.tpl::clavenar.backendEnvs` flips cross-service URLs to
 `https://` and injects `service-<caller>.{crt,key}` mount paths when
 `tlsBundle.secretName` is non-empty. Proxy → brain is the canonical
 hop; the same shape covers proxy → policy / hil / identity and console
-→ ledger / hil / policy / identity / assurance. The assurance hop accepts
-only the exact console SPIFFE URI after the client certificate verifies.
+→ brain / ledger / hil / policy / identity / assurance. Policy-engine's
+explanation URL and console's narration/model URL are always the Brain HTTPS
+application listener; they never fall back to diagnostics. Brain accepts the
+exact policy-engine identity for explain and exact console identity for
+narrate/model after the client certificate verifies. The assurance hop likewise
+accepts only the exact console SPIFFE URI.
 
 ```mermaid
 sequenceDiagram
@@ -204,12 +209,12 @@ sequenceDiagram
 
 ## 6. NetworkPolicy perimeter — sidecar tries to reach `brain`
 
-Front-door services (`proxy`, `console`) get `ingress: [{}]` so any pod
-in the namespace can hit them; backends restrict to the three legitimate
-in-stack callers. The Prometheus exception kicks in only when
-`prometheusNamespaceLabel` is set — without that label the scrape lives
-in the same namespace as clavenar and matches via the catch-all from
-caller pods.
+The proxy agent listener is the only core rule admitting arbitrary sources.
+Console ingress is default-deny until an operator supplies an exact peer for
+its operator or demo trust class. Backends restrict each destination port to
+the named in-stack callers. Brain `:8081` admits only proxy, policy-engine, and
+console pods; `:9081` admits no application pod. The Prometheus exception is
+added only when `prometheusNamespaceLabel` names its namespace.
 
 ```mermaid
 sequenceDiagram
@@ -220,7 +225,7 @@ sequenceDiagram
     participant Brain as brain Pod
     participant Proxy as proxy Pod<br/>(component=proxy)
 
-    Note over NP: podSelector component=brain<br/>ingress from podSelectors:<br/>component in {proxy, console, deep-review}
+    Note over NP: podSelector component=brain<br/>:8081 from exact components:<br/>{proxy, policy-engine, console}<br/>:9081 only from configured Prometheus namespace
 
     Side->>CNI: dial brain:8081
     CNI->>NP: evaluate ingress for destination brain
@@ -335,14 +340,14 @@ flowchart TD
 
     Dep --> Tls{tlsBundle.secretName set?}
     Tls -->|yes| Mount[mount /certs with per-pod items filter]
-    Tls -->|yes| Envs[backendEnvs flips URLs to https, injects ALLOWED_CALLERS]
-    Tls -->|no| Plain[plain HTTP cross-service hops]
+    Tls -->|yes| Envs[backendEnvs flips URLs to https, injects route callers]
+    Tls -->|no| Plain[legacy hops use HTTP; Brain auxiliary clients remain HTTPS and fail soft]
 
     Loop --> Np{networkPolicy.enabled?}
     Np -->|yes| NpEmit[emit NetworkPolicy per service]
-    NpEmit --> NpFront{service is proxy or console?}
-    NpFront -->|yes| Open[ingress empty rule, namespace-wide]
-    NpFront -->|no| Restrict[ingress from proxy + console + deep-review]
+    NpEmit --> NpFront{service is proxy?}
+    NpFront -->|yes| Open[agent mTLS ingress allows arbitrary sources]
+    NpFront -->|no| Restrict[exact listener-specific callers; console default-deny]
     NpEmit --> Scrape{prometheusNamespaceLabel set?}
     Scrape -->|yes| AddScrape[add namespaceSelector rule for scraper]
     Scrape -->|no| NoScrape[scraper must run in same ns or be excluded]

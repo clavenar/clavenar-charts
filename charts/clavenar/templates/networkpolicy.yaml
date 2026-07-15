@@ -15,12 +15,10 @@
 {{- if eq $name "proxy" -}}
   {{- $rules = append $rules (dict "port" (int $cfg.port) "any" true) -}}
 {{- else if eq $name "brain" -}}
-  {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy")) -}}
-  {{- if $ctx.Values.tlsBundle.secretName -}}
-    {{- $rules = append $rules (dict "port" (int $cfg.healthPort) "callers" (list "policyEngine" "console")) -}}
-  {{- else -}}
-    {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "policyEngine" "console")) -}}
-  {{- end -}}
+  {{- /* One application port, three route-scoped identities: proxy may
+        inspect, policy-engine may explain, and console may narrate/read the
+        model snapshot. The plain health port never admits application pods. */ -}}
+  {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy" "policyEngine" "console")) -}}
 {{- else if eq $name "identity" -}}
   {{- if $ctx.Values.tlsBundle.secretName -}}
     {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "callers" (list "proxy" "console" "simulator")) -}}

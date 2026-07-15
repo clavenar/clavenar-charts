@@ -27,6 +27,16 @@ assurance runs. Chart-governed request, whole-run, and publish deadlines bound
 execution, and completion advances only after the configured exact JetStream
 forensic stream acknowledges the result.
 
+Brain's auxiliary routes share its workload-mTLS application
+listener on `:8081`, never the plain diagnostics listener on `:9081`.
+`/explain-pattern` accepts only the exact policy-engine SPIFFE identity;
+`/narrate-decision` and `/model-snapshot` accept only the exact console
+identity. The chart renders strict 16 KiB bodies, independent 20/60-per-minute
+request gates, a shared 5,000,000 micro-USD/hour conservative spend budget,
+and a 5-second whole-provider deadline. Policy and console always receive the
+HTTPS application URL; rejected or unavailable auxiliary calls fail soft at
+those consumers.
+
 The chart does not auto-mint a demo-session signing key or token issuer. A
 fresh install therefore serves the anonymous `/demo` preview safely, while
 signed demo routes stay closed until an operator supplies one dedicated key to
