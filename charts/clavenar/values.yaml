@@ -2,6 +2,13 @@
 # /readyz probes on every service. Override per-service under
 # `services.<svc>`.
 
+# Deployment posture. `evaluation` preserves the backwards-compatible chart
+# defaults. `production` activates render-time refusal unless workload TLS is
+# externally managed, operator mTLS and NetworkPolicy are enabled, and the
+# ledger trusts forwarded client addresses only from the canonical website
+# workload over its mTLS listener. See tests/values-production.yaml.
+deploymentProfile: evaluation
+
 # Tag fallback chain: services.<svc>.image.tag → imageTag → appVersion.
 imageRegistry: ghcr.io/clavenar
 imageTag: ""
@@ -283,9 +290,9 @@ services:
       ready: /readyz
       # Proxy's main port is mTLS-gated; probes target healthPort.
       port: 8080
-    extraEnv:
-      - name: CLAVENAR_PROXY_HEALTH_ADDR
-        value: 0.0.0.0:8080
+    # Listener binding is chart-governed; use extraEnv only for settings the
+    # chart does not emit (for example CLAVENAR_UPSTREAM_URL in BYO mode).
+    extraEnv: []
     # Metrics on the plain-HTTP port so vanilla Prometheus pods can
     # scrape without a client cert.
     metrics:
@@ -402,6 +409,12 @@ services:
     # is non-empty, so console / deep-review can dial it by Service
     # DNS without any per-release manifest tweak.
     mtlsPort: 8183
+    # The public website may forward the original client address only after
+    # authenticating to ledger's mTLS listener as this exact workload. Empty
+    # keeps legacy evaluation behavior; the production profile requires the
+    # canonical website URI and requireTrustedProxy=true.
+    trustedProxySpiffe: ""
+    requireTrustedProxy: false
     serviceType: ClusterIP
     resources:
       requests: { cpu: 50m, memory: 64Mi }
@@ -624,14 +637,12 @@ services:
       health: /health
       ready: /readyz
       port: 9185
-    # Backend URLs are derived from .Release.Name + service names via
-    # the helper. Override via --set if you front the stack with a
-    # service mesh that renames Services.
-    # Listener/auth/TLS env is derived from the values above and cannot
-    # be overridden through extraEnv. The release marker returned from
-    # /version.json is likewise fixed to Chart.appVersion. This keeps
-    # rendered ports, NetworkPolicy, release evidence, and the in-process
-    # trust boundary in lockstep.
+    # Backend URLs are derived from .Release.Name + service names via the
+    # helper. Backend, listener, auth, and TLS env names cannot be duplicated
+    # through extraEnv. The release marker returned from /version.json is
+    # likewise fixed to Chart.appVersion. This keeps rendered ports,
+    # NetworkPolicy, release evidence, and the in-process trust boundary in
+    # lockstep.
     extraEnv: []
     metrics:
       # Console diagnostics annotations are chart-governed; unlike other
@@ -738,6 +749,14 @@ networkPolicy:
   # Default-deny ingress is part of the chart's baseline. A CNI must
   # implement networking.k8s.io/v1 NetworkPolicy for this to take effect.
   enabled: true
+  # Optional external website path to ledger's mTLS listener. This selector is
+  # never applied to ledger's public HTTP port. The peer must select the
+  # canonical app.kubernetes.io/name=clavenar-website pod in an explicit
+  # namespace distinct from both the release and Prometheus namespaces.
+  # Production requires exactly one such separately deployed website peer.
+  ledger:
+    trustedProxy:
+      allowedPeers: []
   # Console trust classes are isolated by listener and port. Both peer
   # lists are empty by default, preserving an exact default-deny ingress
   # policy. Add explicit NetworkPolicyPeer objects only for the workload

@@ -17,6 +17,7 @@ inside the range is the iterated value.
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
+{{- include "clavenar.validateGovernedExtraEnv" (dict "ctx" $ "service" $name "svcCfg" $cfg) }}
 {{- /* SQLite on a shared PVC corrupts under concurrent writers, so a
        persistence-enabled (SQLite-backed) service refuses replicas>1
        at template time instead of corrupting at runtime. Postgres-mode

@@ -2,7 +2,12 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "Clavenar Helm values",
   "type": "object",
+  "required": ["deploymentProfile"],
   "properties": {
+    "deploymentProfile": {
+      "type": "string",
+      "enum": ["evaluation", "production"]
+    },
     "authSecrets": {
       "type": "object",
       "additionalProperties": false,
@@ -18,6 +23,205 @@
     "services": {
       "type": "object",
       "properties": {
+        "proxy": {
+          "type": "object",
+          "properties": {
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_PROXY_HEALTH_ADDR",
+                        "CLAVENAR_BRAIN_URL",
+                        "CLAVENAR_POLICY_URL",
+                        "CLAVENAR_HIL_URL",
+                        "CLAVENAR_IDENTITY_URL",
+                        "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
+                        "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
+                        "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH",
+                        "VAULT_ADDR",
+                        "VAULT_TOKEN"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "policyEngine": {
+          "type": "object",
+          "properties": {
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_POLICY_ENGINE_BRAIN_URL",
+                        "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE",
+                        "CLAVENAR_POLICY_TLS_DIR",
+                        "CLAVENAR_POLICY_ALLOWED_CALLERS",
+                        "CLAVENAR_POLICY_HEALTH_ADDR",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "hil": {
+          "type": "object",
+          "properties": {
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_HIL_TLS_DIR",
+                        "CLAVENAR_HIL_ALLOWED_CALLERS",
+                        "CLAVENAR_HIL_HEALTH_ADDR",
+                        "CLAVENAR_HIL_DECIDE_TOKEN",
+                        "CLAVENAR_HIL_SESSION_KEY",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "identity": {
+          "type": "object",
+          "properties": {
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_IDENTITY_TLS_DIR",
+                        "CLAVENAR_IDENTITY_ALLOWED_CALLERS",
+                        "CLAVENAR_IDENTITY_MTLS_ADDR",
+                        "CLAVENAR_IDENTITY_CA_DIR",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH",
+                        "VAULT_ADDR",
+                        "VAULT_TOKEN"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "deepReview": {
+          "type": "object",
+          "properties": {
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_DEEP_REVIEW_LEDGER_URL",
+                        "CLAVENAR_DEEP_REVIEW_NATS_URL",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "ledger": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "port",
+            "mtlsPort",
+            "trustedProxySpiffe",
+            "requireTrustedProxy",
+            "extraEnv"
+          ],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "port": { "type": "integer", "const": 8083 },
+            "mtlsPort": { "type": "integer", "const": 8183 },
+            "trustedProxySpiffe": {
+              "type": "string",
+              "enum": ["", "spiffe://clavenar.local/service/website"]
+            },
+            "requireTrustedProxy": { "type": "boolean" },
+            "extraEnv": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "not": {
+                      "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_LEDGER_ALLOWED_CALLERS",
+                        "CLAVENAR_LEDGER_TLS_DIR",
+                        "CLAVENAR_LEDGER_MTLS_ADDR",
+                        "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE",
+                        "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "brain": {
           "type": "object",
           "required": [
@@ -76,6 +280,8 @@
                     "type": "string",
                     "not": {
                       "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_BRAIN_TLS_DIR",
                         "CLAVENAR_BRAIN_ALLOWED_CALLERS",
                         "CLAVENAR_BRAIN_HEALTH_ADDR",
@@ -170,6 +376,8 @@
                     "type": "string",
                     "not": {
                       "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_CONSOLE_AUTH",
                         "CLAVENAR_CONSOLE_BIND",
                         "CLAVENAR_CONSOLE_PORT",
@@ -184,7 +392,15 @@
                         "CLAVENAR_CONSOLE_RELEASE_VERSION",
                         "CLAVENAR_CONSOLE_MUTATION_ORIGINS",
                         "CLAVENAR_CONSOLE_BRAIN_URL",
+                        "CLAVENAR_CONSOLE_LEDGER_URL",
+                        "CLAVENAR_CONSOLE_HIL_URL",
+                        "CLAVENAR_CONSOLE_POLICY_ENGINE_URL",
+                        "CLAVENAR_CONSOLE_IDENTITY_URL",
+                        "CLAVENAR_ASSURANCE_URL",
                         "CLAVENAR_CONSOLE_TLS_DIR",
+                        "CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH",
+                        "CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH",
+                        "CLAVENAR_CONSOLE_OUTBOUND_CA_PATH",
                         "CLAVENAR_HIL_DECIDE_TOKEN",
                         "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK"
                       ]
@@ -320,6 +536,10 @@
                     "type": "string",
                     "not": {
                       "enum": [
+                        "NATS_URL",
+                        "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_ASSURANCE_PROXY_URL",
+                        "CLAVENAR_ASSURANCE_NATS_URL",
                         "CLAVENAR_ASSURANCE_ADMIN_PORT",
                         "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT",
                         "CLAVENAR_ASSURANCE_TLS_DIR",
@@ -328,7 +548,11 @@
                         "CLAVENAR_ASSURANCE_FORENSIC_STREAM",
                         "CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS",
                         "CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS",
-                        "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS"
+                        "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS",
+                        "CLAVENAR_ASSURANCE_CERT_DIR",
+                        "NATS_TLS_CERT_PATH",
+                        "NATS_TLS_KEY_PATH",
+                        "NATS_TLS_CA_PATH"
                       ]
                     }
                   }
@@ -344,12 +568,24 @@
       "properties": {
         "secretName": { "type": "string" },
         "mountPath": { "type": "string" },
+        "autoMint": { "type": "boolean" },
         "spiffeTrustDomain": { "const": "clavenar.local" }
       }
     },
     "networkPolicy": {
       "type": "object",
       "properties": {
+        "enabled": { "type": "boolean" },
+        "ledger": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trustedProxy"],
+          "properties": {
+            "trustedProxy": {
+              "$ref": "#/definitions/ledgerTrustedProxyPeerClass"
+            }
+          }
+        },
         "console": {
           "type": "object",
           "additionalProperties": false,
@@ -363,6 +599,132 @@
     }
   },
   "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "exec": {
+                "properties": { "enabled": { "const": true } },
+                "required": ["enabled"]
+              }
+            },
+            "required": ["exec"]
+          },
+          {
+            "properties": {
+              "upstreamStub": {
+                "properties": { "enabled": { "const": true } },
+                "required": ["enabled"]
+              }
+            },
+            "required": ["upstreamStub"]
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "services": {
+            "properties": {
+              "proxy": {
+                "properties": {
+                  "extraEnv": {
+                    "items": {
+                      "properties": {
+                        "name": {
+                          "not": { "enum": ["CLAVENAR_UPSTREAM_URL"] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "deploymentProfile": { "const": "production" }
+        },
+        "required": ["deploymentProfile"]
+      },
+      "then": {
+        "properties": {
+          "authSecrets": {
+            "properties": {
+              "existingSecretName": { "type": "string", "minLength": 1 }
+            },
+            "required": ["existingSecretName"]
+          },
+          "tlsBundle": {
+            "properties": {
+              "secretName": { "type": "string", "minLength": 1 },
+              "autoMint": { "const": false }
+            },
+            "required": ["secretName", "autoMint"]
+          },
+          "services": {
+            "properties": {
+              "ledger": {
+                "properties": {
+                  "enabled": { "const": true },
+                  "trustedProxySpiffe": {
+                    "const": "spiffe://clavenar.local/service/website"
+                  },
+                  "requireTrustedProxy": { "const": true }
+                },
+                "required": [
+                  "enabled",
+                  "trustedProxySpiffe",
+                  "requireTrustedProxy"
+                ]
+              },
+              "console": {
+                "properties": {
+                  "enabled": { "const": true },
+                  "operatorMtls": {
+                    "properties": {
+                      "enabled": { "const": true },
+                      "publicTrustSecretName": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    },
+                    "required": ["enabled", "publicTrustSecretName"]
+                  }
+                },
+                "required": ["enabled", "operatorMtls"]
+              }
+            },
+            "required": ["ledger", "console"]
+          },
+          "networkPolicy": {
+            "properties": {
+              "enabled": { "const": true },
+              "ledger": {
+                "properties": {
+                  "trustedProxy": {
+                    "properties": {
+                      "allowedPeers": {
+                        "minItems": 1,
+                        "maxItems": 1
+                      }
+                    },
+                    "required": ["allowedPeers"]
+                  }
+                },
+                "required": ["trustedProxy"]
+              }
+            },
+            "required": ["enabled", "ledger"]
+          }
+        },
+        "required": ["authSecrets", "tlsBundle", "services", "networkPolicy"]
+      }
+    },
     {
       "if": {
         "properties": {
@@ -414,6 +776,64 @@
               "namespaceSelector": { "$ref": "#/definitions/exactPositiveSelector" }
             }
           }
+        }
+      }
+    },
+    "ledgerTrustedProxyPeerClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedPeers"],
+      "properties": {
+        "allowedPeers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["podSelector", "namespaceSelector"],
+            "properties": {
+              "podSelector": {
+                "$ref": "#/definitions/canonicalWebsitePodSelector"
+              },
+              "namespaceSelector": {
+                "$ref": "#/definitions/externalWebsiteNamespaceSelector"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalWebsitePodSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["app.kubernetes.io/name"],
+          "properties": {
+            "app.kubernetes.io/name": { "const": "clavenar-website" }
+          },
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "externalWebsiteNamespaceSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["kubernetes.io/metadata.name"],
+          "properties": {
+            "kubernetes.io/metadata.name": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": { "type": "string" }
         }
       }
     },

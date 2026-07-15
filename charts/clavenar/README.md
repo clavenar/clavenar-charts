@@ -39,21 +39,48 @@ key or an operator leaf private key in Kubernetes:
 ```bash
 # From the chart root (clavenar-charts/charts/clavenar)
 helm lint .
-helm template my-clavenar . | less
+helm template my-clavenar . -f ../../tests/values-production.yaml | less
 
 # Real install
 helm install my-clavenar . --namespace clavenar --create-namespace \
+  --set deploymentProfile=production \
   --set nats.url=nats://my-nats:4222 \
   --set vault.addr=https://vault.internal:8200 \
   --set vault.tokenSecretName=clavenar-vault-token \
+  --set authSecrets.existingSecretName=clavenar-runtime-auth \
   --set tlsBundle.secretName=clavenar-certs \
+  --set tlsBundle.autoMint=false \
   --set services.console.operatorMtls.enabled=true \
   --set services.console.operatorMtls.publicTrustSecretName=clavenar-operator-trust \
   --set services.console.mutationOrigins[0]=https://console.example.com \
+  --set services.ledger.requireTrustedProxy=true \
+  --set services.ledger.trustedProxySpiffe=spiffe://clavenar.local/service/website \
+  -f ../../tests/values-production.yaml \
   --set services.brain.extraEnv[0].name=ANTHROPIC_API_KEY \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.name=anthropic \
   --set services.brain.extraEnv[0].valueFrom.secretKeyRef.key=key
 ```
+
+Prefer copying `tests/values-production.yaml` and changing its Secret names,
+origins, namespaces, and exact workload labels over maintaining the long
+command above. The production profile refuses to render unless all of these
+boundaries are present together:
+
+- `authSecrets.existingSecretName` selects operator-managed HIL credentials;
+- NetworkPolicy is enabled;
+- an existing workload-TLS Secret is selected and auto-mint is disabled;
+- console operator mTLS uses a distinct public operator-trust Secret;
+- ledger requires the exact `spiffe://clavenar.local/service/website` caller;
+- exactly one positive website workload selector reaches ledger mTLS `:8183`
+  and no configured website rule reaches public HTTP `:8083`; and
+- that selector fixes `app.kubernetes.io/name=clavenar-website` in an explicit
+  namespace distinct from the Helm release and Prometheus namespaces.
+
+Passing this render gate is not production-readiness certification. It proves
+only that the chart's governed configuration boundary is present; operators
+remain responsible for validating matching service images and release
+artifacts, external PKI and CNI enforcement, persistence, backup and disaster
+recovery, and runtime behavior in the target cluster.
 
 ### Bundled vs BYO matrix
 
@@ -72,6 +99,7 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
 | State durability | Vault loses state on pod restart (re-bootstrapped) | Whatever your external Vault does |
+| Deployment profile | `evaluation` | Explicit `production` fail-closed render gate |
 
 ### Authentication Secrets
 
@@ -127,11 +155,14 @@ services:
           secretKeyRef: { name: clavenar-runtime-auth, key: demo-session-hs256 }
 ```
 
-The chart fails rendering if HIL `extraEnv` attempts to duplicate its
-chart-owned session/decision variables. It also rejects literal values for the
-recognized console/HIL/ledger demo-session variables; those optional entries
-must contain a non-empty `valueFrom.secretKeyRef`. This keeps authentication
-values out of values files, rendered Pod specs, and release receipts. Identity
+The chart fails rendering if any service `extraEnv` name is duplicated or
+attempts to shadow a chart-emitted authentication, TLS, listener, caller,
+trust, NATS, Vault, drain, or backend setting. It also rejects literal values
+for the recognized console/HIL/ledger demo-session variables; those optional
+entries must contain a non-empty `valueFrom.secretKeyRef`. This keeps
+authentication values out of values files, rendered Pod specs, and release
+receipts and prevents Kubernetes env-list ordering from changing a governed
+boundary. Identity
 legacy `CLAVENAR_IDENTITY_OIDC_HS256_KEY` and tenant-scoped
 `CLAVENAR_IDENTITY_OIDC_TENANT_*_HS256_KEY` entries are rejected entirely in
 the chart path; use the verification-only RS256 JWKS projection below.
@@ -212,8 +243,11 @@ apply walkthrough.
   find brain/policy/hil/identity; policy-engine receives the Brain HTTPS
   application URL plus its exact expected server identity; console knows where
   to find brain/ledger/hil/policy-engine/identity and, in operator-mTLS posture,
-  assurance; deep-review knows where to find ledger. Brain auxiliary URLs and
-  identities are chart-governed and cannot be shadowed through `extraEnv`.
+  assurance; deep-review knows where to find ledger. These generated endpoints,
+  TLS material paths, listener addresses, caller identities, and common
+  NATS/Vault settings are chart-governed and cannot be shadowed through
+  `extraEnv`. `CLAVENAR_UPSTREAM_URL` remains operator-configurable only when
+  neither the execution gateway nor bundled upstream stub owns it.
 - **NetworkPolicy** (default on) — every enabled core, optional, and
   bundled workload gets an ingress-isolating policy. Rules name the
   exact destination port and caller selectors. Proxy admits an
@@ -306,6 +340,8 @@ See `values.yaml` — every commented block doubles as documentation.
 The top-level shape is:
 
 ```yaml
+deploymentProfile: evaluation             # evaluation | production
+
 imageRegistry: ghcr.io/clavenar   # global registry override
 imageTag: ""                             # global tag override → falls back to appVersion
 imagePullPolicy: IfNotPresent
@@ -325,7 +361,7 @@ probeDefaults:
   readiness: { initialDelaySeconds: 2, periodSeconds: 5,  timeoutSeconds: 2, failureThreshold: 3 }
 
 services:
-  proxy:        { ... extraEnv: [{name: CLAVENAR_PROXY_HEALTH_ADDR, value: 0.0.0.0:8080}] }
+  proxy:        { ... extraEnv: [] }  # health bind and backend/TLS wiring are governed
   brain:
     port: 8081                       # workload-mTLS application listener
     healthPort: 9081                 # diagnostics only; not Service-published
@@ -338,7 +374,10 @@ services:
     auxBodyLimitBytes: 16384         # valid range 1..1048576
     extraEnv: [{name: ANTHROPIC_API_KEY, value: mock-key}]
   policyEngine: { ... }
-  ledger:       { ... }            # replicas: 1 under SQLite; lift to N with CLAVENAR_LEDGER_BACKEND=postgres
+  ledger:
+    replicas: 1                    # lift only with CLAVENAR_LEDGER_BACKEND=postgres
+    requireTrustedProxy: false     # production requires true
+    trustedProxySpiffe: ""         # production fixes exact website SPIFFE URI
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
   identity:     { ... }            # replicas: 1 (SQLite-pinned)
   deepReview:   { ... }            # singleton; daily token budget is per-pod
@@ -370,6 +409,8 @@ tlsBundle:
 
 networkPolicy:
   enabled: true                          # Baseline ingress isolation; requires a policy-capable CNI
+  ledger:
+    trustedProxy: { allowedPeers: [] }   # exact website selector; ledger mTLS only
   console:
     operatorMtls: { allowedPeers: [] }   # TLS-passthrough/operator access peers
     demo: { allowedPeers: [] }           # Public/demo reverse-proxy peers
@@ -379,10 +420,11 @@ podDisruptionBudget:
   enabled: true                          # Only emits when services.<svc>.replicas > 1
 ```
 
-Per-service `image.tag` overrides global `imageTag`, which falls
-back to `Chart.appVersion`. Per-service `extraEnv` is appended
-after the common env block (NATS_URL + CLAVENAR_GRACEFUL_DRAIN_SECS +
-auto-wired backend URLs).
+Per-service `image.tag` overrides global `imageTag`, which falls back to
+`Chart.appVersion`. Per-service `extraEnv` is reserved for names the chart does
+not emit. Duplicate names, including attempts to shadow `NATS_URL`,
+`CLAVENAR_GRACEFUL_DRAIN_SECS`, auto-wired endpoints, listener/auth settings,
+or TLS/trust paths, fail rendering and schema validation.
 
 The Brain caller and limit fields above are required in every official render.
 The chart sets `CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS=true`, so the binary also
@@ -430,10 +472,19 @@ cannot replace that release marker or any listener/authentication setting.
 Example hardened values (the referenced Secrets must already exist):
 
 ```yaml
+deploymentProfile: production
+
+authSecrets:
+  existingSecretName: clavenar-runtime-auth
+
 tlsBundle:
   secretName: clavenar-workload-tls
+  autoMint: false
 
 services:
+  ledger:
+    requireTrustedProxy: true
+    trustedProxySpiffe: spiffe://clavenar.local/service/website
   console:
     operatorMtls:
       enabled: true
@@ -444,6 +495,16 @@ services:
       enabled: false
 
 networkPolicy:
+  enabled: true
+  ledger:
+    trustedProxy:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: clavenar-edge
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clavenar-website
   console:
     operatorMtls:
       allowedPeers:
@@ -465,6 +526,19 @@ non-empty `podSelector.matchLabels`; an optional `namespaceSelector` must use
 non-empty `matchLabels`. Selector expressions, empty selectors, and `ipBlock`
 peers are rejected so a broad negative selector cannot silently admit arbitrary
 pods or namespaces.
+
+The ledger website selector follows the same exact-positive shape and must
+contain exactly one peer in production. It is rendered as an ingress rule on
+ledger `:8183` only. Unlike the console peers, it must include both the exact
+`app.kubernetes.io/name=clavenar-website` pod label and an explicit
+`kubernetes.io/metadata.name` namespace label. The website namespace must
+differ from `.Release.Namespace` and `prometheusNamespaceLabel`, preventing
+the website pod from also matching an in-release application rule or the
+namespace-wide Prometheus exception on public `:8083`. Ledger also receives
+`CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY=true` and the exact canonical
+`CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE`; both variables are chart-governed and
+cannot be replaced through `services.ledger.extraEnv`. Direct/public `:8083`
+requests remain keyed by the socket peer and never trust forwarded addresses.
 
 When `alerting.enabled=true`, the bundled rules alert if console
 diagnostics stay down (including fatal TLS/registry startup refusal), operator

@@ -16,7 +16,7 @@ cd charts/clavenar
 helm dep update .                          # materialize nats + vault subchart tarballs (gitignored)
 helm lint .
 
-# render across the four value sets CI checks, then kubeconform each:
+# render across the six value sets CI checks, then kubeconform each:
 helm template smoke . > /tmp/default.yaml                                          # default
 helm template smoke . --set tlsBundle.secretName=clavenar-certs \
   --set vault.addr=http://vault:8200 --set vault.tokenSecretName=clavenar-vault \
@@ -26,8 +26,10 @@ helm template smoke . --set services.ledger.replicas=3 --set persistence.ledger.
   --set services.ledger.extraEnv[0].name=CLAVENAR_LEDGER_BACKEND \
   --set services.ledger.extraEnv[0].value=postgres > /tmp/postgres.yaml                       # postgres
 helm template smoke . -f ../../tests/values-bundled.yaml > /tmp/bundled.yaml                   # bundled
+helm template smoke . -f ../../tests/values-optional.yaml > /tmp/optional.yaml                 # optional listeners
+helm template smoke . -f ../../tests/values-production.yaml > /tmp/production.yaml             # fail-closed production
 
-for f in /tmp/{default,all-on,postgres,bundled}.yaml; do
+for f in /tmp/{default,all-on,postgres,bundled,optional,production}.yaml; do
   kubeconform -summary -strict -kubernetes-version 1.30.0 "$f"; done
 ```
 Plus `shellcheck -S warning scripts/*.sh`. Every render must emit ≥ 9

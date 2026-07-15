@@ -10,8 +10,18 @@ make sense.
 
 The governed inventory at `charts/clavenar/listeners.yaml` records every
 listener, authentication boundary, caller, and Service publication. CI
-checks default, TLS, optional-listener, and bundled-subchart renders
-against it.
+checks default, TLS, production, optional-listener, and bundled-subchart
+renders against it.
+
+`deploymentProfile` is explicit. The backwards-compatible `evaluation`
+default keeps the existing render surface. `production` fails Helm rendering
+unless NetworkPolicy, externally managed workload TLS, operator-managed HIL
+auth, native console operator mTLS with separate public trust, and the exact
+website-to-ledger trusted-proxy mTLS boundary are all configured together.
+This profile is a chart render and configuration gate, not production-readiness
+certification. Operators must still validate the deployed service images,
+external PKI and CNI enforcement, release artifacts, persistence, backup and
+disaster recovery, and runtime behavior in their own environment.
 
 The console defaults to a curated `demo-only` router with no operator or
 Admin authority; a valid demo cookie carries only a prefix-scoped demo
@@ -87,6 +97,10 @@ clavenar-e2e's compose-native end-to-end test.
 
 ## Quick install
 
+The default command below uses `deploymentProfile=evaluation`. For a
+production render, copy and customize `tests/values-production.yaml`; it is
+also exercised by CI as the canonical fail-closed profile.
+
 ```bash
 helm install my-clavenar charts/clavenar \
   --namespace clavenar --create-namespace \
@@ -107,6 +121,19 @@ router if you port-forward it. Enabling operator mTLS additionally requires
 List every exact HTTPS browser origin allowed to submit simulator or assurance
 controls in `services.console.mutationOrigins`. Private operator authority and
 leaf keys never belong in the runtime Secret.
+
+Production additionally requires ledger to honor forwarded client addresses
+only from `spiffe://clavenar.local/service/website`. An explicit positive
+website workload selector is admitted to ledger's mTLS port `8183` only. It
+must select `app.kubernetes.io/name=clavenar-website` in an explicitly named
+namespace distinct from both the Helm release and Prometheus namespaces, so it
+cannot inherit an in-release or namespace-wide public-read rule.
+
+Every production service also has a single-valued rendered environment:
+`extraEnv` cannot duplicate chart-owned authentication, TLS/trust paths,
+listener addresses or ports, caller identities, backend endpoints, or common
+NATS/Vault settings. Helm refuses such entries instead of relying on
+Kubernetes' env-list ordering.
 
 See `charts/clavenar/README.md` for the full quickstart, the `values.yaml`
 reference, mTLS cert provisioning, the SQLite-on-shared-PVC constraints,

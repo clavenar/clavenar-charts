@@ -66,10 +66,15 @@ jobs:
         working-directory: charts/clavenar
         run: helm template smoke . -f ../../tests/values-optional.yaml > /tmp/optional.yaml
 
+      - name: helm template — fail-closed production profile
+        working-directory: charts/clavenar
+        run: helm template smoke . -f ../../tests/values-production.yaml > /tmp/production.yaml
+
       - name: listener matrix + authorization policy checks
         run: |
           python3 scripts/check-listener-matrix.py --manifest /tmp/default.yaml
           python3 scripts/check-listener-matrix.py --manifest /tmp/all-on.yaml --values tests/values-all-on.yaml
+          python3 scripts/check-listener-matrix.py --manifest /tmp/production.yaml --values tests/values-production.yaml
           python3 scripts/check-listener-matrix.py --manifest /tmp/optional.yaml --values tests/values-optional.yaml
           python3 scripts/check-listener-matrix.py --manifest /tmp/bundled.yaml --values tests/values-bundled.yaml
           python3 -m unittest -v tests/test_listener_matrix.py
@@ -90,7 +95,7 @@ jobs:
       # silently stops emitting one.
       - name: smoke-check kind counts
         run: |
-          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml /tmp/optional.yaml /tmp/bundled.yaml; do
+          for f in /tmp/default.yaml /tmp/all-on.yaml /tmp/postgres.yaml /tmp/production.yaml /tmp/optional.yaml /tmp/bundled.yaml; do
             n=$(grep -c '^kind: Deployment' "$f" || true)
             if [ "$n" -lt 9 ]; then
               echo "::error::$f rendered only $n Deployments (expected 9)"
@@ -116,6 +121,8 @@ jobs:
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/bundled.yaml
       - name: kubeconform — optional
         run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/optional.yaml
+      - name: kubeconform — production
+        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/production.yaml
 
   shellcheck:
     name: shellcheck

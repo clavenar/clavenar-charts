@@ -1,4 +1,24 @@
 Clavenar installed as release: {{ .Release.Name }}
+Deployment profile: {{ .Values.deploymentProfile }}
+
+{{- if eq .Values.deploymentProfile "production" }}
+
+The production profile passed its fail-closed render gate: NetworkPolicy is
+enabled; workload TLS comes from the existing Secret
+`{{ .Values.tlsBundle.secretName }}` with auto-mint disabled; console operator
+mTLS uses the separate public trust Secret
+`{{ .Values.services.console.operatorMtls.publicTrustSecretName }}`; HIL auth
+uses the existing Secret `{{ .Values.authSecrets.existingSecretName }}`; and
+ledger accepts forwarded addresses only from
+`{{ .Values.services.ledger.trustedProxySpiffe }}` over mTLS. The configured
+website peer selector is admitted only to ledger port 8183 and names the
+canonical website pod in an external namespace distinct from the release and
+Prometheus namespaces.
+
+This is a chart configuration gate, not production-readiness certification.
+Validate the matching service images, release artifacts, external PKI and CNI,
+persistence, backup and disaster recovery, and runtime behavior separately.
+{{- end }}
 
 The nine services live behind ClusterIP — by default not exposed
 outside the cluster. Forward them locally:

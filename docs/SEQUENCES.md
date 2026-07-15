@@ -13,9 +13,15 @@ branches.
 ## 1. `helm install <release> charts/clavenar`
 
 Render is client-side (Helm 3) — the operator's kubectl context posts
-the rendered batch straight to the apiserver; no Tiller. The eight
+the rendered batch straight to the apiserver; no Tiller. The nine
 services + their PVCs are created in one apply round; kubelet reconciles
 the schedule once the rendered Deployments land.
+
+Before any object is emitted, `deploymentProfile=production` validates the
+whole security posture as one unit: an operator-managed HIL authentication
+Secret, enabled NetworkPolicy, existing workload TLS with auto-mint off,
+console operator mTLS with separate public trust, and the exact website
+trusted-proxy identity plus one positive selector on ledger mTLS.
 
 ```mermaid
 sequenceDiagram
@@ -216,6 +222,14 @@ the named in-stack callers. Brain `:8081` admits only proxy, policy-engine, and
 console pods; `:9081` admits no application pod. The Prometheus exception is
 added only when `prometheusNamespaceLabel` names its namespace.
 
+In the production profile, the separately deployed website selector gets one
+additional path to ledger `:8183` only. Ledger authenticates the exact
+`spiffe://clavenar.local/service/website` certificate before honoring a
+forwarded client address. Its canonical pod label and explicit namespace are
+required to differ from in-release and Prometheus selectors. The selector is
+absent from public ledger `:8083`, so direct callers remain keyed by their
+socket address.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -324,7 +338,10 @@ the values keys that decide whether they land.
 ```mermaid
 flowchart TD
     H[helm install / upgrade] --> V[merge values.yaml plus --set]
-    V --> Loop[range over .Values.services]
+    V --> Prof{deploymentProfile?}
+    Prof -->|evaluation| Loop[range over .Values.services]
+    Prof -->|production and all prerequisites valid| Loop
+    Prof -->|production missing auth TLS policy trust or website peer| Refuse[fail render before apply]
 
     Loop --> En{services.x.enabled?}
     En -->|false| Skip[skip service]
@@ -348,6 +365,8 @@ flowchart TD
     NpEmit --> NpFront{service is proxy?}
     NpFront -->|yes| Open[agent mTLS ingress allows arbitrary sources]
     NpFront -->|no| Restrict[exact listener-specific callers; console default-deny]
+    NpEmit --> Web{production website peer configured?}
+    Web -->|yes| LedgerTls[admit exact selector to ledger 8183 only]
     NpEmit --> Scrape{prometheusNamespaceLabel set?}
     Scrape -->|yes| AddScrape[add namespaceSelector rule for scraper]
     Scrape -->|no| NoScrape[scraper must run in same ns or be excluded]

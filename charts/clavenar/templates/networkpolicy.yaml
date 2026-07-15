@@ -4,6 +4,7 @@
 {{- $matrix := fromYaml (.Files.Get "listeners.yaml") }}
 {{- $_ := unset $matrix "reviewedContractSha256" }}
 {{- $matrixDigest := sha256sum (toJson $matrix) }}
+{{- $ledgerTrustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
 {{- $callers := dict
       "policyEngine" (list "proxy" "console")
       "ledger" (list "console" "deepReview")
@@ -32,6 +33,12 @@
   {{- end -}}
   {{- if and (eq $name "ledger") $ctx.Values.tlsBundle.secretName -}}
     {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "callers" (list "proxy" "console" "deepReview" "simulator")) -}}
+    {{- if not (empty $ledgerTrustedProxyPeers) -}}
+      {{- /* The separately deployed website can reach only ledger's mTLS
+            port. Its verified SPIFFE identity remains an independent
+            application-layer requirement. */ -}}
+      {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "configuredPeers" $ledgerTrustedProxyPeers) -}}
+    {{- end -}}
   {{- end -}}
 {{- end -}}
 ---
@@ -70,12 +77,16 @@ spec:
     {{- range $rule := $rules }}
     - {{- if not $rule.any }}
       from:
+        {{- if hasKey $rule "configuredPeers" }}
+        {{- toYaml $rule.configuredPeers | nindent 8 }}
+        {{- else }}
         {{- range $caller := $rule.callers }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: {{ $ctx.Chart.Name }}
               app.kubernetes.io/instance: {{ $ctx.Release.Name }}
               app.kubernetes.io/component: {{ $caller | kebabcase }}
+        {{- end }}
         {{- end }}
       {{- end }}
       ports:

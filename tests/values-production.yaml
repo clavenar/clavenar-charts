@@ -1,0 +1,44 @@
+# Canonical fail-closed production render. Referenced Secrets and the external
+# website workload must already exist in the explicitly selected external
+# namespace; the chart never mints production trust. Keep that namespace
+# distinct from both the Helm release and Prometheus namespaces.
+deploymentProfile: production
+
+authSecrets:
+  existingSecretName: clavenar-runtime-auth
+
+tlsBundle:
+  secretName: clavenar-workload-tls
+  autoMint: false
+
+services:
+  ledger:
+    requireTrustedProxy: true
+    trustedProxySpiffe: spiffe://clavenar.local/service/website
+  console:
+    mutationOrigins:
+      - https://console.example.test
+    operatorMtls:
+      enabled: true
+      publicTrustSecretName: clavenar-operator-public-trust
+
+networkPolicy:
+  enabled: true
+  ledger:
+    trustedProxy:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: clavenar-edge
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clavenar-website
+  console:
+    operatorMtls:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: operator-access
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: operator-tls-passthrough

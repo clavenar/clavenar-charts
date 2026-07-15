@@ -157,6 +157,150 @@ secretKeyRef.
 {{- end -}}
 {{- end -}}
 
+{{/*
+Reject extraEnv entries that duplicate chart-emitted transport, listener,
+authentication, caller, or trust settings. Kubernetes accepts duplicate env
+names and resolves them by list order, which would turn these chart-owned
+boundaries into last-write-wins configuration. Also reject duplicate names
+inside extraEnv itself so every rendered container has one unambiguous value
+per environment variable.
+*/}}
+{{- define "clavenar.validateGovernedExtraEnv" -}}
+{{- $ctx := .ctx -}}
+{{- $service := .service -}}
+{{- $common := list
+      "NATS_URL"
+      "CLAVENAR_GRACEFUL_DRAIN_SECS" -}}
+{{- $byService := dict
+      "proxy" (list
+        "CLAVENAR_PROXY_HEALTH_ADDR"
+        "CLAVENAR_BRAIN_URL"
+        "CLAVENAR_POLICY_URL"
+        "CLAVENAR_HIL_URL"
+        "CLAVENAR_IDENTITY_URL"
+        "CLAVENAR_PROXY_OUTBOUND_CERT_PATH"
+        "CLAVENAR_PROXY_OUTBOUND_KEY_PATH"
+        "CLAVENAR_PROXY_OUTBOUND_CA_PATH"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH"
+        "VAULT_ADDR"
+        "VAULT_TOKEN")
+      "brain" (list
+        "CLAVENAR_BRAIN_TLS_DIR"
+        "CLAVENAR_BRAIN_ALLOWED_CALLERS"
+        "CLAVENAR_BRAIN_HEALTH_ADDR"
+        "CLAVENAR_BRAIN_PLAIN_ADDR"
+        "CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS"
+        "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE"
+        "CLAVENAR_BRAIN_NARRATE_CALLER_SPIFFE"
+        "CLAVENAR_BRAIN_EXPLAIN_RATE_LIMIT_PER_MINUTE"
+        "CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE"
+        "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR"
+        "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS"
+        "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES")
+      "policyEngine" (list
+        "CLAVENAR_POLICY_ENGINE_BRAIN_URL"
+        "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE"
+        "CLAVENAR_POLICY_TLS_DIR"
+        "CLAVENAR_POLICY_ALLOWED_CALLERS"
+        "CLAVENAR_POLICY_HEALTH_ADDR"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH")
+      "ledger" (list
+        "CLAVENAR_LEDGER_ALLOWED_CALLERS"
+        "CLAVENAR_LEDGER_TLS_DIR"
+        "CLAVENAR_LEDGER_MTLS_ADDR"
+        "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"
+        "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH")
+      "hil" (list
+        "CLAVENAR_HIL_TLS_DIR"
+        "CLAVENAR_HIL_ALLOWED_CALLERS"
+        "CLAVENAR_HIL_HEALTH_ADDR"
+        "CLAVENAR_HIL_DECIDE_TOKEN"
+        "CLAVENAR_HIL_SESSION_KEY"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH")
+      "identity" (list
+        "CLAVENAR_IDENTITY_TLS_DIR"
+        "CLAVENAR_IDENTITY_ALLOWED_CALLERS"
+        "CLAVENAR_IDENTITY_MTLS_ADDR"
+        "CLAVENAR_IDENTITY_CA_DIR"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH"
+        "VAULT_ADDR"
+        "VAULT_TOKEN")
+      "deepReview" (list
+        "CLAVENAR_DEEP_REVIEW_LEDGER_URL"
+        "CLAVENAR_DEEP_REVIEW_NATS_URL"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH")
+      "assurance" (list
+        "CLAVENAR_ASSURANCE_PROXY_URL"
+        "CLAVENAR_ASSURANCE_NATS_URL"
+        "CLAVENAR_ASSURANCE_ADMIN_PORT"
+        "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT"
+        "CLAVENAR_ASSURANCE_TLS_DIR"
+        "CLAVENAR_ASSURANCE_ALLOWED_CALLERS"
+        "CLAVENAR_ASSURANCE_FORENSIC_SUBJECT"
+        "CLAVENAR_ASSURANCE_FORENSIC_STREAM"
+        "CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS"
+        "CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS"
+        "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS"
+        "CLAVENAR_ASSURANCE_CERT_DIR"
+        "NATS_TLS_CERT_PATH"
+        "NATS_TLS_KEY_PATH"
+        "NATS_TLS_CA_PATH")
+      "console" (list
+        "CLAVENAR_CONSOLE_AUTH"
+        "CLAVENAR_CONSOLE_BIND"
+        "CLAVENAR_CONSOLE_PORT"
+        "CLAVENAR_CONSOLE_DEMO_ADDR"
+        "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR"
+        "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH"
+        "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH"
+        "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH"
+        "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH"
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX"
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS"
+        "CLAVENAR_CONSOLE_RELEASE_VERSION"
+        "CLAVENAR_CONSOLE_MUTATION_ORIGINS"
+        "CLAVENAR_CONSOLE_BRAIN_URL"
+        "CLAVENAR_CONSOLE_LEDGER_URL"
+        "CLAVENAR_CONSOLE_HIL_URL"
+        "CLAVENAR_CONSOLE_POLICY_ENGINE_URL"
+        "CLAVENAR_CONSOLE_IDENTITY_URL"
+        "CLAVENAR_ASSURANCE_URL"
+        "CLAVENAR_CONSOLE_TLS_DIR"
+        "CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH"
+        "CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH"
+        "CLAVENAR_CONSOLE_OUTBOUND_CA_PATH"
+        "CLAVENAR_HIL_DECIDE_TOKEN"
+        "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK") -}}
+{{- $governed := concat $common (default (list) (get $byService $service)) -}}
+{{- if and (eq $service "proxy") (or $ctx.Values.exec.enabled $ctx.Values.upstreamStub.enabled) -}}
+{{- $governed = append $governed "CLAVENAR_UPSTREAM_URL" -}}
+{{- end -}}
+{{- $seen := dict -}}
+{{- range $index, $entry := default (list) .svcCfg.extraEnv -}}
+{{- $name := default "" $entry.name -}}
+{{- if and $name (hasKey $seen $name) -}}
+{{- fail (printf "services.%s.extraEnv[%d].name=%s duplicates an earlier extraEnv entry" $service $index $name) -}}
+{{- end -}}
+{{- if $name -}}{{- $_ := set $seen $name true -}}{{- end -}}
+{{- if has $name $governed -}}
+{{- fail (printf "services.%s.extraEnv[%d].name=%s duplicates a chart-governed environment variable" $service $index $name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Shared NATS + drain-cap envs, then per-component back-end URLs,
 then per-service extraEnv. Pass `service` so the back-end-URL helper
 knows the component. */}}
@@ -178,10 +322,9 @@ knows the component. */}}
 {{- end -}}
 
 {{/* Backend URL env vars wired by component. The compose stack pins
-these explicitly per service; the chart computes the same shape so
-adding a service mesh that renames Services only needs the relevant
-`values.<svc>.extraEnv` override (later entries shadow earlier ones
-in the same env list).
+these explicitly per service; the chart computes the official in-release
+topology and rejects duplicate extraEnv entries so the security boundary is
+never decided by Kubernetes list ordering.
 
 Proxy → brain + policy + hil + identity
 Policy-engine → brain auxiliary explanation listener
@@ -197,6 +340,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- $policyScheme := ternary "https" "http" $tlsOn -}}
 {{- if eq $name "proxy" }}
+- name: CLAVENAR_PROXY_HEALTH_ADDR
+  value: "0.0.0.0:8080"
 - name: CLAVENAR_BRAIN_URL
   value: "{{ $brainScheme }}://{{ $rel }}-brain:8081/inspect"
 - name: CLAVENAR_POLICY_URL
@@ -213,12 +358,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_UPSTREAM_URL
   value: "http://{{ $rel }}-exec:{{ .ctx.Values.exec.port }}/mcp"
 {{- else if .ctx.Values.upstreamStub.enabled }}
-# Bundled echo-MCP target. Opt-in via upstreamStub.enabled. Operator
-# extraEnv setting CLAVENAR_UPSTREAM_URL still wins — Kubernetes applies
-# duplicate env entries last-write-wins and clavenar.commonEnv emits
-# .svcCfg.extraEnv AFTER this block. Production deploys leave
-# upstreamStub off and set CLAVENAR_UPSTREAM_URL via
-# services.proxy.extraEnv pointing at a real MCP server.
+# Bundled echo-MCP target. Opt-in via upstreamStub.enabled. While the chart
+# emits this target, a duplicate services.proxy.extraEnv entry is rejected.
+# Production deploys leave upstreamStub off and may set CLAVENAR_UPSTREAM_URL
+# through services.proxy.extraEnv to point at a real MCP server.
 - name: CLAVENAR_UPSTREAM_URL
   value: "http://{{ $rel }}-upstream-stub:{{ .ctx.Values.upstreamStub.port }}/mcp"
 {{- end }}
@@ -328,6 +471,15 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "ledger" }}
+# Forwarded client addresses are a chart-governed, fail-closed contract. The
+# evaluation default leaves enforcement off; production validation below the
+# values layer requires true plus the canonical website workload identity.
+- name: CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY
+  value: {{ ternary "true" "false" .ctx.Values.services.ledger.requireTrustedProxy | quote }}
+{{- if .ctx.Values.services.ledger.trustedProxySpiffe }}
+- name: CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE
+  value: {{ .ctx.Values.services.ledger.trustedProxySpiffe | quote }}
+{{- end }}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 5). Bundle mounted → ledger runs
 # TWO listeners. Plain HTTP on `port` (default 8083) serves the public
@@ -344,6 +496,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # Service DNS.
 - name: CLAVENAR_LEDGER_TLS_DIR
   value: {{ $mount | quote }}
+# This allowlist gates internal /log, audit, export, case, and administrative
+# routes. The website is deliberately absent: it reaches only /verify outside
+# the internal route middleware, then trusted-proxy handling independently
+# requires its exact mTLS identity before accepting a forwarded address.
 - name: CLAVENAR_LEDGER_ALLOWED_CALLERS
   value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/deep-review,spiffe://clavenar.local/service/simulator"
 - name: CLAVENAR_LEDGER_MTLS_ADDR

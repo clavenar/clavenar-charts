@@ -203,6 +203,10 @@ def expected_policies(matrix, values, release):
                         sources.extend(
                             value_at(values, "networkPolicy.console.demo.allowedPeers") or []
                         )
+                    elif token == "configured-ledger-trusted-proxy-peers":
+                        sources.extend(
+                            value_at(values, "networkPolicy.ledger.trustedProxy.allowedPeers") or []
+                        )
                     elif token == "vault":
                         sources.append({"podSelector": {"matchLabels": target}})
                     elif token in matrix.get("peerSelectors", {}):
@@ -218,9 +222,8 @@ def expected_policies(matrix, values, release):
     return policies
 
 
-def validate_console_peers(values, errors):
-    for trust_class in ("operatorMtls", "demo"):
-        path = f"networkPolicy.console.{trust_class}.allowedPeers"
+def validate_exact_positive_peers(values, paths, errors):
+    for path in paths:
         for index, configured in enumerate(value_at(values, path) or []):
             if not isinstance(configured, dict) or not set(configured).issubset(
                 {"podSelector", "namespaceSelector"}
@@ -258,6 +261,236 @@ def validate_console_peers(values, errors):
                     errors.append(
                         f"{path}[{index}] namespaceSelector requires non-empty matchLabels only"
                     )
+
+
+def validate_ledger_trusted_proxy_peer(values, release_namespace, errors):
+    peers = value_at(
+        values, "networkPolicy.ledger.trustedProxy.allowedPeers"
+    ) or []
+    prometheus_namespace = value_at(
+        values, "networkPolicy.prometheusNamespaceLabel"
+    ) or ""
+    for index, configured in enumerate(peers):
+        if not isinstance(configured, dict):
+            continue
+        pod_selector = configured.get("podSelector")
+        pod_labels = (
+            pod_selector.get("matchLabels")
+            if isinstance(pod_selector, dict)
+            else {}
+        )
+        if not isinstance(pod_labels, dict):
+            pod_labels = {}
+        if pod_labels.get("app.kubernetes.io/name") != "clavenar-website":
+            errors.append(
+                "networkPolicy.ledger.trustedProxy.allowedPeers"
+                f"[{index}] must include "
+                "podSelector.matchLabels[app.kubernetes.io/name]=clavenar-website"
+            )
+
+        namespace_selector = configured.get("namespaceSelector")
+        namespace_labels = (
+            namespace_selector.get("matchLabels")
+            if isinstance(namespace_selector, dict)
+            else {}
+        )
+        if not isinstance(namespace_labels, dict):
+            namespace_labels = {}
+        website_namespace = namespace_labels.get("kubernetes.io/metadata.name")
+        if not isinstance(website_namespace, str) or not website_namespace:
+            errors.append(
+                "networkPolicy.ledger.trustedProxy.allowedPeers"
+                f"[{index}] must explicitly select a non-empty "
+                "namespaceSelector.matchLabels[kubernetes.io/metadata.name]"
+            )
+            continue
+        if website_namespace == release_namespace:
+            errors.append(
+                f"website namespace {website_namespace} must differ from the release namespace"
+            )
+        if website_namespace == prometheus_namespace:
+            errors.append(
+                f"website namespace {website_namespace} must differ from the Prometheus namespace"
+            )
+
+
+def validate_deployment_profile(values, errors):
+    profile = value_at(values, "deploymentProfile")
+    if profile not in {"evaluation", "production"}:
+        errors.append("deploymentProfile must be exactly evaluation or production")
+        return
+
+    trusted_spiffe = value_at(values, "services.ledger.trustedProxySpiffe") or ""
+    if value_at(values, "services.ledger.port") != 8083:
+        errors.append("services.ledger.port must remain the governed public port 8083")
+    if value_at(values, "services.ledger.mtlsPort") != 8183:
+        errors.append("services.ledger.mtlsPort must remain the governed mTLS port 8183")
+    require_trusted = bool(value_at(values, "services.ledger.requireTrustedProxy"))
+    trusted_peers = value_at(
+        values, "networkPolicy.ledger.trustedProxy.allowedPeers"
+    ) or []
+    canonical = "spiffe://clavenar.local/service/website"
+    if trusted_spiffe not in {"", canonical}:
+        errors.append("ledger trusted proxy SPIFFE is not the canonical website URI")
+    if bool(trusted_spiffe) != require_trusted:
+        errors.append("ledger trusted proxy SPIFFE and enforcement boolean must be enabled together")
+    if require_trusted and not value_at(values, "tlsBundle.secretName"):
+        errors.append("ledger trusted proxy enforcement requires workload TLS")
+    if bool(trusted_peers) != require_trusted or len(trusted_peers) > 1:
+        errors.append("ledger trusted proxy enforcement requires exactly one configured peer")
+
+    if profile != "production":
+        return
+    production_checks = {
+        "operator-managed HIL authentication Secret": bool(
+            value_at(values, "authSecrets.existingSecretName")
+        ),
+        "networkPolicy.enabled=true": value_at(values, "networkPolicy.enabled") is True,
+        "external workload TLS": bool(value_at(values, "tlsBundle.secretName"))
+        and value_at(values, "tlsBundle.autoMint") is False,
+        "console enabled": value_at(values, "services.console.enabled") is True,
+        "console operator mTLS": value_at(
+            values, "services.console.operatorMtls.enabled"
+        ) is True,
+        "public operator trust": bool(
+            value_at(values, "services.console.operatorMtls.publicTrustSecretName")
+        ),
+        "ledger enabled": value_at(values, "services.ledger.enabled") is True,
+        "trusted-proxy enforcement": require_trusted,
+        "canonical website SPIFFE": trusted_spiffe == canonical,
+        "one trusted website selector": len(trusted_peers) == 1,
+    }
+    for requirement, passed in production_checks.items():
+        if not passed:
+            errors.append(f"production profile requires {requirement}")
+    operator_secret = value_at(
+        values, "services.console.operatorMtls.publicTrustSecretName"
+    )
+    if operator_secret and operator_secret == value_at(values, "tlsBundle.secretName"):
+        errors.append("production profile requires separate workload and operator trust Secrets")
+
+
+def validate_ledger_trusted_proxy_contract(values, docs, release, errors):
+    if not value_at(values, "services.ledger.enabled"):
+        return
+    deployments = [
+        doc for doc in docs
+        if doc.get("kind") == "Deployment"
+        and doc.get("metadata", {}).get("name") == f"{release}-ledger"
+    ]
+    if len(deployments) != 1:
+        errors.append(f"ledger must render exactly one Deployment; found {len(deployments)}")
+        return
+    containers = deployments[0].get("spec", {}).get("template", {}).get(
+        "spec", {}
+    ).get("containers", [])
+    ledger_containers = [item for item in containers if item.get("name") == "ledger"]
+    if len(ledger_containers) != 1:
+        errors.append(
+            f"ledger Deployment must contain exactly one ledger container; found {len(ledger_containers)}"
+        )
+        return
+    env_entries = ledger_containers[0].get("env", []) or []
+    trusted_spiffe = value_at(values, "services.ledger.trustedProxySpiffe") or ""
+    expected_require = (
+        "true" if value_at(values, "services.ledger.requireTrustedProxy") else "false"
+    )
+    require_entries = [
+        entry.get("value") for entry in env_entries
+        if entry.get("name") == "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"
+    ]
+    if require_entries != [expected_require]:
+        errors.append(
+            "ledger must carry exactly one governed trusted-proxy enforcement boolean"
+        )
+    spiffe_entries = [
+        entry.get("value") for entry in env_entries
+        if entry.get("name") == "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"
+    ]
+    expected_spiffe = [trusted_spiffe] if trusted_spiffe else []
+    if spiffe_entries != expected_spiffe:
+        errors.append("ledger governed trusted-proxy SPIFFE does not match values")
+
+    tls_enabled = bool(value_at(values, "tlsBundle.secretName"))
+    allowed_entries = [
+        entry.get("value") for entry in env_entries
+        if entry.get("name") == "CLAVENAR_LEDGER_ALLOWED_CALLERS"
+    ]
+    base_callers = [
+        "spiffe://clavenar.local/service/proxy",
+        "spiffe://clavenar.local/service/console",
+        "spiffe://clavenar.local/service/deep-review",
+        "spiffe://clavenar.local/service/simulator",
+    ]
+    expected_allowed = [",".join(base_callers)] if tls_enabled else []
+    if allowed_entries != expected_allowed:
+        errors.append("ledger internal-route mTLS allowlist drifted")
+    if any("spiffe://clavenar.local/service/website" in str(item) for item in allowed_entries):
+        errors.append("website trusted-proxy identity must not enter ledger's internal-route allowlist")
+
+    configured_peers = value_at(
+        values, "networkPolicy.ledger.trustedProxy.allowedPeers"
+    ) or []
+    if not configured_peers:
+        return
+    policies = [
+        doc for doc in docs
+        if doc.get("kind") == "NetworkPolicy"
+        and doc.get("metadata", {}).get("name") == f"{release}-ledger"
+    ]
+    if len(policies) != 1:
+        errors.append("configured ledger trusted proxy has no single ledger NetworkPolicy")
+        return
+    ingress = policies[0].get("spec", {}).get("ingress", []) or []
+    exact_rules = [
+        entry for entry in ingress
+        if entry.get("from") == configured_peers
+        and entry.get("ports") == [{"protocol": "TCP", "port": 8183}]
+    ]
+    if len(exact_rules) != 1:
+        errors.append("configured website peer must have exactly one ledger mTLS-only rule")
+    for entry in ingress:
+        if entry in exact_rules:
+            continue
+        if any(peer_spec in (entry.get("from") or []) for peer_spec in configured_peers):
+            errors.append("configured website peer leaked onto a non-governed ledger rule")
+
+
+def validate_service_env_uniqueness(docs, release, errors):
+    service_containers = {
+        "proxy",
+        "brain",
+        "policy-engine",
+        "ledger",
+        "hil",
+        "identity",
+        "deep-review",
+        "assurance",
+        "console",
+    }
+    for deployment in docs:
+        if deployment.get("kind") != "Deployment":
+            continue
+        deployment_name = deployment.get("metadata", {}).get("name", "")
+        if not deployment_name.startswith(f"{release}-"):
+            continue
+        containers = deployment.get("spec", {}).get("template", {}).get(
+            "spec", {}
+        ).get("containers", []) or []
+        for container in containers:
+            if container.get("name") not in service_containers:
+                continue
+            names = [
+                entry.get("name")
+                for entry in (container.get("env", []) or [])
+                if isinstance(entry, dict)
+            ]
+            duplicates = sorted({name for name in names if names.count(name) > 1})
+            if duplicates:
+                errors.append(
+                    f"Deployment {deployment_name} container {container.get('name')} "
+                    f"has duplicate environment variables {duplicates}"
+                )
 
 
 def normalized_service_spec(spec):
@@ -919,7 +1152,17 @@ def validate(
                 errors.append(f"listener {reference} allows {token} but does not authorize it")
         if "any" in allowed and "none" in str(listener.get("authentication", "")).lower():
             errors.append(f"listener {reference} allows any peer without authentication")
-    validate_console_peers(values, errors)
+    validate_exact_positive_peers(
+        values,
+        (
+            "networkPolicy.console.operatorMtls.allowedPeers",
+            "networkPolicy.console.demo.allowedPeers",
+            "networkPolicy.ledger.trustedProxy.allowedPeers",
+        ),
+        errors,
+    )
+    validate_ledger_trusted_proxy_peer(values, namespace, errors)
+    validate_deployment_profile(values, errors)
 
     active_listeners = [
         item for item in matrix.get("listeners", [])
@@ -1118,6 +1361,8 @@ def validate(
     )
     validate_brain_auxiliary_contract(values, docs, release, errors)
     validate_assurance_contract(values, docs, release, errors)
+    validate_ledger_trusted_proxy_contract(values, docs, release, errors)
+    validate_service_env_uniqueness(docs, release, errors)
     return errors
 
 

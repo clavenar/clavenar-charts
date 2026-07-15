@@ -17,6 +17,118 @@ SPEC = importlib.util.spec_from_file_location("listener_checker", SCRIPT)
 CHECKER = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(CHECKER)
 
+COMMON_GOVERNED_ENV = {
+    "NATS_URL",
+    "CLAVENAR_GRACEFUL_DRAIN_SECS",
+}
+NATS_TLS_ENV = {
+    "NATS_TLS_CERT_PATH",
+    "NATS_TLS_KEY_PATH",
+    "NATS_TLS_CA_PATH",
+}
+GOVERNED_ENV_BY_SERVICE = {
+    "proxy": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_PROXY_HEALTH_ADDR",
+        "CLAVENAR_BRAIN_URL",
+        "CLAVENAR_POLICY_URL",
+        "CLAVENAR_HIL_URL",
+        "CLAVENAR_IDENTITY_URL",
+        "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
+        "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
+        "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
+        "VAULT_ADDR",
+        "VAULT_TOKEN",
+    },
+    "brain": COMMON_GOVERNED_ENV | {
+        "CLAVENAR_BRAIN_TLS_DIR",
+        "CLAVENAR_BRAIN_ALLOWED_CALLERS",
+        "CLAVENAR_BRAIN_HEALTH_ADDR",
+        "CLAVENAR_BRAIN_PLAIN_ADDR",
+        "CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS",
+        "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE",
+        "CLAVENAR_BRAIN_NARRATE_CALLER_SPIFFE",
+        "CLAVENAR_BRAIN_EXPLAIN_RATE_LIMIT_PER_MINUTE",
+        "CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE",
+        "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR",
+        "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS",
+        "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES",
+    },
+    "policyEngine": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_POLICY_ENGINE_BRAIN_URL",
+        "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE",
+        "CLAVENAR_POLICY_TLS_DIR",
+        "CLAVENAR_POLICY_ALLOWED_CALLERS",
+        "CLAVENAR_POLICY_HEALTH_ADDR",
+    },
+    "ledger": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_LEDGER_ALLOWED_CALLERS",
+        "CLAVENAR_LEDGER_TLS_DIR",
+        "CLAVENAR_LEDGER_MTLS_ADDR",
+        "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY",
+        "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE",
+    },
+    "hil": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_HIL_TLS_DIR",
+        "CLAVENAR_HIL_ALLOWED_CALLERS",
+        "CLAVENAR_HIL_HEALTH_ADDR",
+        "CLAVENAR_HIL_DECIDE_TOKEN",
+        "CLAVENAR_HIL_SESSION_KEY",
+    },
+    "identity": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_IDENTITY_TLS_DIR",
+        "CLAVENAR_IDENTITY_ALLOWED_CALLERS",
+        "CLAVENAR_IDENTITY_MTLS_ADDR",
+        "CLAVENAR_IDENTITY_CA_DIR",
+        "VAULT_ADDR",
+        "VAULT_TOKEN",
+    },
+    "deepReview": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_DEEP_REVIEW_LEDGER_URL",
+        "CLAVENAR_DEEP_REVIEW_NATS_URL",
+    },
+    "assurance": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+        "CLAVENAR_ASSURANCE_PROXY_URL",
+        "CLAVENAR_ASSURANCE_NATS_URL",
+        "CLAVENAR_ASSURANCE_ADMIN_PORT",
+        "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT",
+        "CLAVENAR_ASSURANCE_TLS_DIR",
+        "CLAVENAR_ASSURANCE_ALLOWED_CALLERS",
+        "CLAVENAR_ASSURANCE_FORENSIC_SUBJECT",
+        "CLAVENAR_ASSURANCE_FORENSIC_STREAM",
+        "CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS",
+        "CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS",
+        "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS",
+        "CLAVENAR_ASSURANCE_CERT_DIR",
+    },
+    "console": COMMON_GOVERNED_ENV | {
+        "CLAVENAR_CONSOLE_AUTH",
+        "CLAVENAR_CONSOLE_BIND",
+        "CLAVENAR_CONSOLE_PORT",
+        "CLAVENAR_CONSOLE_DEMO_ADDR",
+        "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR",
+        "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH",
+        "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH",
+        "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH",
+        "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH",
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX",
+        "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS",
+        "CLAVENAR_CONSOLE_RELEASE_VERSION",
+        "CLAVENAR_CONSOLE_MUTATION_ORIGINS",
+        "CLAVENAR_CONSOLE_BRAIN_URL",
+        "CLAVENAR_CONSOLE_LEDGER_URL",
+        "CLAVENAR_CONSOLE_HIL_URL",
+        "CLAVENAR_CONSOLE_POLICY_ENGINE_URL",
+        "CLAVENAR_CONSOLE_IDENTITY_URL",
+        "CLAVENAR_ASSURANCE_URL",
+        "CLAVENAR_CONSOLE_TLS_DIR",
+        "CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH",
+        "CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH",
+        "CLAVENAR_CONSOLE_OUTBOUND_CA_PATH",
+        "CLAVENAR_HIL_DECIDE_TOKEN",
+        "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK",
+    },
+}
+
 
 class ListenerMatrixTest(unittest.TestCase):
     @classmethod
@@ -28,6 +140,7 @@ class ListenerMatrixTest(unittest.TestCase):
         cls.scenarios = {
             "default": [],
             "all-on": [ROOT / "tests/values-all-on.yaml"],
+            "production": [ROOT / "tests/values-production.yaml"],
             "optional": [ROOT / "tests/values-optional.yaml"],
             "bundled": [ROOT / "tests/values-bundled.yaml"],
         }
@@ -74,6 +187,40 @@ class ListenerMatrixTest(unittest.TestCase):
         values = CHECKER.effective_values(ROOT / "charts/clavenar", [])
         values["nats"]["bundled"]["enabled"] = True
         self.assertEqual([], CHECKER.validate(self.matrix, values, docs, "smoke"))
+
+    def test_rendered_service_environment_names_are_unique(self):
+        service_names = {
+            "proxy", "brain", "policy-engine", "ledger", "hil", "identity",
+            "deep-review", "assurance", "console",
+        }
+        for scenario, docs in self.rendered.items():
+            with self.subTest(scenario=scenario):
+                checked = set()
+                for doc in docs:
+                    if doc.get("kind") != "Deployment":
+                        continue
+                    for container in doc["spec"]["template"]["spec"]["containers"]:
+                        if container.get("name") not in service_names:
+                            continue
+                        checked.add(container["name"])
+                        names = [entry["name"] for entry in container.get("env", [])]
+                        self.assertEqual(len(names), len(set(names)), container["name"])
+                self.assertEqual(service_names, checked)
+                errors = []
+                CHECKER.validate_service_env_uniqueness(docs, "smoke", errors)
+                self.assertEqual([], errors)
+
+        mutated = copy.deepcopy(self.rendered["production"])
+        ledger = next(
+            doc for doc in mutated
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        env = ledger["spec"]["template"]["spec"]["containers"][0]["env"]
+        env.append(copy.deepcopy(env[0]))
+        errors = []
+        CHECKER.validate_service_env_uniqueness(mutated, "smoke", errors)
+        self.assertTrue(any("duplicate environment variables" in item for item in errors))
 
     def test_authentication_secret_refs_support_chart_and_operator_ownership(self):
         generated = next(
@@ -210,6 +357,7 @@ class ListenerMatrixTest(unittest.TestCase):
                     "template",
                     "smoke",
                     str(ROOT / "charts/clavenar"),
+                    "--skip-schema-validation",
                     "--set-string",
                     f"services.{service}.extraEnv[0].name={variable}",
                     "--set-string",
@@ -218,6 +366,139 @@ class ListenerMatrixTest(unittest.TestCase):
                 result = subprocess.run(command, text=True, capture_output=True)
                 self.assertNotEqual(0, result.returncode)
                 self.assertIn("authentication", result.stderr)
+
+    def test_all_chart_governed_env_duplicates_fail_without_schema(self):
+        base = yaml.safe_load((ROOT / "tests/values-production.yaml").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "values.yaml"
+            for service, variables in GOVERNED_ENV_BY_SERVICE.items():
+                for variable in sorted(variables):
+                    with self.subTest(service=service, variable=variable):
+                        candidate = copy.deepcopy(base)
+                        candidate["services"].setdefault(service, {})["extraEnv"] = [{
+                            "name": variable,
+                            "value": "attacker-controlled",
+                        }]
+                        fixture.write_text(yaml.safe_dump(candidate, sort_keys=False))
+                        result = subprocess.run(
+                            [
+                                "helm", "template", "smoke",
+                                str(ROOT / "charts/clavenar"),
+                                "-f", str(fixture),
+                                "--skip-schema-validation",
+                            ],
+                            text=True,
+                            capture_output=True,
+                        )
+                        self.assertNotEqual(0, result.returncode, variable)
+
+    def test_governed_env_schema_covers_every_service_family(self):
+        representatives = {
+            "proxy": "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
+            "brain": "CLAVENAR_BRAIN_TLS_DIR",
+            "policyEngine": "CLAVENAR_POLICY_TLS_DIR",
+            "ledger": "CLAVENAR_LEDGER_ALLOWED_CALLERS",
+            "hil": "CLAVENAR_HIL_ALLOWED_CALLERS",
+            "identity": "CLAVENAR_IDENTITY_MTLS_ADDR",
+            "deepReview": "NATS_TLS_CA_PATH",
+            "assurance": "CLAVENAR_ASSURANCE_ADMIN_PORT",
+            "console": "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH",
+        }
+        base = yaml.safe_load((ROOT / "tests/values-production.yaml").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "values.yaml"
+            for service, variable in representatives.items():
+                with self.subTest(service=service, variable=variable):
+                    candidate = copy.deepcopy(base)
+                    candidate["services"].setdefault(service, {})["extraEnv"] = [{
+                        "name": variable,
+                        "value": "attacker-controlled",
+                    }]
+                    fixture.write_text(yaml.safe_dump(candidate, sort_keys=False))
+                    result = subprocess.run(
+                        [
+                            "helm", "template", "smoke",
+                            str(ROOT / "charts/clavenar"),
+                            "-f", str(fixture),
+                        ],
+                        text=True,
+                        capture_output=True,
+                    )
+                    self.assertNotEqual(0, result.returncode, variable)
+                    self.assertIn("values don't meet the specifications", result.stderr)
+
+    def test_extra_env_name_uniqueness_and_conditional_upstream_ownership(self):
+        base = yaml.safe_load((ROOT / "tests/values-production.yaml").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "values.yaml"
+
+            duplicate = copy.deepcopy(base)
+            duplicate["services"].setdefault("brain", {})["extraEnv"] = [
+                {"name": "CUSTOM_PROVIDER_OPTION", "value": "first"},
+                {"name": "CUSTOM_PROVIDER_OPTION", "value": "second"},
+            ]
+            fixture.write_text(yaml.safe_dump(duplicate, sort_keys=False))
+            result = subprocess.run(
+                [
+                    "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
+                    "-f", str(fixture), "--skip-schema-validation",
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn("duplicates an earlier extraEnv entry", result.stderr)
+
+            byo_upstream = copy.deepcopy(base)
+            byo_upstream["services"].setdefault("proxy", {})["extraEnv"] = [{
+                "name": "CLAVENAR_UPSTREAM_URL",
+                "value": "https://operator-upstream.example/mcp",
+            }]
+            fixture.write_text(yaml.safe_dump(byo_upstream, sort_keys=False))
+            result = subprocess.run(
+                [
+                    "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
+                    "-f", str(fixture),
+                ],
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(0, result.returncode, result.stderr)
+            docs = [
+                item for item in yaml.safe_load_all(result.stdout)
+                if isinstance(item, dict)
+            ]
+            proxy = next(
+                item for item in docs
+                if item.get("kind") == "Deployment"
+                and item.get("metadata", {}).get("name") == "smoke-proxy"
+            )
+            proxy_names = [
+                entry["name"]
+                for entry in proxy["spec"]["template"]["spec"]["containers"][0]["env"]
+            ]
+            self.assertEqual(1, proxy_names.count("CLAVENAR_UPSTREAM_URL"))
+
+            upstream = copy.deepcopy(base)
+            upstream.setdefault("upstreamStub", {})["enabled"] = True
+            upstream["services"].setdefault("proxy", {})["extraEnv"] = [{
+                "name": "CLAVENAR_UPSTREAM_URL",
+                "value": "http://attacker.invalid/mcp",
+            }]
+            fixture.write_text(yaml.safe_dump(upstream, sort_keys=False))
+            for schema_args in ([], ["--skip-schema-validation"]):
+                with self.subTest(schema_args=schema_args):
+                    result = subprocess.run(
+                        [
+                            "helm", "template", "smoke",
+                            str(ROOT / "charts/clavenar"),
+                            "-f", str(fixture),
+                            *schema_args,
+                        ],
+                        text=True,
+                        capture_output=True,
+                    )
+                    self.assertNotEqual(0, result.returncode)
 
     def test_hil_pending_summary_route_auth_posture_is_exact(self):
         listener = next(
@@ -609,7 +890,11 @@ class ListenerMatrixTest(unittest.TestCase):
             }}
         }
         errors = []
-        CHECKER.validate_console_peers(valid, errors)
+        CHECKER.validate_exact_positive_peers(
+            valid,
+            ("networkPolicy.console.operatorMtls.allowedPeers",),
+            errors,
+        )
         self.assertEqual([], errors)
 
         invalid_peers = (
@@ -629,8 +914,489 @@ class ListenerMatrixTest(unittest.TestCase):
                 values = copy.deepcopy(valid)
                 values["networkPolicy"]["console"]["operatorMtls"]["allowedPeers"] = [peer]
                 errors = []
-                CHECKER.validate_console_peers(values, errors)
+                CHECKER.validate_exact_positive_peers(
+                    values,
+                    ("networkPolicy.console.operatorMtls.allowedPeers",),
+                    errors,
+                )
                 self.assertTrue(errors)
+
+    def test_production_profile_renders_exact_ledger_trusted_proxy_boundary(self):
+        values = CHECKER.effective_values(
+            ROOT / "charts/clavenar", self.scenarios["production"]
+        )
+        self.assertEqual("production", values["deploymentProfile"])
+        self.assertEqual("clavenar-runtime-auth", values["authSecrets"]["existingSecretName"])
+        self.assertTrue(values["services"]["ledger"]["requireTrustedProxy"])
+        self.assertEqual(
+            "spiffe://clavenar.local/service/website",
+            values["services"]["ledger"]["trustedProxySpiffe"],
+        )
+
+        ledger = next(
+            doc for doc in self.rendered["production"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        env = {
+            entry["name"]: entry.get("value")
+            for entry in ledger["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual("true", env["CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"])
+        self.assertEqual(
+            "spiffe://clavenar.local/service/website",
+            env["CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"],
+        )
+        self.assertEqual(
+            "spiffe://clavenar.local/service/proxy,"
+            "spiffe://clavenar.local/service/console,"
+            "spiffe://clavenar.local/service/deep-review,"
+            "spiffe://clavenar.local/service/simulator",
+            env["CLAVENAR_LEDGER_ALLOWED_CALLERS"],
+        )
+        internal_listener = next(
+            item for item in self.matrix["listeners"]
+            if item["service"] == "ledger" and item["listenerId"] == "internal-mtls"
+        )
+        self.assertIn("explicitly excludes website", internal_listener["authentication"])
+        self.assertIn("public /verify branch", internal_listener["authentication"])
+
+        configured_peers = values["networkPolicy"]["ledger"]["trustedProxy"]["allowedPeers"]
+        self.assertEqual(1, len(configured_peers))
+        website_peer = configured_peers[0]
+        self.assertEqual(
+            "clavenar-website",
+            website_peer["podSelector"]["matchLabels"]["app.kubernetes.io/name"],
+        )
+        website_namespace = website_peer["namespaceSelector"]["matchLabels"][
+            "kubernetes.io/metadata.name"
+        ]
+        self.assertNotEqual("default", website_namespace)
+        self.assertNotEqual(
+            values["networkPolicy"]["prometheusNamespaceLabel"],
+            website_namespace,
+        )
+        policy = next(
+            doc for doc in self.rendered["production"]
+            if doc.get("kind") == "NetworkPolicy"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        matching = [
+            rule for rule in policy["spec"]["ingress"]
+            if rule.get("from") == configured_peers
+        ]
+        self.assertEqual(
+            [{"protocol": "TCP", "port": 8183}],
+            matching[0]["ports"],
+        )
+        self.assertEqual(1, len(matching))
+        for rule in policy["spec"]["ingress"]:
+            if rule is matching[0]:
+                continue
+            self.assertFalse(
+                any(peer in (rule.get("from") or []) for peer in configured_peers),
+                rule,
+            )
+
+        default_values = CHECKER.effective_values(ROOT / "charts/clavenar", [])
+        self.assertEqual("evaluation", default_values["deploymentProfile"])
+        default_ledger = next(
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        default_env = {
+            entry["name"]: entry.get("value")
+            for entry in default_ledger["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual("false", default_env["CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"])
+        self.assertNotIn("CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE", default_env)
+
+    def test_ledger_full_verify_limiter_inventory_is_complete(self):
+        expected = {
+            "public-read": (
+                "/verify?full=true: 3 requests/source/minute, 12 requests "
+                "globally/minute, and one explicit full walk in flight; direct "
+                "public requests ignore forwarded addresses and share the "
+                "direct-or-untrusted source bucket; at most 64 trusted-client "
+                "source windows are retained, though this non-mTLS listener "
+                "cannot create one; all other routes have no request-rate limiter"
+            ),
+            "internal-mtls": (
+                "/verify?full=true: 3 requests/source/minute, 12 requests "
+                "globally/minute, and one explicit full walk in flight; only "
+                "the exact configured website mTLS caller with one valid "
+                "normalized forwarded address uses a trusted-client source "
+                "window; direct, malformed, or untrusted requests share the "
+                "direct-or-untrusted source bucket; at most 64 trusted-client "
+                "source windows are retained; all other routes have no "
+                "request-rate limiter"
+            ),
+        }
+        actual = {
+            item["listenerId"]: item["rateLimit"]
+            for item in self.matrix["listeners"]
+            if item["service"] == "ledger"
+        }
+        self.assertEqual(expected, actual)
+
+    def test_production_profile_value_mutations_fail_closed(self):
+        base = yaml.safe_load((ROOT / "tests/values-production.yaml").read_text())
+
+        def changed(path, value):
+            candidate = copy.deepcopy(base)
+            target = candidate
+            for part in path[:-1]:
+                target = target[part]
+            target[path[-1]] = value
+            return candidate
+
+        valid_peer = base["networkPolicy"]["ledger"]["trustedProxy"]["allowedPeers"][0]
+        prometheus_overlap = copy.deepcopy(base)
+        prometheus_overlap["networkPolicy"]["prometheusNamespaceLabel"] = (
+            "clavenar-edge"
+        )
+        cases = {
+            "unknown profile": changed(("deploymentProfile",), "staging"),
+            "chart-managed auth Secret": changed(
+                ("authSecrets", "existingSecretName"), ""
+            ),
+            "NetworkPolicy disabled": changed(("networkPolicy", "enabled"), False),
+            "unsafe Service topology": changed(
+                ("services", "ledger", "serviceType"), "LoadBalancer"
+            ),
+            "public and mTLS port alias": changed(
+                ("services", "ledger", "mtlsPort"), 8083
+            ),
+            "wrong public port": changed(("services", "ledger", "port"), 8183),
+            "missing workload TLS": changed(("tlsBundle", "secretName"), ""),
+            "auto-minted workload TLS": changed(("tlsBundle", "autoMint"), True),
+            "console disabled": changed(("services", "console", "enabled"), False),
+            "operator mTLS disabled": changed(
+                ("services", "console", "operatorMtls", "enabled"), False
+            ),
+            "missing public operator trust": changed(
+                (
+                    "services",
+                    "console",
+                    "operatorMtls",
+                    "publicTrustSecretName",
+                ),
+                "",
+            ),
+            "shared workload/operator trust": changed(
+                (
+                    "services",
+                    "console",
+                    "operatorMtls",
+                    "publicTrustSecretName",
+                ),
+                base["tlsBundle"]["secretName"],
+            ),
+            "ledger disabled": changed(("services", "ledger", "enabled"), False),
+            "trusted proxy enforcement disabled": changed(
+                ("services", "ledger", "requireTrustedProxy"), False
+            ),
+            "missing trusted proxy SPIFFE": changed(
+                ("services", "ledger", "trustedProxySpiffe"), ""
+            ),
+            "wrong trusted proxy SPIFFE": changed(
+                ("services", "ledger", "trustedProxySpiffe"),
+                "spiffe://clavenar.local/service/proxy",
+            ),
+            "missing website selector": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"), []
+            ),
+            "multiple website selectors": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [valid_peer, copy.deepcopy(valid_peer)],
+            ),
+            "website selector without namespace": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "podSelector": {"matchLabels": {
+                        "app.kubernetes.io/name": "clavenar-website"
+                    }},
+                }],
+            ),
+            "website selector without canonical namespace label": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "namespaceSelector": {"matchLabels": {"name": "clavenar-edge"}},
+                    "podSelector": {"matchLabels": {
+                        "app.kubernetes.io/name": "clavenar-website"
+                    }},
+                }],
+            ),
+            "website selector in release namespace": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "namespaceSelector": {"matchLabels": {
+                        "kubernetes.io/metadata.name": "default"
+                    }},
+                    "podSelector": {"matchLabels": {
+                        "app.kubernetes.io/name": "clavenar-website"
+                    }},
+                }],
+            ),
+            "website selector without canonical app label": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "namespaceSelector": {"matchLabels": {
+                        "kubernetes.io/metadata.name": "clavenar-edge"
+                    }},
+                    "podSelector": {"matchLabels": {"app": "website"}},
+                }],
+            ),
+            "website selector with wrong canonical app label": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "namespaceSelector": {"matchLabels": {
+                        "kubernetes.io/metadata.name": "clavenar-edge"
+                    }},
+                    "podSelector": {"matchLabels": {
+                        "app.kubernetes.io/name": "other-website"
+                    }},
+                }],
+            ),
+            "website selector overlaps Prometheus namespace": prometheus_overlap,
+            "selector without pod identity": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{"namespaceSelector": {"matchLabels": {"name": "edge"}}}],
+            ),
+            "empty pod selector": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{"podSelector": {"matchLabels": {}}}],
+            ),
+            "negative pod selector": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{"podSelector": {"matchExpressions": [
+                    {"key": "other", "operator": "DoesNotExist"}
+                ]}}],
+            ),
+            "ipBlock website peer": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{"ipBlock": {"cidr": "0.0.0.0/0"}}],
+            ),
+            "empty namespace selector": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "podSelector": {"matchLabels": {"app": "website"}},
+                    "namespaceSelector": {"matchLabels": {}},
+                }],
+            ),
+            "negative namespace selector": changed(
+                ("networkPolicy", "ledger", "trustedProxy", "allowedPeers"),
+                [{
+                    "podSelector": {"matchLabels": {"app": "website"}},
+                    "namespaceSelector": {"matchExpressions": [
+                        {"key": "other", "operator": "DoesNotExist"}
+                    ]},
+                }],
+            ),
+            "override enforcement env": changed(
+                ("services", "ledger", "extraEnv"),
+                [{
+                    "name": "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY",
+                    "value": "false",
+                }],
+            ),
+            "override trusted identity env": changed(
+                ("services", "ledger", "extraEnv"),
+                [{
+                    "name": "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE",
+                    "value": "spiffe://clavenar.local/service/proxy",
+                }],
+            ),
+            "override internal caller allowlist": changed(
+                ("services", "ledger", "extraEnv"),
+                [{
+                    "name": "CLAVENAR_LEDGER_ALLOWED_CALLERS",
+                    "value": "spiffe://clavenar.local/service/website",
+                }],
+            ),
+            "override TLS directory": changed(
+                ("services", "ledger", "extraEnv"),
+                [{"name": "CLAVENAR_LEDGER_TLS_DIR", "value": "/tmp"}],
+            ),
+            "override mTLS bind": changed(
+                ("services", "ledger", "extraEnv"),
+                [{"name": "CLAVENAR_LEDGER_MTLS_ADDR", "value": "0.0.0.0:8083"}],
+            ),
+        }
+        for name, values in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                fixture = Path(directory) / "values.yaml"
+                fixture.write_text(yaml.safe_dump(values, sort_keys=False))
+                result = subprocess.run(
+                    [
+                        "helm", "template", "smoke",
+                        str(ROOT / "charts/clavenar"),
+                        "-f", str(fixture),
+                    ],
+                    text=True,
+                    capture_output=True,
+                )
+                self.assertNotEqual(0, result.returncode, name)
+
+    def test_production_profile_rejects_prometheus_namespace_overlap_via_set(self):
+        result = subprocess.run(
+            [
+                "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
+                "-f", str(ROOT / "tests/values-production.yaml"),
+                "--set", "networkPolicy.prometheusNamespaceLabel=clavenar-edge",
+            ],
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(
+            "website namespace must differ from networkPolicy.prometheusNamespaceLabel",
+            result.stderr,
+        )
+
+    def test_checker_rejects_website_selector_overlap_boundaries(self):
+        base = CHECKER.effective_values(
+            ROOT / "charts/clavenar", self.scenarios["production"]
+        )
+
+        prometheus_overlap = copy.deepcopy(base)
+        prometheus_overlap["networkPolicy"]["prometheusNamespaceLabel"] = (
+            "clavenar-edge"
+        )
+        errors = CHECKER.validate(
+            self.matrix,
+            prometheus_overlap,
+            self.rendered["production"],
+            "smoke",
+        )
+        self.assertTrue(
+            any("must differ from the Prometheus namespace" in error for error in errors),
+            errors,
+        )
+
+        errors = CHECKER.validate(
+            self.matrix,
+            base,
+            self.rendered["production"],
+            "smoke",
+            namespace="clavenar-edge",
+        )
+        self.assertTrue(
+            any("must differ from the release namespace" in error for error in errors),
+            errors,
+        )
+
+        wrong_app = copy.deepcopy(base)
+        wrong_app["networkPolicy"]["ledger"]["trustedProxy"]["allowedPeers"][0][
+            "podSelector"
+        ]["matchLabels"]["app.kubernetes.io/name"] = "other-website"
+        errors = CHECKER.validate(
+            self.matrix,
+            wrong_app,
+            self.rendered["production"],
+            "smoke",
+        )
+        self.assertTrue(
+            any("app.kubernetes.io/name]=clavenar-website" in error for error in errors),
+            errors,
+        )
+
+    def test_production_ledger_manifest_mutations_fail_closed(self):
+        values = CHECKER.effective_values(
+            ROOT / "charts/clavenar", self.scenarios["production"]
+        )
+        configured_peers = values["networkPolicy"]["ledger"]["trustedProxy"]["allowedPeers"]
+        mutations = {}
+
+        enforcement = copy.deepcopy(self.rendered["production"])
+        ledger = next(
+            doc for doc in enforcement
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        env = ledger["spec"]["template"]["spec"]["containers"][0]["env"]
+        next(
+            entry for entry in env
+            if entry["name"] == "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"
+        )["value"] = "false"
+        mutations["enforcement disabled"] = enforcement
+
+        identity = copy.deepcopy(self.rendered["production"])
+        ledger = next(
+            doc for doc in identity
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        env = ledger["spec"]["template"]["spec"]["containers"][0]["env"]
+        next(
+            entry for entry in env
+            if entry["name"] == "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"
+        )["value"] = "spiffe://clavenar.local/service/proxy"
+        mutations["wrong trusted identity"] = identity
+
+        allowlist = copy.deepcopy(self.rendered["production"])
+        ledger = next(
+            doc for doc in allowlist
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        env = ledger["spec"]["template"]["spec"]["containers"][0]["env"]
+        next(
+            entry for entry in env
+            if entry["name"] == "CLAVENAR_LEDGER_ALLOWED_CALLERS"
+        )["value"] += ",spiffe://clavenar.local/service/website"
+        mutations["website escalated into internal-route allowlist"] = allowlist
+
+        wrong_port = copy.deepcopy(self.rendered["production"])
+        policy = next(
+            doc for doc in wrong_port
+            if doc.get("kind") == "NetworkPolicy"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        rule = next(
+            entry for entry in policy["spec"]["ingress"]
+            if entry.get("from") == configured_peers
+        )
+        rule["ports"][0]["port"] = 8083
+        mutations["website admitted to public port"] = wrong_port
+
+        leaked_peer = copy.deepcopy(self.rendered["production"])
+        policy = next(
+            doc for doc in leaked_peer
+            if doc.get("kind") == "NetworkPolicy"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        public_rule = next(
+            entry for entry in policy["spec"]["ingress"]
+            if entry["ports"] == [{"protocol": "TCP", "port": 8083}]
+        )
+        public_rule["from"].append(copy.deepcopy(configured_peers[0]))
+        mutations["website selector leaked to public port"] = leaked_peer
+
+        namespace_wide = copy.deepcopy(self.rendered["production"])
+        policy = next(
+            doc for doc in namespace_wide
+            if doc.get("kind") == "NetworkPolicy"
+            and doc.get("metadata", {}).get("name") == "smoke-ledger"
+        )
+        public_rule = next(
+            entry for entry in policy["spec"]["ingress"]
+            if entry["ports"] == [{"protocol": "TCP", "port": 8083}]
+        )
+        public_rule["from"].append({
+            "namespaceSelector": {"matchLabels": {
+                "kubernetes.io/metadata.name": "clavenar-edge"
+            }}
+        })
+        mutations["website namespace admitted namespace-wide to public port"] = (
+            namespace_wide
+        )
+
+        for name, docs in mutations.items():
+            with self.subTest(name=name):
+                errors = CHECKER.validate(self.matrix, values, docs, "smoke")
+                self.assertTrue(errors, name)
 
     def test_console_contract_render_mutations_fail_closed(self):
         scenarios = {
@@ -758,6 +1524,17 @@ class ListenerMatrixTest(unittest.TestCase):
 
     def test_values_schema_carries_fixed_listener_contracts(self):
         schema = json.loads((ROOT / "charts/clavenar/values.schema.json").read_text())
+        for service, expected in GOVERNED_ENV_BY_SERVICE.items():
+            with self.subTest(governed_env_schema=service):
+                actual = schema["properties"]["services"]["properties"][service][
+                    "properties"
+                ]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
+                self.assertEqual(expected, set(actual))
+        self.assertIn("CLAVENAR_UPSTREAM_URL", json.dumps(schema["allOf"]))
+        self.assertEqual(
+            ["evaluation", "production"],
+            schema["properties"]["deploymentProfile"]["enum"],
+        )
         auth_secrets = schema["properties"]["authSecrets"]
         self.assertFalse(auth_secrets["additionalProperties"])
         self.assertEqual(["existingSecretName"], auth_secrets["required"])
@@ -810,6 +1587,59 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertEqual(
             "clavenar.local",
             schema["properties"]["tlsBundle"]["properties"]["spiffeTrustDomain"]["const"],
+        )
+
+        ledger = schema["properties"]["services"]["properties"]["ledger"]
+        self.assertEqual(
+            ["", "spiffe://clavenar.local/service/website"],
+            ledger["properties"]["trustedProxySpiffe"]["enum"],
+        )
+        ledger_forbidden = (
+            ledger["properties"]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
+        )
+        self.assertTrue(
+            {
+                "CLAVENAR_LEDGER_ALLOWED_CALLERS",
+                "CLAVENAR_LEDGER_TLS_DIR",
+                "CLAVENAR_LEDGER_MTLS_ADDR",
+                "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY",
+                "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE",
+            }
+            <= set(ledger_forbidden),
+        )
+        trusted_peer = schema["properties"]["networkPolicy"]["properties"]["ledger"]
+        self.assertFalse(trusted_peer["additionalProperties"])
+        self.assertEqual(
+            "#/definitions/ledgerTrustedProxyPeerClass",
+            trusted_peer["properties"]["trustedProxy"]["$ref"],
+        )
+        ledger_peer = schema["definitions"]["ledgerTrustedProxyPeerClass"][
+            "properties"
+        ]["allowedPeers"]["items"]
+        self.assertEqual(
+            {"podSelector", "namespaceSelector"},
+            set(ledger_peer["required"]),
+        )
+        website_pod_labels = schema["definitions"]["canonicalWebsitePodSelector"][
+            "properties"
+        ]["matchLabels"]
+        self.assertEqual(
+            "clavenar-website",
+            website_pod_labels["properties"]["app.kubernetes.io/name"]["const"],
+        )
+        self.assertIn("app.kubernetes.io/name", website_pod_labels["required"])
+        website_namespace_labels = schema["definitions"][
+            "externalWebsiteNamespaceSelector"
+        ]["properties"]["matchLabels"]
+        self.assertIn(
+            "kubernetes.io/metadata.name",
+            website_namespace_labels["required"],
+        )
+        self.assertEqual(
+            1,
+            website_namespace_labels["properties"][
+                "kubernetes.io/metadata.name"
+            ]["minLength"],
         )
 
         assurance = schema["properties"]["services"]["properties"]["assurance"]
