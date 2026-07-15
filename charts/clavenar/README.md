@@ -48,6 +48,7 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
   --set vault.addr=https://vault.internal:8200 \
   --set vault.tokenSecretName=clavenar-vault-token \
   --set authSecrets.existingSecretName=clavenar-runtime-auth \
+  --set authSecrets.rotationId=prod-20260715-01 \
   --set tlsBundle.secretName=clavenar-certs \
   --set tlsBundle.autoMint=false \
   --set services.console.operatorMtls.enabled=true \
@@ -67,6 +68,7 @@ command above. The production profile refuses to render unless all of these
 boundaries are present together:
 
 - `authSecrets.existingSecretName` selects operator-managed HIL credentials;
+- `authSecrets.rotationId` selects an explicit non-secret credential generation;
 - NetworkPolicy is enabled;
 - an existing workload-TLS Secret is selected and auto-mint is disabled;
 - console operator mTLS uses a distinct public operator-trust Secret;
@@ -116,7 +118,8 @@ kubectl -n clavenar create secret generic clavenar-runtime-auth \
   --from-file=hil-decide-token=/secure/path/hil-decide-token
 
 helm upgrade --install my-clavenar . --namespace clavenar \
-  --set authSecrets.existingSecretName=clavenar-runtime-auth
+  --set authSecrets.existingSecretName=clavenar-runtime-auth \
+  --set authSecrets.rotationId=prod-20260715-01
 ```
 
 The Secret can instead be reconciled by External Secrets, Secrets Store CSI,
@@ -132,6 +135,7 @@ Secret without appearing literally in chart values:
 ```yaml
 authSecrets:
   existingSecretName: clavenar-runtime-auth
+  rotationId: prod-20260715-01
 
 services:
   console:
@@ -197,9 +201,20 @@ chart only projects the selected key.
 
 The complete render fixture is
 [`tests/values-existing-auth-secret.yaml`](../../tests/values-existing-auth-secret.yaml).
-Key rotation and rejection of previously issued tokens are intentionally not
-performed by this chart; operators should coordinate those lifecycle actions
-separately.
+
+`authSecrets.rotationId` is a public compare-and-swap generation, not a
+credential. In chart-managed evaluation mode, leaving it unchanged preserves
+the generated HIL keys on upgrade; changing it generates both replacement
+values and rolls every Deployment. With an external Secret, update all of its
+credential and JWKS entries atomically first, then advance `rotationId` in the
+same controlled release so every consumer rolls onto that generation. Reusing
+the identifier is a no-op. Production rejects the evaluation-only
+`bootstrap-v1` identifier and requires an operator-selected value.
+
+The chart coordinates rollout but cannot retain or exercise superseded token
+bytes. Operators must separately prove old HIL, OIDC, and demo tokens are
+rejected after readiness, and must recover forward rather than restoring a
+superseded generation.
 
 ### Lab agent (interactive Claude Code in-cluster)
 
@@ -353,6 +368,7 @@ vault: { addr: "", tokenSecretName: "" }
 authSecrets:
   existingSecretName: ""               # empty: chart-managed <release>-shared-tokens
                                         # set: existing Secret with both HIL keys
+  rotationId: bootstrap-v1              # change explicitly to rotate and roll consumers
 
 drainCapSecs: 30                         # CLAVENAR_GRACEFUL_DRAIN_SECS
 

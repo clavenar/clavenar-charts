@@ -232,6 +232,21 @@ class ListenerMatrixTest(unittest.TestCase):
             {"hil-decide-token", "hil-session-key"},
             set(generated["data"]),
         )
+        self.assertEqual(
+            "bootstrap-v1",
+            generated["metadata"]["annotations"]["clavenar.io/auth-rotation-id"],
+        )
+
+        for deployment in (
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "Deployment"
+        ):
+            self.assertEqual(
+                "bootstrap-v1",
+                deployment["spec"]["template"]["metadata"]["annotations"][
+                    "clavenar.io/auth-rotation-id"
+                ],
+            )
 
         default_hil = next(
             doc for doc in self.rendered["default"]
@@ -1537,11 +1552,12 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         auth_secrets = schema["properties"]["authSecrets"]
         self.assertFalse(auth_secrets["additionalProperties"])
-        self.assertEqual(["existingSecretName"], auth_secrets["required"])
+        self.assertEqual(["existingSecretName", "rotationId"], auth_secrets["required"])
         self.assertEqual(
             253,
             auth_secrets["properties"]["existingSecretName"]["maxLength"],
         )
+        self.assertEqual(128, auth_secrets["properties"]["rotationId"]["maxLength"])
         console = schema["properties"]["services"]["properties"]["console"]
         self.assertEqual(8085, console["properties"]["port"]["const"])
         self.assertEqual(9085, console["properties"]["demoPort"]["const"])

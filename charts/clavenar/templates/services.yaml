@@ -42,6 +42,9 @@ spec:
       labels:
         {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 8 }}
       annotations:
+        # Roll every credential consumer only when the operator advances the
+        # public generation after updating the referenced Secret.
+        clavenar.io/auth-rotation-id: {{ required "authSecrets.rotationId is required" $.Values.authSecrets.rotationId | quote }}
         {{- include "clavenar.metricsAnnotations" (dict "ctx" $ "svcCfg" $cfg) | trim | nindent 8 }}
         {{- if $.Values.tlsBundle.autoMint }}
         # Roll the pod when the auto-mint script changes — the SAN

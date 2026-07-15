@@ -56,7 +56,10 @@ HIL's session and decision credentials are always rendered into Deployments as
 Kubernetes `secretKeyRef`s, never literal values. By default the chart manages
 the upgrade-stable `<release>-shared-tokens` Secret; production operators can
 set `authSecrets.existingSecretName` to a Secret reconciled by their own secret
-manager instead.
+manager instead. `authSecrets.rotationId` is the non-secret rollout generation:
+the same value preserves chart-managed keys, while a new value rotates those
+keys and rolls every consumer. External-secret operators update the complete
+Secret first and advance the identifier in the controlled release.
 
 NATS and Vault are not bundled by default. Operators can bring their own or
 enable the evaluation-only subcharts.

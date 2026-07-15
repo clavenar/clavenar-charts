@@ -6,6 +6,7 @@ deploymentProfile: production
 
 authSecrets:
   existingSecretName: clavenar-runtime-auth
+  rotationId: prod-20260715-01
 
 tlsBundle:
   secretName: clavenar-workload-tls

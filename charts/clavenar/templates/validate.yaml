@@ -75,6 +75,9 @@
 {{- if empty .Values.authSecrets.existingSecretName }}
 {{- fail "deploymentProfile=production requires authSecrets.existingSecretName from an operator-managed secret store" }}
 {{- end }}
+{{- if eq .Values.authSecrets.rotationId "bootstrap-v1" }}
+{{- fail "deploymentProfile=production requires an operator-selected authSecrets.rotationId; bootstrap-v1 is evaluation-only" }}
+{{- end }}
 {{- if not .Values.networkPolicy.enabled }}
 {{- fail "deploymentProfile=production requires networkPolicy.enabled=true" }}
 {{- end }}

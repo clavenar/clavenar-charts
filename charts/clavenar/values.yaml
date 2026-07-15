@@ -24,6 +24,12 @@ imagePullSecrets: []
 # both keys; the chart deliberately does not copy or render their values.
 authSecrets:
   existingSecretName: ""
+  # Public, non-secret credential generation identifier. Change this only
+  # after the referenced Secret has been atomically updated. Every chart
+  # Deployment then rolls onto that generation. In chart-managed evaluation
+  # mode, changing it also generates new HIL values; repeating the same value
+  # is a no-op that preserves the current Secret data.
+  rotationId: bootstrap-v1
 
 # NATS + Vault default to BYO (bring-your-own). Flip `bundled.enabled`
 # to have the chart install the upstream subcharts alongside the
