@@ -75,6 +75,150 @@ class ListenerMatrixTest(unittest.TestCase):
         values["nats"]["bundled"]["enabled"] = True
         self.assertEqual([], CHECKER.validate(self.matrix, values, docs, "smoke"))
 
+    def test_authentication_secret_refs_support_chart_and_operator_ownership(self):
+        generated = next(
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "Secret"
+            and doc.get("metadata", {}).get("name") == "smoke-shared-tokens"
+        )
+        self.assertEqual(
+            {"hil-decide-token", "hil-session-key"},
+            set(generated["data"]),
+        )
+
+        default_hil = next(
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-hil"
+        )
+        default_env = {
+            entry["name"]: entry
+            for entry in default_hil["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        for env_name, key in (
+            ("CLAVENAR_HIL_DECIDE_TOKEN", "hil-decide-token"),
+            ("CLAVENAR_HIL_SESSION_KEY", "hil-session-key"),
+        ):
+            self.assertNotIn("value", default_env[env_name])
+            self.assertEqual(
+                {"name": "smoke-shared-tokens", "key": key},
+                default_env[env_name]["valueFrom"]["secretKeyRef"],
+            )
+
+        command = [
+            "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
+            "-f", str(ROOT / "tests/values-all-on.yaml"),
+            "-f", str(ROOT / "tests/values-existing-auth-secret.yaml"),
+        ]
+        output = subprocess.run(
+            command, check=True, text=True, capture_output=True
+        ).stdout
+        rendered = [
+            doc for doc in yaml.safe_load_all(output) if isinstance(doc, dict)
+        ]
+
+        rendered_secret_names = {
+            doc.get("metadata", {}).get("name")
+            for doc in rendered if doc.get("kind") == "Secret"
+        }
+        self.assertNotIn("smoke-shared-tokens", rendered_secret_names)
+        self.assertNotIn("clavenar-runtime-auth", rendered_secret_names)
+
+        expected = {
+            "smoke-console": {
+                "CLAVENAR_HIL_DECIDE_TOKEN": "hil-decide-token",
+                "CLAVENAR_CONSOLE_DEMO_SESSION_HS256": "demo-session-hs256",
+            },
+            "smoke-hil": {
+                "CLAVENAR_HIL_DECIDE_TOKEN": "hil-decide-token",
+                "CLAVENAR_HIL_SESSION_KEY": "hil-session-key",
+                "CLAVENAR_HIL_DEMO_SESSION_HS256": "demo-session-hs256",
+            },
+            "smoke-ledger": {
+                "CLAVENAR_LEDGER_DEMO_SESSION_HS256": "demo-session-hs256",
+            },
+        }
+        for deployment_name, secret_env in expected.items():
+            deployment = next(
+                doc for doc in rendered
+                if doc.get("kind") == "Deployment"
+                and doc.get("metadata", {}).get("name") == deployment_name
+            )
+            env = {
+                entry["name"]: entry
+                for entry in deployment["spec"]["template"]["spec"]["containers"][0]["env"]
+            }
+            for env_name, key in secret_env.items():
+                with self.subTest(deployment=deployment_name, env=env_name):
+                    self.assertNotIn("value", env[env_name])
+                    self.assertEqual(
+                        {"name": "clavenar-runtime-auth", "key": key},
+                        env[env_name]["valueFrom"]["secretKeyRef"],
+                    )
+
+        identity = next(
+            doc for doc in rendered
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-identity"
+        )["spec"]["template"]["spec"]
+        identity_env = {
+            entry["name"]: entry.get("value")
+            for entry in identity["containers"][0]["env"]
+        }
+        self.assertEqual(
+            "/var/run/clavenar-oidc/acme-jwks.json",
+            identity_env["CLAVENAR_IDENTITY_OIDC_TENANT_ACME_RS256_JWKS_FILE"],
+        )
+        self.assertEqual(
+            "true",
+            identity_env["CLAVENAR_IDENTITY_REQUIRE_ASYMMETRIC_OIDC"],
+        )
+        oidc_mount = next(
+            mount for mount in identity["containers"][0]["volumeMounts"]
+            if mount["name"] == "oidc-jwks"
+        )
+        self.assertEqual(
+            {"name": "oidc-jwks", "mountPath": "/var/run/clavenar-oidc", "readOnly": True},
+            oidc_mount,
+        )
+        oidc_volume = next(
+            volume for volume in identity["volumes"]
+            if volume["name"] == "oidc-jwks"
+        )
+        self.assertEqual(
+            {
+                "secretName": "clavenar-runtime-auth",
+                "items": [{"key": "oidc-jwks.json", "path": "acme-jwks.json"}],
+            },
+            oidc_volume["secret"],
+        )
+
+    def test_authentication_extra_env_rejects_literals_and_chart_owned_duplicates(self):
+        cases = (
+            ("hil", "CLAVENAR_HIL_SESSION_KEY"),
+            ("hil", "CLAVENAR_HIL_DECIDE_TOKEN"),
+            ("hil", "CLAVENAR_HIL_DEMO_SESSION_HS256"),
+            ("console", "CLAVENAR_CONSOLE_DEMO_SESSION_HS256"),
+            ("ledger", "CLAVENAR_LEDGER_DEMO_SESSION_HS256"),
+            ("identity", "CLAVENAR_IDENTITY_OIDC_HS256_KEY"),
+            ("identity", "CLAVENAR_IDENTITY_OIDC_TENANT_ACME_HS256_KEY"),
+        )
+        for service, variable in cases:
+            with self.subTest(service=service, variable=variable):
+                command = [
+                    "helm",
+                    "template",
+                    "smoke",
+                    str(ROOT / "charts/clavenar"),
+                    "--set-string",
+                    f"services.{service}.extraEnv[0].name={variable}",
+                    "--set-string",
+                    f"services.{service}.extraEnv[0].value=tracked-literal-must-fail",
+                ]
+                result = subprocess.run(command, text=True, capture_output=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("authentication", result.stderr)
+
     def test_hil_pending_summary_route_auth_posture_is_exact(self):
         listener = next(
             item
@@ -447,6 +591,13 @@ class ListenerMatrixTest(unittest.TestCase):
 
     def test_console_values_schema_carries_fixed_listener_contract(self):
         schema = json.loads((ROOT / "charts/clavenar/values.schema.json").read_text())
+        auth_secrets = schema["properties"]["authSecrets"]
+        self.assertFalse(auth_secrets["additionalProperties"])
+        self.assertEqual(["existingSecretName"], auth_secrets["required"])
+        self.assertEqual(
+            253,
+            auth_secrets["properties"]["existingSecretName"]["maxLength"],
+        )
         console = schema["properties"]["services"]["properties"]["console"]
         self.assertEqual(8085, console["properties"]["port"]["const"])
         self.assertEqual(9085, console["properties"]["demoPort"]["const"])
@@ -822,6 +973,8 @@ class ListenerMatrixTest(unittest.TestCase):
 
     def test_unsafe_service_type_and_console_configuration_are_rejected(self):
         cases = (
+            ["--set", "authSecrets.existingSecretName=Invalid_Name"],
+            ["--set", "authSecrets.unreviewedKey=value"],
             ["--set", "services.console.serviceType=LoadBalancer"],
             ["--set-json", 'networkPolicy.console.demo.allowedPeers=[{"podSelector":{}}]'],
             ["--set-json", 'networkPolicy.console.operatorMtls.allowedPeers=[{"ipBlock":{"cidr":"0.0.0.0/0"}}]'],

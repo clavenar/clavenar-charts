@@ -32,6 +32,12 @@ fresh install therefore serves the anonymous `/demo` preview safely, while
 signed demo routes stay closed until an operator supplies one dedicated key to
 console, HIL, and ledger as documented in the chart README.
 
+HIL's session and decision credentials are always rendered into Deployments as
+Kubernetes `secretKeyRef`s, never literal values. By default the chart manages
+the upgrade-stable `<release>-shared-tokens` Secret; production operators can
+set `authSecrets.existingSecretName` to a Secret reconciled by their own secret
+manager instead.
+
 NATS and Vault are not bundled by default. Operators can bring their own or
 enable the evaluation-only subcharts.
 
@@ -75,8 +81,13 @@ clavenar-e2e's compose-native end-to-end test.
 helm install my-clavenar charts/clavenar \
   --namespace clavenar --create-namespace \
   --set nats.url=nats://my-nats:4222 \
+  --set authSecrets.existingSecretName=clavenar-runtime-auth \
   --set tlsBundle.secretName=clavenar-certs
 ```
+
+The selected authentication Secret must already contain `hil-session-key` and
+`hil-decide-token`. Omit `authSecrets.existingSecretName` to retain the
+backwards-compatible chart-generated Secret.
 
 That default keeps console ingress denied and serves only the safe demo
 router if you port-forward it. Enabling operator mTLS additionally requires

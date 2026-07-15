@@ -3,6 +3,18 @@
   "title": "Clavenar Helm values",
   "type": "object",
   "properties": {
+    "authSecrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["existingSecretName"],
+      "properties": {
+        "existingSecretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        }
+      }
+    },
     "services": {
       "type": "object",
       "properties": {

@@ -13,6 +13,13 @@ Helpers for the Clavenar chart. Image-tag fallback chain:
 {{- end -}}
 {{- end -}}
 
+{{/* Shared authentication Secret. Preserve the historical
+`<release>-shared-tokens` default while allowing production operators to
+reference a Secret managed outside this release. */}}
+{{- define "clavenar.authSecretName" -}}
+{{- default (printf "%s-shared-tokens" .Release.Name) .Values.authSecrets.existingSecretName -}}
+{{- end -}}
+
 {{/* Per-service fullname: <release>-<service>. The values key is
 camelCase to form a valid Go-template path; k8s object names need
 RFC-1123 lowercase, so we kebabcase here. */}}
@@ -116,6 +123,38 @@ Job's env. */}}
 {{- $services = append $services "nats" -}}
 {{- end -}}
 {{ join " " $services }}
+{{- end -}}
+
+{{/*
+Reject authentication material that would be rendered literally through
+services.<name>.extraEnv. HIL's session and decision variables are chart-owned
+and already emitted as secretKeyRef entries, so allowing duplicates would both
+leak a value into the Pod spec and make precedence ambiguous. Optional shared
+demo-session variables remain configurable, but only through an explicit
+secretKeyRef.
+*/}}
+{{- define "clavenar.validateAuthExtraEnv" -}}
+{{- $service := .service -}}
+{{- range $entry := default (list) .svcCfg.extraEnv -}}
+{{- $name := default "" $entry.name -}}
+{{- if and (eq $service "hil") (or (eq $name "CLAVENAR_HIL_SESSION_KEY") (eq $name "CLAVENAR_HIL_DECIDE_TOKEN")) -}}
+{{- fail (printf "services.%s.extraEnv must not override chart-owned authentication variable %s; use authSecrets.existingSecretName" $service $name) -}}
+{{- end -}}
+{{- if and (eq $service "identity") (or (eq $name "CLAVENAR_IDENTITY_OIDC_HS256_KEY") (regexMatch "^CLAVENAR_IDENTITY_OIDC_TENANT_.*_HS256_KEY$" $name)) -}}
+{{- fail (printf "services.%s.extraEnv authentication variable %s is a symmetric OIDC signing key; official chart deployments require an RS256 JWKS file" $service $name) -}}
+{{- end -}}
+{{- $demoAuth := or
+      (and (eq $service "console") (eq $name "CLAVENAR_CONSOLE_DEMO_SESSION_HS256"))
+      (and (eq $service "hil") (eq $name "CLAVENAR_HIL_DEMO_SESSION_HS256"))
+      (and (eq $service "ledger") (eq $name "CLAVENAR_LEDGER_DEMO_SESSION_HS256")) -}}
+{{- if $demoAuth -}}
+{{- $valueFrom := default (dict) $entry.valueFrom -}}
+{{- $secretKeyRef := default (dict) $valueFrom.secretKeyRef -}}
+{{- if or (hasKey $entry "value") (empty $secretKeyRef.name) (empty $secretKeyRef.key) -}}
+{{- fail (printf "services.%s.extraEnv authentication variable %s requires valueFrom.secretKeyRef with non-empty name and key; literal values are forbidden" $service $name) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Shared NATS + drain-cap envs, then per-component back-end URLs,

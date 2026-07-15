@@ -14,6 +14,9 @@ inside the range is the iterated value.
 {{- $persist := index $.Values.persistence $name | default dict }}
 {{- $operatorMtls := and (eq $name "console") (dig "operatorMtls" "enabled" false $cfg) }}
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
+{{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
+{{- $extraVolumes := default (list) $cfg.extraVolumes }}
+{{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
 {{- /* SQLite on a shared PVC corrupts under concurrent writers, so a
        persistence-enabled (SQLite-backed) service refuses replicas>1
        at template time instead of corrupting at runtime. Postgres-mode
@@ -132,7 +135,7 @@ spec:
             - name: CLAVENAR_HIL_DECIDE_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Release.Name }}-shared-tokens
+                  name: {{ include "clavenar.authSecretName" $ }}
                   key: hil-decide-token
             {{- end }}
             {{- if eq $name "hil" }}
@@ -143,7 +146,7 @@ spec:
             - name: CLAVENAR_HIL_SESSION_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ $.Release.Name }}-shared-tokens
+                  name: {{ include "clavenar.authSecretName" $ }}
                   key: hil-session-key
             {{- end }}
           livenessProbe:
@@ -154,7 +157,7 @@ spec:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- $mountsOperatorTrust := $operatorMtls }}
-          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -170,8 +173,11 @@ spec:
               mountPath: /operator-trust
               readOnly: true
             {{- end }}
+            {{- with $extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -248,6 +254,9 @@ spec:
                 path: ca.crt
               - key: operators.json
                 path: operators.json
+        {{- end }}
+        {{- with $extraVolumes }}
+        {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- end }}
 ---

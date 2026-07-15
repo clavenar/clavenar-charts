@@ -15,7 +15,7 @@ description: |
   the clavenar services in a single `helm install`. Images are pulled
   from ghcr.io/clavenar by default.
 type: application
-version: 0.10.0
+version: 0.11.0
 # Mirrors clavenar-charts/VERSION — the latest image set published to
 # ghcr.io/clavenar by scripts/push-images.sh. Independent of
 # clavenar-internal-specs/VERSION (which tracks the demo VPS deploy, not GHCR).

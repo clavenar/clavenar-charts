@@ -64,6 +64,7 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
+| HIL auth keys | Chart creates and upgrade-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret |
 | Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
 | Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes 7 Claude-Code-built-in-parity tools (`bash`, `read_file`, …) so an agent whose built-ins are denylisted still has a shell, but every call lands in the ledger | Lab-only; production still routes to a real MCP via `CLAVENAR_UPSTREAM_URL` |
@@ -71,6 +72,103 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
 | State durability | Vault loses state on pod restart (re-bootstrapped) | Whatever your external Vault does |
+
+### Authentication Secrets
+
+The default remains backwards compatible: the chart generates
+`<release>-shared-tokens`, keeps its data stable across upgrades, and injects
+the HIL session and console-to-HIL decision credentials only through
+`secretKeyRef`. For production, pre-provision an Opaque Secret containing
+`hil-session-key` and `hil-decide-token`, then select it without putting either
+value in a values file or Deployment manifest:
+
+```bash
+kubectl -n clavenar create secret generic clavenar-runtime-auth \
+  --from-file=hil-session-key=/secure/path/hil-session-key \
+  --from-file=hil-decide-token=/secure/path/hil-decide-token
+
+helm upgrade --install my-clavenar . --namespace clavenar \
+  --set authSecrets.existingSecretName=clavenar-runtime-auth
+```
+
+The Secret can instead be reconciled by External Secrets, Secrets Store CSI,
+Sealed Secrets, or another controller. When `existingSecretName` is non-empty,
+this chart does not create, copy, or take ownership of that Secret. Both keys
+must already exist; missing keys keep the affected Pods from starting.
+
+Optional symmetric credentials use the same `valueFrom.secretKeyRef` shape
+through per-service `extraEnv`. For example, a dedicated demo-session key
+shared by console, HIL, and ledger can live in the same externally managed
+Secret without appearing literally in chart values:
+
+```yaml
+authSecrets:
+  existingSecretName: clavenar-runtime-auth
+
+services:
+  console:
+    extraEnv:
+      - name: CLAVENAR_CONSOLE_DEMO_SESSION_HS256
+        valueFrom:
+          secretKeyRef: { name: clavenar-runtime-auth, key: demo-session-hs256 }
+  hil:
+    extraEnv:
+      - name: CLAVENAR_HIL_DB
+        value: /var/lib/clavenar/hil.db
+      - name: CLAVENAR_HIL_DEMO_SESSION_HS256
+        valueFrom:
+          secretKeyRef: { name: clavenar-runtime-auth, key: demo-session-hs256 }
+  ledger:
+    extraEnv:
+      - name: CLAVENAR_LEDGER_DB
+        value: /var/lib/clavenar/ledger.db
+      - name: CLAVENAR_LEDGER_DEMO_SESSION_HS256
+        valueFrom:
+          secretKeyRef: { name: clavenar-runtime-auth, key: demo-session-hs256 }
+```
+
+The chart fails rendering if HIL `extraEnv` attempts to duplicate its
+chart-owned session/decision variables. It also rejects literal values for the
+recognized console/HIL/ledger demo-session variables; those optional entries
+must contain a non-empty `valueFrom.secretKeyRef`. This keeps authentication
+values out of values files, rendered Pod specs, and release receipts. Identity
+legacy `CLAVENAR_IDENTITY_OIDC_HS256_KEY` and tenant-scoped
+`CLAVENAR_IDENTITY_OIDC_TENANT_*_HS256_KEY` entries are rejected entirely in
+the chart path; use the verification-only RS256 JWKS projection below.
+
+Identity's production OIDC verifier is asymmetric: project the IdP's public
+RS256 JWKS as a read-only file with the per-service `extraVolumes` /
+`extraVolumeMounts` hooks, then use `extraEnv` only for the non-secret
+issuer/audience, the file path, and the strict-mode flag:
+
+```yaml
+services:
+  identity:
+    extraEnv:
+      - { name: CLAVENAR_IDENTITY_DB, value: /var/lib/clavenar/identity.db }
+      - { name: CLAVENAR_IDENTITY_OIDC_TENANT_ACME_ISSUER, value: "https://idp.example.com/" }
+      - { name: CLAVENAR_IDENTITY_OIDC_TENANT_ACME_AUDIENCE, value: clavenar-identity }
+      - { name: CLAVENAR_IDENTITY_OIDC_TENANT_ACME_RS256_JWKS_FILE, value: /var/run/clavenar-oidc/acme-jwks.json }
+      - { name: CLAVENAR_IDENTITY_REQUIRE_ASYMMETRIC_OIDC, value: "true" }
+    extraVolumeMounts:
+      - { name: oidc-jwks, mountPath: /var/run/clavenar-oidc, readOnly: true }
+    extraVolumes:
+      - name: oidc-jwks
+        secret:
+          secretName: clavenar-runtime-auth
+          items:
+            - { key: oidc-jwks.json, path: acme-jwks.json }
+```
+
+JWKS contains verification-only public keys, never the issuer's private signing
+key. An external secret-store controller can own the referenced Secret; the
+chart only projects the selected key.
+
+The complete render fixture is
+[`tests/values-existing-auth-secret.yaml`](../../tests/values-existing-auth-secret.yaml).
+Key rotation and rejection of previously issued tokens are intentionally not
+performed by this chart; operators should coordinate those lifecycle actions
+separately.
 
 ### Lab agent (interactive Claude Code in-cluster)
 
@@ -129,6 +227,8 @@ apply walkthrough.
   `services.hil.extraEnv` (`CLAVENAR_HIL_DEMO_SESSION_HS256`), and
   `services.ledger.extraEnv` (`CLAVENAR_LEDGER_DEMO_SESSION_HS256`); keep it
   separate from operator/workload trust and provide a reviewed token issuer.
+  Use `valueFrom.secretKeyRef` as shown in Authentication Secrets above; never
+  put the key in an inline `value`.
 - **Governed listener inventory** — `listeners.yaml` records every
   application and probe-only bind, Service publication, protocol,
   authentication/callers, limits, and external-publication posture.
@@ -209,6 +309,10 @@ imagePullSecrets: []
 
 nats:  { url: nats://nats:4222 }
 vault: { addr: "", tokenSecretName: "" }
+
+authSecrets:
+  existingSecretName: ""               # empty: chart-managed <release>-shared-tokens
+                                        # set: existing Secret with both HIL keys
 
 drainCapSecs: 30                         # CLAVENAR_GRACEFUL_DRAIN_SECS
 
