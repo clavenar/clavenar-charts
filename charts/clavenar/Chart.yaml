@@ -19,7 +19,7 @@ version: 0.13.0
 # Mirrors clavenar-charts/VERSION — the latest image set published to
 # ghcr.io/clavenar by scripts/push-images.sh. Independent of
 # clavenar-internal-specs/VERSION (which tracks the demo VPS deploy, not GHCR).
-appVersion: "0.1.11"
+appVersion: "0.1.12"
 dependencies:
   - name: nats
     version: "1.2.5"
