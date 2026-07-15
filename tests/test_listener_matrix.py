@@ -75,6 +75,24 @@ class ListenerMatrixTest(unittest.TestCase):
         values["nats"]["bundled"]["enabled"] = True
         self.assertEqual([], CHECKER.validate(self.matrix, values, docs, "smoke"))
 
+    def test_hil_pending_summary_route_auth_posture_is_exact(self):
+        listener = next(
+            item
+            for item in self.matrix["listeners"]
+            if item["service"] == "hil" and item["listenerId"] == "application"
+        )
+        self.assertIn("/pending/summaries", listener["ingressPaths"])
+        self.assertIn(
+            "pending reads, including /pending/summaries, require no additional application credential",
+            listener["authentication"],
+        )
+        self.assertIn("valid demo cookie narrows", listener["authentication"])
+        self.assertIn(
+            "SPIFFE allowlist [proxy, console, simulator]",
+            listener["authentication"],
+        )
+        self.assertIn("simulator", listener["authorizedCallers"])
+
     def test_console_profiles_render_exact_trust_classes(self):
         def resource(profile, kind):
             return next(
