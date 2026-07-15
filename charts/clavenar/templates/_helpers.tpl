@@ -368,6 +368,16 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "spiffe://clavenar.local/service/console"
 - name: CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT
   value: "9088"
+- name: CLAVENAR_ASSURANCE_FORENSIC_SUBJECT
+  value: {{ .ctx.Values.services.assurance.forensicSubject | quote }}
+- name: CLAVENAR_ASSURANCE_FORENSIC_STREAM
+  value: {{ .ctx.Values.services.assurance.forensicStream | quote }}
+- name: CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS
+  value: {{ .ctx.Values.services.assurance.requestTimeoutSecs | quote }}
+- name: CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS
+  value: {{ .ctx.Values.services.assurance.runTimeoutSecs | quote }}
+- name: CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS
+  value: {{ .ctx.Values.services.assurance.publishTimeoutSecs | quote }}
 {{- if $tlsOn }}
 # Proxy attacks + NATS use the generic agent identity. The receive-side
 # control listener uses service-assurance and authorizes only console.

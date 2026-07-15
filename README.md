@@ -23,7 +23,9 @@ on separate listeners and NetworkPolicy trust classes.
 Assurance control is separately fail-closed: `:8088` requires workload mTLS
 and the exact console SPIFFE identity, while plain `:9088` exposes only
 side-effect-free health and readiness routes. Demo visitors cannot trigger
-assurance runs.
+assurance runs. Chart-governed request, whole-run, and publish deadlines bound
+execution, and completion advances only after the configured exact JetStream
+forensic stream acknowledges the result.
 
 The chart does not auto-mint a demo-session signing key or token issuer. A
 fresh install therefore serves the anonymous `/demo` preview safely, while

@@ -161,6 +161,11 @@
             "serviceType",
             "probes",
             "metrics",
+            "forensicSubject",
+            "forensicStream",
+            "requestTimeoutSecs",
+            "runTimeoutSecs",
+            "publishTimeoutSecs",
             "extraEnv"
           ],
           "properties": {
@@ -187,6 +192,33 @@
                 "enabled": { "const": false }
               }
             },
+            "forensicSubject": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[^\\s.*>]+(\\.[^\\s.*>]+)*$"
+            },
+            "forensicStream": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255,
+              "pattern": "^[A-Za-z0-9_-]+$"
+            },
+            "requestTimeoutSecs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            },
+            "runTimeoutSecs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3600
+            },
+            "publishTimeoutSecs": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            },
             "extraEnv": {
               "type": "array",
               "items": {
@@ -199,7 +231,12 @@
                         "CLAVENAR_ASSURANCE_ADMIN_PORT",
                         "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT",
                         "CLAVENAR_ASSURANCE_TLS_DIR",
-                        "CLAVENAR_ASSURANCE_ALLOWED_CALLERS"
+                        "CLAVENAR_ASSURANCE_ALLOWED_CALLERS",
+                        "CLAVENAR_ASSURANCE_FORENSIC_SUBJECT",
+                        "CLAVENAR_ASSURANCE_FORENSIC_STREAM",
+                        "CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS",
+                        "CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS",
+                        "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS"
                       ]
                     }
                   }

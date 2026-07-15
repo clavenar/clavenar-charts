@@ -93,7 +93,9 @@ apply walkthrough.
   `/metrics`, and it is the only port published by the proxy's k8s Service.
   Assurance likewise splits required-mTLS control (`8088`) from plain,
   container-only `/health` + `/readyz` diagnostics (`9088`); no mutation or
-  status route is installed on diagnostics.
+  status route is installed on diagnostics. Its request, whole-run, and
+  publish/ack deadlines are chart-governed, and durable completion requires an
+  acknowledgement from the configured exact forensic JetStream stream.
 - **terminationGracePeriodSeconds** set to `drainCapSecs + 5` so
   the in-process watchdog (env `CLAVENAR_GRACEFUL_DRAIN_SECS`) fires
   before kubelet's SIGKILL.
@@ -225,6 +227,11 @@ services:
   assurance:
     port: 8088                      # exact-console workload mTLS control
     healthPort: 9088                # plain /health + /readyz only; not published
+    forensicSubject: clavenar.forensic
+    forensicStream: clavenar-forensic # exact JetStream acknowledgement source
+    requestTimeoutSecs: 30          # valid range 1..300
+    runTimeoutSecs: 900             # valid range 1..3600; >= nested deadlines
+    publishTimeoutSecs: 10          # valid range 1..60
   console:
     port: 8085                      # demo-only by default; operator mTLS when enabled
     demoPort: 9085                  # optional curated demo beside operator mTLS

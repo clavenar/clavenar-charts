@@ -68,14 +68,43 @@
 {{- if and .Values.services.assurance.enabled .Values.tlsBundle.autoMint (not (has "assurance" .Values.tlsBundle.bundleServices)) }}
 {{- fail "services.assurance.enabled=true with tlsBundle.autoMint=true requires assurance in tlsBundle.bundleServices" }}
 {{- end }}
+{{- if not (regexMatch "^[^[:space:].*>]+([.][^[:space:].*>]+)*$" $assurance.forensicSubject) }}
+{{- fail "services.assurance.forensicSubject must be a non-empty exact NATS subject without whitespace, wildcards, or empty tokens" }}
+{{- end }}
+{{- if not (regexMatch "^[A-Za-z0-9_-]+$" $assurance.forensicStream) }}
+{{- fail "services.assurance.forensicStream must be a non-empty exact JetStream stream name using only letters, digits, '_' or '-'" }}
+{{- end }}
+{{- $requestTimeout := int $assurance.requestTimeoutSecs }}
+{{- $runTimeout := int $assurance.runTimeoutSecs }}
+{{- $publishTimeout := int $assurance.publishTimeoutSecs }}
+{{- if or (lt $requestTimeout 1) (gt $requestTimeout 300) }}
+{{- fail "services.assurance.requestTimeoutSecs must be between 1 and 300" }}
+{{- end }}
+{{- if or (lt $runTimeout 1) (gt $runTimeout 3600) }}
+{{- fail "services.assurance.runTimeoutSecs must be between 1 and 3600" }}
+{{- end }}
+{{- if or (lt $publishTimeout 1) (gt $publishTimeout 60) }}
+{{- fail "services.assurance.publishTimeoutSecs must be between 1 and 60" }}
+{{- end }}
+{{- if lt $runTimeout $requestTimeout }}
+{{- fail "services.assurance.runTimeoutSecs must be at least services.assurance.requestTimeoutSecs" }}
+{{- end }}
+{{- if lt $runTimeout $publishTimeout }}
+{{- fail "services.assurance.runTimeoutSecs must be at least services.assurance.publishTimeoutSecs" }}
+{{- end }}
 {{- $governedAssuranceEnv := list
       "CLAVENAR_ASSURANCE_ADMIN_PORT"
       "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT"
       "CLAVENAR_ASSURANCE_TLS_DIR"
-      "CLAVENAR_ASSURANCE_ALLOWED_CALLERS" -}}
+      "CLAVENAR_ASSURANCE_ALLOWED_CALLERS"
+      "CLAVENAR_ASSURANCE_FORENSIC_SUBJECT"
+      "CLAVENAR_ASSURANCE_FORENSIC_STREAM"
+      "CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS"
+      "CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS"
+      "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS" -}}
 {{- range $index, $env := $assurance.extraEnv }}
 {{- if has (default "" $env.name) $governedAssuranceEnv }}
-{{- fail (printf "services.assurance.extraEnv[%d].name=%s is chart-governed by the exact-console mTLS listener contract" $index $env.name) }}
+{{- fail (printf "services.assurance.extraEnv[%d].name=%s is chart-governed by the assurance execution contract" $index $env.name) }}
 {{- end }}
 {{- end }}
 {{- $operatorPeers := .Values.networkPolicy.console.operatorMtls.allowedPeers }}

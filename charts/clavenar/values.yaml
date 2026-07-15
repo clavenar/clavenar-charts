@@ -518,6 +518,17 @@ services:
       health: /health
       ready: /readyz
       port: 9088
+    # Durable completion is acknowledged only by this exact JetStream
+    # stream. The publish subject must be captured by the named stream;
+    # changing either value requires a matching broker-side contract.
+    forensicSubject: clavenar.forensic
+    forensicStream: clavenar-forensic
+    # Independent request, whole-run, and publish/ack deadlines. The run
+    # deadline must be at least as long as each nested deadline. Bounds are
+    # enforced by values.schema.json and templates/validate.yaml.
+    requestTimeoutSecs: 30
+    runTimeoutSecs: 900
+    publishTimeoutSecs: 10
     extraEnv:
       # Paused at boot; the daily cadence starts once un-paused.
       - name: CLAVENAR_ASSURANCE_START_RUNNING

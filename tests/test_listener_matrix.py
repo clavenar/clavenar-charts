@@ -194,6 +194,26 @@ class ListenerMatrixTest(unittest.TestCase):
                     env["CLAVENAR_ASSURANCE_ALLOWED_CALLERS"],
                 )
                 self.assertEqual(
+                    "clavenar.forensic",
+                    env["CLAVENAR_ASSURANCE_FORENSIC_SUBJECT"],
+                )
+                self.assertEqual(
+                    "clavenar-forensic",
+                    env["CLAVENAR_ASSURANCE_FORENSIC_STREAM"],
+                )
+                self.assertEqual(
+                    "30",
+                    env["CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS"],
+                )
+                self.assertEqual(
+                    "900",
+                    env["CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS"],
+                )
+                self.assertEqual(
+                    "10",
+                    env["CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS"],
+                )
+                self.assertEqual(
                     {"path": "/health", "port": 9088},
                     container["livenessProbe"]["httpGet"],
                 )
@@ -369,6 +389,18 @@ class ListenerMatrixTest(unittest.TestCase):
         )["value"] = "spiffe://clavenar.local/service/proxy"
         mutations.append(("caller identity", values_default, caller))
 
+        stream = copy.deepcopy(self.rendered["default"])
+        container = next(
+            doc for doc in stream
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-assurance"
+        )["spec"]["template"]["spec"]["containers"][0]
+        next(
+            entry for entry in container["env"]
+            if entry["name"] == "CLAVENAR_ASSURANCE_FORENSIC_STREAM"
+        )["value"] = "unreviewed-stream"
+        mutations.append(("forensic stream", values_default, stream))
+
         probe = copy.deepcopy(self.rendered["default"])
         container = next(
             doc for doc in probe
@@ -414,6 +446,10 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertEqual(9088, assurance["properties"]["probes"]["properties"]["port"]["const"])
         assurance_forbidden = assurance["properties"]["extraEnv"]["items"]["properties"]["name"]["not"]["enum"]
         self.assertIn("CLAVENAR_ASSURANCE_ALLOWED_CALLERS", assurance_forbidden)
+        self.assertIn("CLAVENAR_ASSURANCE_FORENSIC_STREAM", assurance_forbidden)
+        self.assertEqual(300, assurance["properties"]["requestTimeoutSecs"]["maximum"])
+        self.assertEqual(3600, assurance["properties"]["runTimeoutSecs"]["maximum"])
+        self.assertEqual(60, assurance["properties"]["publishTimeoutSecs"]["maximum"])
 
     def test_console_auth_alerts_use_bounded_metrics(self):
         alerts = yaml.safe_load(
@@ -801,6 +837,18 @@ class ListenerMatrixTest(unittest.TestCase):
             ["--set", "services.assurance.metrics.enabled=true"],
             ["--set", "services.assurance.extraEnv[0].name=CLAVENAR_ASSURANCE_ALLOWED_CALLERS",
              "--set", "services.assurance.extraEnv[0].value=spiffe://clavenar.local/service/proxy"],
+            ["--set", "services.assurance.extraEnv[0].name=CLAVENAR_ASSURANCE_FORENSIC_STREAM",
+             "--set", "services.assurance.extraEnv[0].value=unreviewed"],
+            ["--set-string", "services.assurance.forensicSubject=clavenar.*"],
+            ["--set-string", "services.assurance.forensicStream=clavenar.forensic"],
+            ["--set", "services.assurance.requestTimeoutSecs=0"],
+            ["--set", "services.assurance.requestTimeoutSecs=301"],
+            ["--set", "services.assurance.runTimeoutSecs=3601"],
+            ["--set", "services.assurance.publishTimeoutSecs=61"],
+            ["--set", "services.assurance.requestTimeoutSecs=60",
+             "--set", "services.assurance.runTimeoutSecs=59"],
+            ["--set", "services.assurance.publishTimeoutSecs=60",
+             "--set", "services.assurance.runTimeoutSecs=59"],
             ["-f", str(ROOT / "tests/values-all-on.yaml"),
              "--set-json", "services.console.mutationOrigins=[]"],
             ["-f", str(ROOT / "tests/values-all-on.yaml"),

@@ -570,6 +570,21 @@ def validate_assurance_contract(values, docs, release, errors):
         "CLAVENAR_ASSURANCE_ALLOWED_CALLERS": (
             "spiffe://clavenar.local/service/console"
         ),
+        "CLAVENAR_ASSURANCE_FORENSIC_SUBJECT": str(
+            value_at(values, "services.assurance.forensicSubject")
+        ),
+        "CLAVENAR_ASSURANCE_FORENSIC_STREAM": str(
+            value_at(values, "services.assurance.forensicStream")
+        ),
+        "CLAVENAR_ASSURANCE_REQUEST_TIMEOUT_SECS": str(
+            value_at(values, "services.assurance.requestTimeoutSecs")
+        ),
+        "CLAVENAR_ASSURANCE_RUN_TIMEOUT_SECS": str(
+            value_at(values, "services.assurance.runTimeoutSecs")
+        ),
+        "CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS": str(
+            value_at(values, "services.assurance.publishTimeoutSecs")
+        ),
     }
     env_entries = container.get("env", []) or []
     env_names = [entry.get("name") for entry in env_entries]
