@@ -61,7 +61,7 @@ charts/clavenar/
     dashboards-configmap.yaml alerts-configmap.yaml alertmanager-config-secret.yaml
   dashboards/ alerts/   # Grafana JSON + Prometheus rules, label-discovered by kube-prometheus-stack
 tests/values-bundled.yaml   # nats + vault subcharts + auto-mint TLS; CI bundled fixture
-scripts/push-images.sh      # builds/pushes the 11 service images (9 core + simulator + exec) to GHCR, bumps VERSION + Chart.appVersion
+scripts/push-images.sh      # fail-closed tombstone for the retired mutable/partial publisher
 lab/                        # optional in-cluster Claude Code agent pod (proxy→brain→policy→hil→ledger demo)
 docs/SEQUENCES.md           # seven flow diagrams + the render decision tree
 ```
@@ -92,11 +92,10 @@ upstream-stub 9000 · exec 9001.
 - **Postgres mode disables SQLite-only features** (cold-tier export, regulatory
   bundles, Iceberg metadata, egress sweeper → 503). Wire SIEM ingest directly.
 - **Image tag fallback:** `services.<svc>.image.tag → .Values.imageTag →
-  .Chart.AppVersion`. `appVersion` (and root `VERSION`) track the image set
-  already published to `ghcr.io/clavenar/<service>`. Chart `version` (0.x,
-  the chart's own SemVer) is hand-bumped and deliberately decoupled;
-  push-images.sh syncs only `VERSION` + `appVersion` and errors if they
-  diverge going in.
+  .Chart.AppVersion` remains a legacy install boundary until WP-14.5. Root
+  `VERSION` and `appVersion` are frozen at the last legacy image set. The local
+  publisher is a fail-closed tombstone; protected releases stage digest-only
+  component artifacts and one signed stack-BOM reference from clavenar-e2e.
 - **tlsBundle drives mTLS.** Empty `tlsBundle.secretName` → no `/certs` mount →
   proxy + identity panic at boot. When set, backend services flip their app port
   to rustls + SPIFFE-URI allowlist and move health/`/metrics` to a plain-HTTP

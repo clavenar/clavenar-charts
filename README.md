@@ -142,52 +142,26 @@ See `charts/clavenar/README.md` for the full quickstart, the `values.yaml`
 reference, mTLS cert provisioning, the SQLite-on-shared-PVC constraints,
 and how to flip the ledger to Postgres mode.
 
-## Publishing images to GHCR
+## Publishing release artifacts
 
-Image versions are tracked by `VERSION` at this repo's root — a single
-semver line that reflects the **latest image set already published to**
-`ghcr.io/clavenar/<service>`. `charts/clavenar/Chart.yaml`
-`appVersion` mirrors `VERSION` so a fresh `helm install` pulls tags
-that actually exist on GHCR. Independent of `clavenar-internal-specs/VERSION`
-(which tracks the demo VPS deploy, not the chart's published image
-set).
+The local image publisher is permanently disabled. It could overwrite current
+semantic component tags, publish mutable `latest` tags, and leave a release
+partially visible. `scripts/push-images.sh` now fails closed for every
+invocation and must not regain `--only`, `--allow-dirty`, or `--no-bump` paths.
 
-`scripts/push-images.sh` reads `VERSION`, computes the next patch as
-the target, builds all 11 services from their sibling repos under
-`../clavenar-<name>/`, pushes both `:<target>` and `:latest` to GHCR,
-then writes the new tag back into `VERSION` + `Chart.appVersion`
-atomically and auto-commits. Failed pushes leave `VERSION` untouched
-— it always reflects what is actually live on GHCR.
+Release/Security operators dispatch **Protected immutable stack release** from
+`clavenar-e2e` at an exact committed internal release version. That workflow
+derives the 11 deployment image subjects and every BuildKit named context from
+the rendered Compose graph, stages all images, packages, SBOMs, and provenance
+as private digest-addressed OCI objects, verifies the complete signed stack
+BOM, then creates one semantic stack-release reference. It never creates
+component semantic or `latest` tags, and refuses to overwrite the stack
+reference.
 
-```bash
-# One-time: log root's docker into ghcr.io (the script uses sudo -n docker)
-echo "$GH_PAT" | sudo -n docker login ghcr.io -u vanteguardlabs --password-stdin
-
-# Full publish — builds 11 images, pushes 22 tags, bumps VERSION
-./scripts/push-images.sh
-
-# Subset / iteration (implies --no-bump)
-./scripts/push-images.sh --only=clavenar-proxy,clavenar-brain --allow-dirty
-
-# What would happen?
-./scripts/push-images.sh --dry-run
-```
-
-`$GH_PAT` is a classic personal access token with `write:packages` +
-`read:packages` scopes.
-
-**First-time visibility flip (one-time per service).** GHCR's REST API
-does not expose package-visibility mutation — new packages land as
-`private`. After the first push, click through the UI for each of the
-11 packages at:
-
-  `https://github.com/users/vanteguardlabs/packages/container/<service>/settings`
-
-  Scroll to **Danger Zone** → **Change visibility** → **Public** →
-  type the package name to confirm.
-
-Subsequent pushes inherit the existing visibility, so this is a
-one-shot per package.
+`VERSION` and `Chart.appVersion` remain frozen at the last legacy chart image
+set until WP-14.5 changes installation, upgrade, rollback, and recovery to
+consume image digests from the signed BOM. Do not advance either value merely
+because a protected artifact graph was staged.
 
 Images are built for `linux/amd64` only in v1; multi-arch via
 `docker buildx` is a deferred follow-up.

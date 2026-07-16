@@ -16,9 +16,8 @@ description: |
   from ghcr.io/clavenar by default.
 type: application
 version: 0.13.0
-# Mirrors clavenar-charts/VERSION — the latest image set published to
-# ghcr.io/clavenar by scripts/push-images.sh. Independent of
-# clavenar-internal-specs/VERSION (which tracks the demo VPS deploy, not GHCR).
+# Frozen last legacy semantic image set. The direct image publisher is disabled;
+# WP-14.5 will replace tag fallback with signed stack-BOM digest inputs.
 appVersion: "0.1.12"
 dependencies:
   - name: nats
