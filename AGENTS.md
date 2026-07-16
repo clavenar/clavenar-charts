@@ -121,8 +121,9 @@ upstream-stub 9000 · exec 9001.
   `replicas > 1` (SQLite singletons skip naturally; `minAvailable=ceil/2`).
 - **All pods run nonroot UID 65532** (`podSecurityContext`); `fsGroup` remounts
   the SQLite PVCs writable.
-- **Pin GitHub Actions by major version** (`actions/checkout@v5`,
-  `azure/setup-helm@v4`, `actions/setup-go@v5`) — never `@latest`.
+- **Pin GitHub Actions by exact 40-character commit SHA** and retain the
+  readable release in a trailing comment. Toolchain inputs use exact patch
+  versions; never restore moving major, `stable`, or `latest` selectors.
 - **Bash** (`scripts/*.sh`): `set -euo pipefail`, must pass `shellcheck -S
   warning` (CI runs it), quote everything, prefer `[ "$x" = "y" ]`.
 - **Helm template logic stays in helpers, not handlers.** Compute derived

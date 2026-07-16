@@ -7,7 +7,7 @@
 # `lab/scripts/build-agent-image.sh` handles the cd + tag.
 
 # ───── Stage 1: build clavenarctl from sibling repos ───────────────────
-FROM rust:1-bookworm AS clavenarctl-builder
+FROM rust:1-bookworm@sha256:8fa55b2f3ddf97471ab6a767bfa3f37e6bad0986ba823e75fea57e2a2a5c3073 AS clavenarctl-builder
 
 # Path-deps: clavenar-ctl pulls clavenar-sdk by relative path. Mirror the
 # workspace tree inside the builder so cargo resolves both. The Rego
@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cp target/release/clavenarctl /usr/local/bin/clavenarctl
 
 # ───── Stage 2: runtime image with Claude Code + clavenarctl ───────────
-FROM node:20-bookworm-slim AS runtime
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS runtime
 
 # ca-certificates so clavenarctl mcp-bridge can validate the proxy's
 # server cert against the in-cluster CA mount. tini for proper PID 1
