@@ -1,4 +1,10 @@
 {{/* Reject chart-controlled externally reachable Service types. */}}
+{{- if and .Values.services.proxy.enabled (not .Values.services.identity.enabled) }}
+{{- fail "services.proxy.enabled requires services.identity.enabled because delegation JWKS verification is a required proxy dependency" }}
+{{- end }}
+{{- if le (int .Values.services.proxy.grantJwksMaxStalenessSeconds) (int .Values.services.proxy.grantJwksRefreshSeconds) }}
+{{- fail "services.proxy.grantJwksMaxStalenessSeconds must exceed services.proxy.grantJwksRefreshSeconds" }}
+{{- end }}
 {{- range $name, $cfg := .Values.services }}
 {{- if and $cfg.enabled (ne (default "ClusterIP" $cfg.serviceType) "ClusterIP") }}
 {{- fail (printf "services.%s.serviceType must be ClusterIP; use an operator-controlled Ingress or Gateway for external publication" $name) }}

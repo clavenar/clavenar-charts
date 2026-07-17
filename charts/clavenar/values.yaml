@@ -281,6 +281,13 @@ services:
   proxy:
     enabled: true
     replicas: 1
+    # Delegation grants are accepted only against a bounded-fresh identity
+    # JWKS snapshot. These chart-governed values are emitted together with
+    # the in-release identity public endpoint; proxy+identity is a required
+    # deployment pair. maxStalenessSeconds must exceed refreshSeconds.
+    grantJwksRefreshSeconds: 30      # valid range 1..300
+    grantJwksMaxStalenessSeconds: 120 # valid range 2..900
+    grantJwksFetchTimeoutSeconds: 5  # valid range 1..30
     image:
       repository: clavenar-proxy
       tag: ""

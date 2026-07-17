@@ -33,6 +33,10 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_POLICY_URL",
         "CLAVENAR_HIL_URL",
         "CLAVENAR_IDENTITY_URL",
+        "CLAVENAR_PROXY_GRANT_JWKS_URL",
+        "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS",
+        "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS",
+        "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS",
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
@@ -221,6 +225,42 @@ class ListenerMatrixTest(unittest.TestCase):
         errors = []
         CHECKER.validate_service_env_uniqueness(mutated, "smoke", errors)
         self.assertTrue(any("duplicate environment variables" in item for item in errors))
+
+    def test_proxy_requires_bounded_identity_jwks_wiring(self):
+        for scenario in ("default", "production"):
+            proxy = next(
+                doc for doc in self.rendered[scenario]
+                if doc.get("kind") == "Deployment"
+                and doc.get("metadata", {}).get("name") == "smoke-proxy"
+            )
+            env = {
+                entry["name"]: entry.get("value")
+                for entry in proxy["spec"]["template"]["spec"]["containers"][0]["env"]
+            }
+            self.assertEqual(
+                "http://smoke-identity:8086/jwks.json",
+                env["CLAVENAR_PROXY_GRANT_JWKS_URL"],
+            )
+            self.assertEqual("30", env["CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS"])
+            self.assertEqual(
+                "120", env["CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS"]
+            )
+            self.assertEqual("5", env["CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS"])
+
+        for settings, message in (
+            (["--set", "services.identity.enabled=false"], "requires services.identity.enabled"),
+            ([
+                "--set", "services.proxy.grantJwksRefreshSeconds=30",
+                "--set", "services.proxy.grantJwksMaxStalenessSeconds=30",
+            ], "must exceed"),
+        ):
+            result = subprocess.run(
+                ["helm", "template", "smoke", str(ROOT / "charts/clavenar"), *settings],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn(message, result.stderr)
 
     def test_authentication_secret_refs_support_chart_and_operator_ownership(self):
         generated = next(

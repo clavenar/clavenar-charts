@@ -377,7 +377,11 @@ probeDefaults:
   readiness: { initialDelaySeconds: 2, periodSeconds: 5,  timeoutSeconds: 2, failureThreshold: 3 }
 
 services:
-  proxy:        { ... extraEnv: [] }  # health bind and backend/TLS wiring are governed
+  proxy:
+    grantJwksRefreshSeconds: 30       # required identity JWKS refresh cadence
+    grantJwksMaxStalenessSeconds: 120 # presented grants fail 503 after this age
+    grantJwksFetchTimeoutSeconds: 5   # per-refresh HTTP deadline
+    extraEnv: []                      # health/backend/TLS/JWKS wiring is governed
   brain:
     port: 8081                       # workload-mTLS application listener
     healthPort: 9081                 # diagnostics only; not Service-published

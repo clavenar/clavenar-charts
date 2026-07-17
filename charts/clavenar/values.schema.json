@@ -32,6 +32,21 @@
         "proxy": {
           "type": "object",
           "properties": {
+            "grantJwksRefreshSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            },
+            "grantJwksMaxStalenessSeconds": {
+              "type": "integer",
+              "minimum": 2,
+              "maximum": 900
+            },
+            "grantJwksFetchTimeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 30
+            },
             "extraEnv": {
               "type": "array",
               "items": {
@@ -48,6 +63,10 @@
                         "CLAVENAR_POLICY_URL",
                         "CLAVENAR_HIL_URL",
                         "CLAVENAR_IDENTITY_URL",
+                        "CLAVENAR_PROXY_GRANT_JWKS_URL",
+                        "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS",
+                        "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS",
+                        "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS",
                         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
                         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
                         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",

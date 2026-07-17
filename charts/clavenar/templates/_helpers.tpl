@@ -178,6 +178,10 @@ per environment variable.
         "CLAVENAR_POLICY_URL"
         "CLAVENAR_HIL_URL"
         "CLAVENAR_IDENTITY_URL"
+        "CLAVENAR_PROXY_GRANT_JWKS_URL"
+        "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS"
+        "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS"
+        "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS"
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH"
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH"
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH"
@@ -350,6 +354,16 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
 - name: CLAVENAR_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+# JWKS is public verification material on identity's plain public listener,
+# even when authority-bearing identity operations move to workload mTLS.
+- name: CLAVENAR_PROXY_GRANT_JWKS_URL
+  value: "http://{{ $rel }}-identity:8086/jwks.json"
+- name: CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS
+  value: {{ .ctx.Values.services.proxy.grantJwksRefreshSeconds | quote }}
+- name: CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS
+  value: {{ .ctx.Values.services.proxy.grantJwksMaxStalenessSeconds | quote }}
+- name: CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS
+  value: {{ .ctx.Values.services.proxy.grantJwksFetchTimeoutSeconds | quote }}
 {{- if .ctx.Values.exec.enabled }}
 # Execution-gateway in front of any upstream. clavenar-exec runs the
 # Claude-Code-built-in-parity tools locally and forwards everything
