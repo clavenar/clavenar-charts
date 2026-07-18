@@ -235,6 +235,7 @@ per environment variable.
         "CLAVENAR_IDENTITY_ALLOWED_CALLERS"
         "CLAVENAR_IDENTITY_MTLS_ADDR"
         "CLAVENAR_IDENTITY_CA_DIR"
+        "CLAVENAR_IDENTITY_REPLAY_REPLICAS"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH"
@@ -463,6 +464,11 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "identity" }}
+# Exact replica contract for the shared durable actor-token replay KV bucket.
+# Identity validates every other governed bucket property at runtime and
+# returns replay_store_unavailable instead of falling back to local SQLite.
+- name: CLAVENAR_IDENTITY_REPLAY_REPLICAS
+  value: {{ .ctx.Values.services.identity.replayReplicas | quote }}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 6). Dual-listener:
 #   * plain HTTP on `services.identity.port` (default 8086) — public

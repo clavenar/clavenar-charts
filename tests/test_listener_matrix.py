@@ -83,6 +83,7 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_IDENTITY_ALLOWED_CALLERS",
         "CLAVENAR_IDENTITY_MTLS_ADDR",
         "CLAVENAR_IDENTITY_CA_DIR",
+        "CLAVENAR_IDENTITY_REPLAY_REPLICAS",
         "VAULT_ADDR",
         "VAULT_TOKEN",
     },
@@ -261,6 +262,31 @@ class ListenerMatrixTest(unittest.TestCase):
             )
             self.assertNotEqual(0, result.returncode)
             self.assertIn(message, result.stderr)
+
+        identity = next(
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-identity"
+        )
+        identity_env = {
+            entry["name"]: str(entry.get("value", ""))
+            for entry in identity["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual("1", identity_env["CLAVENAR_IDENTITY_REPLAY_REPLICAS"])
+
+        for replay_replicas in (0, 6):
+            with self.subTest(replay_replicas=replay_replicas):
+                result = subprocess.run(
+                    [
+                        "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
+                        "--skip-schema-validation", "--set",
+                        f"services.identity.replayReplicas={replay_replicas}",
+                    ],
+                    text=True,
+                    capture_output=True,
+                )
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("must be between 1 and 5", result.stderr)
 
     def test_authentication_secret_refs_support_chart_and_operator_ownership(self):
         generated = next(
@@ -1599,6 +1625,9 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         self.assertEqual(128, auth_secrets["properties"]["rotationId"]["maxLength"])
         console = schema["properties"]["services"]["properties"]["console"]
+        identity = schema["properties"]["services"]["properties"]["identity"]
+        self.assertEqual(1, identity["properties"]["replayReplicas"]["minimum"])
+        self.assertEqual(5, identity["properties"]["replayReplicas"]["maximum"])
         self.assertEqual(8085, console["properties"]["port"]["const"])
         self.assertEqual(9085, console["properties"]["demoPort"]["const"])
         self.assertEqual(9185, console["properties"]["diagnosticsPort"]["const"])

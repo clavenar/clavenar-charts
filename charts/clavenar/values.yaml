@@ -479,6 +479,11 @@ services:
     # Pin replicas to 1 — same SQLite-on-shared-PVC constraint as
     # ledger and hil.
     replicas: 1
+    # Exact JetStream KV replica count for the durable actor-token replay
+    # bucket. Identity validates the live bucket against this value and fails
+    # closed when the store is absent, partitioned, or configured differently.
+    # Choose 1..5 to match the number of NATS servers available to JetStream.
+    replayReplicas: 1
     image:
       repository: clavenar-identity
       tag: ""

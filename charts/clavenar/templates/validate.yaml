@@ -5,6 +5,10 @@
 {{- if le (int .Values.services.proxy.grantJwksMaxStalenessSeconds) (int .Values.services.proxy.grantJwksRefreshSeconds) }}
 {{- fail "services.proxy.grantJwksMaxStalenessSeconds must exceed services.proxy.grantJwksRefreshSeconds" }}
 {{- end }}
+{{- $replayReplicas := int .Values.services.identity.replayReplicas }}
+{{- if or (lt $replayReplicas 1) (gt $replayReplicas 5) }}
+{{- fail "services.identity.replayReplicas must be between 1 and 5" }}
+{{- end }}
 {{- range $name, $cfg := .Values.services }}
 {{- if and $cfg.enabled (ne (default "ClusterIP" $cfg.serviceType) "ClusterIP") }}
 {{- fail (printf "services.%s.serviceType must be ClusterIP; use an operator-controlled Ingress or Gateway for external publication" $name) }}

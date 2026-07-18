@@ -146,6 +146,11 @@
         "identity": {
           "type": "object",
           "properties": {
+            "replayReplicas": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
             "extraEnv": {
               "type": "array",
               "items": {
@@ -161,6 +166,7 @@
                         "CLAVENAR_IDENTITY_ALLOWED_CALLERS",
                         "CLAVENAR_IDENTITY_MTLS_ADDR",
                         "CLAVENAR_IDENTITY_CA_DIR",
+                        "CLAVENAR_IDENTITY_REPLAY_REPLICAS",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH",

@@ -199,6 +199,14 @@ JWKS contains verification-only public keys, never the issuer's private signing
 key. An external secret-store controller can own the referenced Secret; the
 chart only projects the selected key.
 
+Actor-token replay protection uses a shared durable JetStream KV bucket, not
+the Identity SQLite volume. Set `services.identity.replayReplicas` to the exact
+JetStream replica count (1..5) supported by the NATS deployment. Identity
+validates the live bucket's file storage, bounded size and age, value limit,
+history, discard policy, deletion policy, and replica count before accepting a
+redemption. Missing, partitioned, full, or mismatched replay storage fails
+closed; there is no local replay fallback.
+
 The complete render fixture is
 [`tests/values-existing-auth-secret.yaml`](../../tests/values-existing-auth-secret.yaml).
 
@@ -399,7 +407,9 @@ services:
     requireTrustedProxy: false     # production requires true
     trustedProxySpiffe: ""         # production fixes exact website SPIFFE URI
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
-  identity:     { ... }            # replicas: 1 (SQLite-pinned)
+  identity:
+    replicas: 1                    # lifecycle SQLite remains singleton
+    replayReplicas: 1              # exact durable JetStream KV replicas (1..5)
   deepReview:   { ... }            # singleton; daily token budget is per-pod
   assurance:
     port: 8088                      # exact-console workload mTLS control
