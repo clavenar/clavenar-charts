@@ -491,7 +491,9 @@ services:
     # Dual-listener under mTLS receive (session 6). Plain HTTP on
     # `port` serves the public subset + /stats + JWKS + health; mTLS
     # on `mtlsPort` carries the internal /svid + /grant + /sign +
-    # /actor-token + /agents surface. Exposed as a second Service
+    # /actor-token + /agents surface. Agent /svid accepts only a
+    # self-signed CSR (≤16 KiB) whose DER digest binds the attestation;
+    # no agent private key is accepted or returned. Exposed as a second Service
     # port (`name: mtls`) when tlsBundle.secretName is non-empty.
     mtlsPort: 8186
     serviceType: ClusterIP

@@ -475,7 +475,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 #     subset (`/stats`, `/jwks.json`, `/.well-known/spiffe-bundle`,
 #     health). Internal routes are STRIPPED on this port.
 #   * mTLS on `services.identity.mtlsPort` (default 8186) — full surface
-#     including `/svid`, `/grant`, `/revoke`, `/sign`, `/actor-token*`,
+#     including CSR-bound `/svid` (agent private keys stay caller-side),
+#     `/grant`, `/revoke`, `/sign`, `/actor-token*`,
 #     `/agents*`. SPIFFE allowlist gates every internal route.
 #
 # Service template emits a second port (`name: mtls`) alongside
