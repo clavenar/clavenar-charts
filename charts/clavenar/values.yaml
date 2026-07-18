@@ -31,6 +31,14 @@ authSecrets:
   # is a no-op that preserves the current Secret data.
   rotationId: bootstrap-v1
 
+# Public Ed25519 cluster trust anchors consumed by Identity's production
+# `k8s-key-bound` evidence verifier. The Secret contains public keys only;
+# the evidence-signing private key remains with the cluster attester. Empty
+# keeps the verifier fail-closed and is suitable only until attestation is used.
+attestationTrustAnchors:
+  secretName: ""
+  key: k8s-trust-anchors.json
+
 # NATS + Vault default to BYO (bring-your-own). Flip `bundled.enabled`
 # to have the chart install the upstream subcharts alongside the
 # clavenar services in a single `helm install` — see Chart.yaml deps.

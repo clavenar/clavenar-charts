@@ -26,6 +26,24 @@
         }
       }
     },
+    "attestationTrustAnchors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretName", "key"],
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
     "services": {
       "type": "object",
       "properties": {
@@ -176,6 +194,7 @@
                         "CLAVENAR_IDENTITY_MTLS_ADDR",
                         "CLAVENAR_IDENTITY_CA_DIR",
                         "CLAVENAR_IDENTITY_REPLAY_REPLICAS",
+                        "CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH",

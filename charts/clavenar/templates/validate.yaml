@@ -94,6 +94,9 @@
 {{- if empty .Values.tlsBundle.secretName }}
 {{- fail "deploymentProfile=production requires an externally managed tlsBundle.secretName" }}
 {{- end }}
+{{- if empty .Values.attestationTrustAnchors.secretName }}
+{{- fail "deploymentProfile=production requires attestationTrustAnchors.secretName with public cluster verifier keys" }}
+{{- end }}
 {{- if .Values.tlsBundle.autoMint }}
 {{- fail "deploymentProfile=production requires tlsBundle.autoMint=false" }}
 {{- end }}

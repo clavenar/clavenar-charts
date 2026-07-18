@@ -69,6 +69,8 @@ boundaries are present together:
 
 - `authSecrets.existingSecretName` selects operator-managed HIL credentials;
 - `authSecrets.rotationId` selects an explicit non-secret credential generation;
+- `attestationTrustAnchors.secretName` selects the public Kubernetes Ed25519
+  verifier keys (the cluster signing private key is never mounted);
 - NetworkPolicy is enabled;
 - an existing workload-TLS Secret is selected and auto-mint is disabled;
 - console operator mTLS uses a distinct public operator-trust Secret;
@@ -136,6 +138,10 @@ Secret without appearing literally in chart values:
 authSecrets:
   existingSecretName: clavenar-runtime-auth
   rotationId: prod-20260715-01
+
+attestationTrustAnchors:
+  secretName: clavenar-attestation-trust
+  key: k8s-trust-anchors.json
 
 services:
   console:

@@ -8,6 +8,9 @@ authSecrets:
   existingSecretName: clavenar-runtime-auth
   rotationId: prod-20260715-01
 
+attestationTrustAnchors:
+  secretName: clavenar-attestation-trust
+
 tlsBundle:
   secretName: clavenar-workload-tls
   autoMint: false

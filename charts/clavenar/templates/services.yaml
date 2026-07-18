@@ -16,6 +16,7 @@ inside the range is the iterated value.
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
 {{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
+{{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
@@ -162,6 +163,10 @@ spec:
                   name: {{ include "clavenar.authSecretName" $ }}
                   key: hil-session-key
             {{- end }}
+            {{- if $mountsAttestationTrust }}
+            - name: CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE
+              value: /etc/clavenar/attestation/k8s-trust-anchors.json
+            {{- end }}
           livenessProbe:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "liveness") | nindent 12 }}
           readinessProbe:
@@ -170,7 +175,7 @@ spec:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- $mountsOperatorTrust := $operatorMtls }}
-          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -197,11 +202,17 @@ spec:
               mountPath: /etc/clavenar/attestation
               readOnly: true
             {{- end }}
+            {{- if $mountsAttestationTrust }}
+            - name: attestation-trust-anchors
+              mountPath: /etc/clavenar/attestation/k8s-trust-anchors.json
+              subPath: k8s-trust-anchors.json
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -296,6 +307,15 @@ spec:
                 path: attestation-verifier-v1.schema.json
               - key: attestation-verifier-v1.fixture.json
                 path: attestation-verifier-v1.fixture.json
+        {{- end }}
+        {{- if $mountsAttestationTrust }}
+        - name: attestation-trust-anchors
+          secret:
+            secretName: {{ $.Values.attestationTrustAnchors.secretName }}
+            defaultMode: 0444
+            items:
+              - key: {{ $.Values.attestationTrustAnchors.key }}
+                path: k8s-trust-anchors.json
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

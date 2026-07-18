@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.3.1",
+  "contractVersion": "1.4.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:ef2b1a87778e75c9b8286d00c9cd632d73f4b6fe7a74c8998be29db6cee96e93",
-  "matrixSha256": "sha256:480a9dea8d65e4a2847772fb912780e5579114d48741d1045242c99e1737b33a",
+  "listenerMatrixSha256": "sha256:ca56df2cc3e4e824db939c89c2ad9c2ddb112846e5d9c394915c72742ae3bd51",
+  "matrixSha256": "sha256:b33a405b433383e40b3bdbd8c2cd940be61b1c1450f3fcadb92a1b12901f5519",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -312,6 +312,18 @@
         {
           "allowedCallerIds": [
             "service-console",
+            "service-identity",
+            "service-policy-engine",
+            "service-proxy"
+          ],
+          "capability": "identity.attestation.measurement.read",
+          "family": "identity-attestation-measurement-read",
+          "method": "GET",
+          "pathTemplate": "/attestation/measurements"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
             "service-proxy"
           ],
           "capability": "identity.decoy.read",
@@ -496,6 +508,34 @@
           "family": "identity-agent-lifecycle",
           "method": "POST",
           "pathTemplate": "/agents/{id}/unsuspend"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.attestation.measurement.manage",
+          "family": "identity-attestation-measurement-manage",
+          "method": "POST",
+          "pathTemplate": "/attestation/measurements"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.attestation.measurement.manage",
+          "family": "identity-attestation-measurement-manage",
+          "method": "POST",
+          "pathTemplate": "/attestation/measurements/{id}/retire"
+        },
+        {
+          "allowedCallerIds": [
+            "service-identity",
+            "service-proxy"
+          ],
+          "capability": "identity.attestation.verify",
+          "family": "identity-attestation-verify",
+          "method": "POST",
+          "pathTemplate": "/attestation/verify"
         },
         {
           "allowedCallerIds": [

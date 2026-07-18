@@ -109,12 +109,16 @@ helm install my-clavenar charts/clavenar \
   --namespace clavenar --create-namespace \
   --set nats.url=nats://my-nats:4222 \
   --set authSecrets.existingSecretName=clavenar-runtime-auth \
+  --set attestationTrustAnchors.secretName=clavenar-attestation-trust \
   --set tlsBundle.secretName=clavenar-certs
 ```
 
 The selected authentication Secret must already contain `hil-session-key` and
 `hil-decide-token`. Omit `authSecrets.existingSecretName` to retain the
 backwards-compatible chart-generated Secret.
+Production also requires a public-only `attestationTrustAnchors` Secret; keep
+the corresponding evidence-signing private key with the cluster attester,
+outside every Clavenar pod.
 
 That default keeps console ingress denied and serves only the safe demo
 router if you port-forward it. Enabling operator mTLS additionally requires
