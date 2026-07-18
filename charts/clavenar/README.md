@@ -71,6 +71,11 @@ boundaries are present together:
 - `authSecrets.rotationId` selects an explicit non-secret credential generation;
 - `attestationTrustAnchors.secretName` selects the public Kubernetes Ed25519
   verifier keys (the cluster signing private key is never mounted);
+- `vault.addr` and `vault.tokenSecretName` select the external signed-registry
+  authority; bundled dev-mode Vault is refused;
+- Proxy and Identity receive the chart-owned `production` runtime posture and
+  `identity-k8s-key-bound` provider. Evaluation explicitly selects the Proxy
+  mock and never inherits it into production;
 - NetworkPolicy is enabled;
 - an existing workload-TLS Secret is selected and auto-mint is disabled;
 - console operator mTLS uses a distinct public operator-trust Secret;

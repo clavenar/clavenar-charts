@@ -34,7 +34,8 @@ authSecrets:
 # Public Ed25519 cluster trust anchors consumed by Identity's production
 # `k8s-key-bound` evidence verifier. The Secret contains public keys only;
 # the evidence-signing private key remains with the cluster attester. Empty
-# keeps the verifier fail-closed and is suitable only until attestation is used.
+# keeps the verifier fail-closed in evaluation. The production profile refuses
+# to render without this public trust projection and an external Vault signer.
 attestationTrustAnchors:
   secretName: ""
   key: k8s-trust-anchors.json

@@ -76,6 +76,8 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_RUNTIME_ENVIRONMENT",
+                        "CLAVENAR_ATTESTATION_PROVIDER",
                         "CLAVENAR_PROXY_HEALTH_ADDR",
                         "CLAVENAR_BRAIN_URL",
                         "CLAVENAR_POLICY_URL",
@@ -186,6 +188,8 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_RUNTIME_ENVIRONMENT",
+                        "CLAVENAR_ATTESTATION_PROVIDER",
                         "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
                         "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
                         "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",

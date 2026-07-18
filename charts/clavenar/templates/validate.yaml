@@ -97,6 +97,15 @@
 {{- if empty .Values.attestationTrustAnchors.secretName }}
 {{- fail "deploymentProfile=production requires attestationTrustAnchors.secretName with public cluster verifier keys" }}
 {{- end }}
+{{- if .Values.vault.bundled.enabled }}
+{{- fail "deploymentProfile=production requires an external Vault signer; bundled dev-mode Vault is forbidden" }}
+{{- end }}
+{{- if empty .Values.vault.addr }}
+{{- fail "deploymentProfile=production requires vault.addr for the signed measurement-registry authority" }}
+{{- end }}
+{{- if empty .Values.vault.tokenSecretName }}
+{{- fail "deploymentProfile=production requires vault.tokenSecretName for the signed measurement-registry authority" }}
+{{- end }}
 {{- if .Values.tlsBundle.autoMint }}
 {{- fail "deploymentProfile=production requires tlsBundle.autoMint=false" }}
 {{- end }}

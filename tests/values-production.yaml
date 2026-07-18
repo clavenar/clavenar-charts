@@ -11,6 +11,10 @@ authSecrets:
 attestationTrustAnchors:
   secretName: clavenar-attestation-trust
 
+vault:
+  addr: https://vault.internal:8200
+  tokenSecretName: clavenar-vault-token
+
 tlsBundle:
   secretName: clavenar-workload-tls
   autoMint: false

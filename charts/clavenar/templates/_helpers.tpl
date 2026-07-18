@@ -173,6 +173,8 @@ per environment variable.
       "CLAVENAR_GRACEFUL_DRAIN_SECS" -}}
 {{- $byService := dict
       "proxy" (list
+        "CLAVENAR_RUNTIME_ENVIRONMENT"
+        "CLAVENAR_ATTESTATION_PROVIDER"
         "CLAVENAR_PROXY_HEALTH_ADDR"
         "CLAVENAR_BRAIN_URL"
         "CLAVENAR_POLICY_URL"
@@ -231,6 +233,8 @@ per environment variable.
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH")
       "identity" (list
+        "CLAVENAR_RUNTIME_ENVIRONMENT"
+        "CLAVENAR_ATTESTATION_PROVIDER"
         "CLAVENAR_IDENTITY_TLS_DIR"
         "CLAVENAR_IDENTITY_ALLOWED_CALLERS"
         "CLAVENAR_IDENTITY_MTLS_ADDR"
@@ -351,6 +355,15 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $tlsOn := not (empty $tls) -}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- $policyScheme := ternary "https" "http" $tlsOn -}}
+{{- if has $name (list "proxy" "identity") }}
+# Attestation provider posture is chart-owned. Evaluation may explicitly use
+# the deterministic Proxy mock; production selects only Identity's real
+# k8s-key-bound verifier and both binaries enforce it before listener bind.
+- name: CLAVENAR_RUNTIME_ENVIRONMENT
+  value: {{ ternary "production" "development" (eq .ctx.Values.deploymentProfile "production") | quote }}
+- name: CLAVENAR_ATTESTATION_PROVIDER
+  value: {{ ternary "identity-k8s-key-bound" (ternary "mock" "identity-k8s-key-bound" (eq $name "proxy")) (eq .ctx.Values.deploymentProfile "production") | quote }}
+{{- end }}
 {{- if and $tlsOn (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $capabilityBundle := .ctx.Files.Get "files/workload-capability-bundle.json" -}}
 {{- $capabilityDocument := fromJson $capabilityBundle -}}

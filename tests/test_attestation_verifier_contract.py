@@ -34,6 +34,80 @@ def render() -> list[dict]:
 
 
 class AttestationVerifierContractChartTests(unittest.TestCase):
+    def test_production_selects_only_the_real_provider(self) -> None:
+        deployments = {
+            item["metadata"]["name"].removeprefix("smoke-"): item
+            for item in render()
+            if item.get("kind") == "Deployment"
+        }
+        for name in ("proxy", "identity"):
+            env = {
+                item["name"]: item.get("value")
+                for item in deployments[name]["spec"]["template"]["spec"]["containers"][0]["env"]
+            }
+            self.assertEqual(env["CLAVENAR_RUNTIME_ENVIRONMENT"], "production")
+            self.assertEqual(
+                env["CLAVENAR_ATTESTATION_PROVIDER"], "identity-k8s-key-bound"
+            )
+        identity_env = {
+            item["name"]: item.get("value")
+            for item in deployments["identity"]["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual(
+            identity_env["CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE"],
+            "/etc/clavenar/attestation/k8s-trust-anchors.json",
+        )
+
+    def test_evaluation_mock_is_explicit_and_proxy_only(self) -> None:
+        output = subprocess.run(
+            ["helm", "template", "smoke", str(CHART)],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        deployments = {
+            item["metadata"]["name"].removeprefix("smoke-"): item
+            for item in yaml.safe_load_all(output)
+            if isinstance(item, dict) and item.get("kind") == "Deployment"
+        }
+        providers = {}
+        for name in ("proxy", "identity"):
+            env = {
+                item["name"]: item.get("value")
+                for item in deployments[name]["spec"]["template"]["spec"]["containers"][0]["env"]
+            }
+            self.assertEqual(env["CLAVENAR_RUNTIME_ENVIRONMENT"], "development")
+            providers[name] = env["CLAVENAR_ATTESTATION_PROVIDER"]
+        self.assertEqual(
+            providers,
+            {"proxy": "mock", "identity": "identity-k8s-key-bound"},
+        )
+
+    def test_production_requires_external_signed_registry_authority(self) -> None:
+        cases = (
+            ("vault.addr=", "requires vault.addr"),
+            ("vault.tokenSecretName=", "requires vault.tokenSecretName"),
+            ("vault.bundled.enabled=true", "bundled dev-mode Vault is forbidden"),
+        )
+        for setting, expected in cases:
+            with self.subTest(setting=setting):
+                result = subprocess.run(
+                    [
+                        "helm",
+                        "template",
+                        "smoke",
+                        str(CHART),
+                        "-f",
+                        str(ROOT / "tests/values-production.yaml"),
+                        "--set",
+                        setting,
+                    ],
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+
     def test_immutable_configmap_preserves_contract_bytes(self) -> None:
         schema = json.loads(SCHEMA.read_text())
         fixture = json.loads(FIXTURE.read_text())

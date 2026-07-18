@@ -108,6 +108,8 @@ also exercised by CI as the canonical fail-closed profile.
 helm install my-clavenar charts/clavenar \
   --namespace clavenar --create-namespace \
   --set nats.url=nats://my-nats:4222 \
+  --set vault.addr=https://vault.internal:8200 \
+  --set vault.tokenSecretName=clavenar-vault-token \
   --set authSecrets.existingSecretName=clavenar-runtime-auth \
   --set attestationTrustAnchors.secretName=clavenar-attestation-trust \
   --set tlsBundle.secretName=clavenar-certs
@@ -118,7 +120,8 @@ The selected authentication Secret must already contain `hil-session-key` and
 backwards-compatible chart-generated Secret.
 Production also requires a public-only `attestationTrustAnchors` Secret; keep
 the corresponding evidence-signing private key with the cluster attester,
-outside every Clavenar pod.
+outside every Clavenar pod. Its signed measurement registry requires the
+external Vault address and token Secret; production refuses bundled dev Vault.
 
 That default keeps console ingress denied and serves only the safe demo
 router if you port-forward it. Enabling operator mTLS additionally requires
