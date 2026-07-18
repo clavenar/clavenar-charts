@@ -2,8 +2,8 @@
   "agentWorkloadCaller": "agent-workload",
   "contractVersion": "1.3.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:12a59c7557781459e0a98afa6e6c20fb6f0a68d6715e9ece6c5bedea668ecf86",
-  "matrixSha256": "sha256:9f91f97108b19d815dc9f484501710c83949eeceb376b7acc55d3cefb9c8612b",
+  "listenerMatrixSha256": "sha256:b6244730a96f675d4dc6e25cdd0bba3e51f20cb4dfe62af41a97501f96804ead",
+  "matrixSha256": "sha256:bc142c5c159ce0b1dae6eb98021e37e637f7c7377b7952efef1962751926867b",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -389,10 +389,11 @@
         },
         {
           "allowedCallerIds": [
-            "service-console"
+            "service-console",
+            "service-simulator"
           ],
-          "capability": "identity.agent.manage",
-          "family": "identity-agent-manage",
+          "capability": "identity.agent.register",
+          "family": "identity-agent-register",
           "method": "POST",
           "pathTemplate": "/agents"
         },
@@ -482,6 +483,15 @@
           "allowedCallerIds": [
             "service-console"
           ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/svid-recovery"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
           "capability": "identity.agent.lifecycle",
           "family": "identity-agent-lifecycle",
           "method": "POST",
@@ -499,7 +509,8 @@
         {
           "allowedCallerIds": [
             "service-console",
-            "service-proxy"
+            "service-proxy",
+            "service-simulator"
           ],
           "capability": "identity.grant.manage",
           "family": "identity-grants",
@@ -572,10 +583,11 @@
         },
         {
           "allowedCallerIds": [
-            "service-console"
+            "service-console",
+            "service-simulator"
           ],
-          "capability": "identity.upstream.manage",
-          "family": "identity-upstream-manage",
+          "capability": "identity.upstream.register",
+          "family": "identity-upstream-register",
           "method": "POST",
           "pathTemplate": "/upstreams"
         },
