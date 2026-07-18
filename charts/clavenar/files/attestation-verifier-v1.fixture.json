@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "contractVersion": "1.0.0",
+  "evaluationTime": "2026-07-18T14:00:30Z",
+  "approvedMeasurements": [
+    "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  ],
+  "request": {
+    "contractVersion": "1.0.0",
+    "requestId": "01981f7a-7b60-7000-8000-000000000001",
+    "evidenceKind": "tpm2-quote",
+    "evidence": "AAECAwQFBgcICQ",
+    "evidenceSha256": "sha256:1f825aa2f0020ef7cf91dfa30da4668d791c5d4824fc8e41354b89ec05795ab3",
+    "challenge": {
+      "nonce": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      "issuedAt": "2026-07-18T14:00:00Z",
+      "expiresAt": "2026-07-18T14:02:00Z"
+    },
+    "expected": {
+      "publicKeySha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "svidSha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "spiffeId": "spiffe://clavenar.local/tenant/acme/agent/payments-bot/instance/01981f7a-7b60-7000-8000-000000000002",
+      "tenant": "acme",
+      "workload": "payments-bot",
+      "instance": "01981f7a-7b60-7000-8000-000000000002",
+      "platformIssuer": "tpm-ek-ca:production-a",
+      "trustAnchorId": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "measurementPolicyVersion": "acme/measurements@7",
+      "verifierPolicyVersion": "tpm2@3"
+    },
+    "requestedAt": "2026-07-18T14:00:30Z"
+  },
+  "result": {
+    "contractVersion": "1.0.0",
+    "requestId": "01981f7a-7b60-7000-8000-000000000001",
+    "status": "verified",
+    "evidenceKind": "tpm2-quote",
+    "evidenceSha256": "sha256:1f825aa2f0020ef7cf91dfa30da4668d791c5d4824fc8e41354b89ec05795ab3",
+    "measurementSha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "challengeNonceSha256": "sha256:66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+    "publicKeySha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "svidSha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "spiffeId": "spiffe://clavenar.local/tenant/acme/agent/payments-bot/instance/01981f7a-7b60-7000-8000-000000000002",
+    "tenant": "acme",
+    "workload": "payments-bot",
+    "instance": "01981f7a-7b60-7000-8000-000000000002",
+    "platformIssuer": "tpm-ek-ca:production-a",
+    "trustAnchorId": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "measurementPolicyVersion": "acme/measurements@7",
+    "verifierId": "clavenar-tpm2-verifier",
+    "verifierPolicyVersion": "tpm2@3",
+    "issuedAt": "2026-07-18T13:59:00Z",
+    "verifiedAt": "2026-07-18T14:00:30Z",
+    "expiresAt": "2026-07-18T14:05:30Z"
+  },
+  "negativeCases": [
+    { "name": "contract-version", "target": "request", "path": "/contractVersion", "value": "2.0.0", "reason": "attestation_contract_version_unsupported" },
+    { "name": "malformed-evidence", "target": "request", "path": "/evidence", "value": "not+base64url", "reason": "attestation_evidence_malformed" },
+    { "name": "wrong-evidence-digest", "target": "request", "path": "/evidenceSha256", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_evidence_malformed" },
+    { "name": "oversized-evidence", "target": "request", "path": "/evidence", "generator": "base64url-65537-zero-bytes", "reason": "attestation_evidence_too_large" },
+    { "name": "unsupported-kind", "target": "request", "path": "/evidenceKind", "value": "dev-mock", "reason": "attestation_kind_unsupported" },
+    { "name": "expired-challenge", "target": "request", "path": "/challenge/expiresAt", "value": "2026-07-18T14:00:29Z", "reason": "attestation_challenge_invalid" },
+    { "name": "wrong-nonce", "target": "result", "path": "/challengeNonceSha256", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_nonce_mismatch" },
+    { "name": "result-evidence-digest", "target": "result", "path": "/evidenceSha256", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_evidence_malformed" },
+    { "name": "future-evidence", "target": "result", "path": "/issuedAt", "value": "2026-07-18T14:01:01Z", "reason": "attestation_evidence_future" },
+    { "name": "stale-evidence", "target": "result", "path": "/issuedAt", "value": "2026-07-18T13:55:29Z", "reason": "attestation_evidence_stale" },
+    { "name": "wrong-key", "target": "result", "path": "/publicKeySha256", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_key_mismatch" },
+    { "name": "wrong-svid", "target": "result", "path": "/svidSha256", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_svid_mismatch" },
+    { "name": "wrong-identity", "target": "result", "path": "/spiffeId", "value": "spiffe://clavenar.local/tenant/acme/agent/other/instance/01981f7a-7b60-7000-8000-000000000002", "reason": "attestation_identity_mismatch" },
+    { "name": "wrong-tenant", "target": "result", "path": "/tenant", "value": "other", "reason": "attestation_tenant_mismatch" },
+    { "name": "wrong-workload", "target": "result", "path": "/workload", "value": "other", "reason": "attestation_workload_mismatch" },
+    { "name": "wrong-instance", "target": "result", "path": "/instance", "value": "01981f7a-7b60-7000-8000-000000000099", "reason": "attestation_instance_mismatch" },
+    { "name": "unapproved-measurement", "target": "result", "path": "/measurementSha256", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_measurement_unapproved" },
+    { "name": "wrong-measurement-policy", "target": "result", "path": "/measurementPolicyVersion", "value": "acme/measurements@6", "reason": "attestation_measurement_unapproved" },
+    { "name": "untrusted-issuer", "target": "result", "path": "/platformIssuer", "value": "tpm-ek-ca:other", "reason": "attestation_issuer_untrusted" },
+    { "name": "untrusted-anchor", "target": "result", "path": "/trustAnchorId", "value": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "reason": "attestation_issuer_untrusted" },
+    { "name": "wrong-verifier-policy", "target": "result", "path": "/verifierPolicyVersion", "value": "tpm2@2", "reason": "attestation_verifier_policy_mismatch" },
+    { "name": "expired-result", "target": "result", "path": "/expiresAt", "value": "2026-07-18T14:00:30Z", "reason": "attestation_result_invalid" }
+  ]
+}

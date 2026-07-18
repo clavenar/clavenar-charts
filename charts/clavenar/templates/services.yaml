@@ -15,6 +15,7 @@ inside the range is the iterated value.
 {{- $operatorMtls := and (eq $name "console") (dig "operatorMtls" "enabled" false $cfg) }}
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
 {{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
+{{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
@@ -57,6 +58,10 @@ spec:
         {{- end }}
         {{- if $mountsCapability }}
         checksum/workload-capability-bundle: {{ $.Files.Get "files/workload-capability-bundle.json" | sha256sum }}
+        {{- end }}
+        {{- if $mountsAttestationContract }}
+        checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}
+        checksum/attestation-verifier-fixture: {{ $.Files.Get "files/attestation-verifier-v1.fixture.json" | sha256sum }}
         {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" $ }}
@@ -165,7 +170,7 @@ spec:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- $mountsOperatorTrust := $operatorMtls }}
-          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -187,11 +192,16 @@ spec:
               subPath: workload-capability-bundle.json
               readOnly: true
             {{- end }}
+            {{- if $mountsAttestationContract }}
+            - name: attestation-verifier-contract
+              mountPath: /etc/clavenar/attestation
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -276,6 +286,16 @@ spec:
             items:
               - key: workload-capability-bundle.json
                 path: workload-capability-bundle.json
+        {{- end }}
+        {{- if $mountsAttestationContract }}
+        - name: attestation-verifier-contract
+          configMap:
+            name: {{ include "clavenar.fullname" $ }}-attestation-verifier-contract
+            items:
+              - key: attestation-verifier-v1.schema.json
+                path: attestation-verifier-v1.schema.json
+              - key: attestation-verifier-v1.fixture.json
+                path: attestation-verifier-v1.fixture.json
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

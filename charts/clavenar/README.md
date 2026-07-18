@@ -316,6 +316,12 @@ apply walkthrough.
   exact bundle and endpoint-matrix SHA-256 receipts. Any missing, stale, or
   substituted policy prevents the mTLS application listener from starting;
   the old per-service `*_ALLOWED_CALLERS` overrides are rejected.
+- **Attestation verifier contract** — the chart preserves contract 1.0.0's
+  strict schema and conformance fixture byte-for-byte in a second immutable
+  ConfigMap. Proxy, Identity, and Policy Engine mount the same read-only
+  `/etc/clavenar/attestation` projection and roll only when either governed
+  file changes. This packages the verifier boundary; it does not enable a
+  mock provider as a production verifier.
 - **Dedicated operator trust projection** — when
   `services.console.operatorMtls.enabled=true`, the console additionally
   mounts only `ca.crt` + `operators.json` from

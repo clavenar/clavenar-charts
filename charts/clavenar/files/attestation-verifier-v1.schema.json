@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/attestation-verifier-v1.schema.json",
+  "title": "Clavenar workload attestation verifier contract",
+  "description": "Strict boundary between evidence collection, a production verifier, and consumers of verified workload claims.",
+  "oneOf": [
+    { "$ref": "#/$defs/verificationRequest" },
+    { "$ref": "#/$defs/verifiedAttestation" },
+    { "$ref": "#/$defs/errorResponse" }
+  ],
+  "x-clavenar-contract": {
+    "schemaVersion": 1,
+    "contractVersion": "1.0.0",
+    "mediaType": "application/vnd.clavenar.attestation-verifier.v1+json",
+    "supportedEvidenceKinds": [
+      "aws-nitro",
+      "gcp-shielded",
+      "k8s-key-bound",
+      "sev-snp",
+      "sgx-dcap",
+      "tpm2-quote"
+    ],
+    "limits": {
+      "evidenceBytes": 65536,
+      "challengeNonceBytes": 32,
+      "challengeLifetimeSeconds": 120,
+      "futureClockSkewSeconds": 30,
+      "evidenceMaxAgeSeconds": 300,
+      "verifiedResultLifetimeSeconds": 900,
+      "cacheLifetimeCeilingSeconds": 300
+    },
+    "exactBindings": [
+      "challengeNonce",
+      "evidenceKind",
+      "evidenceSha256",
+      "measurementSha256",
+      "publicKeySha256",
+      "svidSha256",
+      "spiffeId",
+      "tenant",
+      "workload",
+      "instance",
+      "platformIssuer",
+      "trustAnchorId",
+      "measurementPolicyVersion",
+      "verifierPolicyVersion"
+    ],
+    "cacheKey": [
+      "contractVersion",
+      "evidenceKind",
+      "measurementSha256",
+      "publicKeySha256",
+      "svidSha256",
+      "spiffeId",
+      "tenant",
+      "workload",
+      "instance",
+      "trustAnchorId",
+      "measurementPolicyVersion",
+      "verifierId",
+      "verifierPolicyVersion"
+    ],
+    "cacheInvalidation": [
+      "expiry",
+      "challenge-reuse",
+      "key-change",
+      "svid-change",
+      "identity-change",
+      "tenant-change",
+      "workload-change",
+      "instance-change",
+      "measurement-change",
+      "trust-anchor-change",
+      "measurement-policy-change",
+      "verifier-policy-change"
+    ],
+    "reasonCodes": [
+      "attestation_contract_version_unsupported",
+      "attestation_evidence_malformed",
+      "attestation_evidence_too_large",
+      "attestation_kind_unsupported",
+      "attestation_challenge_invalid",
+      "attestation_nonce_mismatch",
+      "attestation_evidence_future",
+      "attestation_evidence_stale",
+      "attestation_key_mismatch",
+      "attestation_svid_mismatch",
+      "attestation_identity_mismatch",
+      "attestation_tenant_mismatch",
+      "attestation_workload_mismatch",
+      "attestation_instance_mismatch",
+      "attestation_measurement_unapproved",
+      "attestation_issuer_untrusted",
+      "attestation_verifier_policy_mismatch",
+      "attestation_verifier_unavailable",
+      "attestation_result_invalid"
+    ],
+    "failureSemantics": "A missing, malformed, unverifiable, stale, mismatched, unavailable, or unknown result never becomes a verified claim and has no mock, cached-unbound, or caller-asserted fallback.",
+    "privacySemantics": "Errors expose only a stable reason code and request identifier; raw evidence, measurements, platform claims, keys, and trust-chain material are never reflected."
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 63,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "challenge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nonce", "issuedAt", "expiresAt"],
+      "properties": {
+        "nonce": {
+          "type": "string",
+          "description": "Exactly 32 random bytes encoded as unpadded base64url.",
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "expectedBindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publicKeySha256",
+        "svidSha256",
+        "spiffeId",
+        "tenant",
+        "workload",
+        "instance",
+        "platformIssuer",
+        "trustAnchorId",
+        "measurementPolicyVersion",
+        "verifierPolicyVersion"
+      ],
+      "properties": {
+        "publicKeySha256": { "$ref": "#/$defs/sha256" },
+        "svidSha256": { "$ref": "#/$defs/sha256" },
+        "spiffeId": {
+          "type": "string",
+          "maxLength": 512,
+          "pattern": "^spiffe://[^/]+/tenant/[^/]+/agent/[^/]+/instance/[^/]+$"
+        },
+        "tenant": { "$ref": "#/$defs/label" },
+        "workload": { "$ref": "#/$defs/label" },
+        "instance": { "$ref": "#/$defs/label" },
+        "platformIssuer": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "trustAnchorId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "measurementPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "verifierPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 128 }
+      }
+    },
+    "verificationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestId",
+        "evidenceKind",
+        "evidence",
+        "evidenceSha256",
+        "challenge",
+        "expected",
+        "requestedAt"
+      ],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "evidenceKind": {
+          "type": "string",
+          "enum": ["aws-nitro", "gcp-shielded", "k8s-key-bound", "sev-snp", "sgx-dcap", "tpm2-quote"]
+        },
+        "evidence": {
+          "type": "string",
+          "description": "Opaque evidence encoded as unpadded base64url; decoded length is at most 65536 bytes.",
+          "maxLength": 87382,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "evidenceSha256": { "$ref": "#/$defs/sha256" },
+        "challenge": { "$ref": "#/$defs/challenge" },
+        "expected": { "$ref": "#/$defs/expectedBindings" },
+        "requestedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "verifiedAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestId",
+        "status",
+        "evidenceKind",
+        "evidenceSha256",
+        "measurementSha256",
+        "challengeNonceSha256",
+        "publicKeySha256",
+        "svidSha256",
+        "spiffeId",
+        "tenant",
+        "workload",
+        "instance",
+        "platformIssuer",
+        "trustAnchorId",
+        "measurementPolicyVersion",
+        "verifierId",
+        "verifierPolicyVersion",
+        "issuedAt",
+        "verifiedAt",
+        "expiresAt"
+      ],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "status": { "const": "verified" },
+        "evidenceKind": {
+          "type": "string",
+          "enum": ["aws-nitro", "gcp-shielded", "k8s-key-bound", "sev-snp", "sgx-dcap", "tpm2-quote"]
+        },
+        "evidenceSha256": { "$ref": "#/$defs/sha256" },
+        "measurementSha256": { "$ref": "#/$defs/sha256" },
+        "challengeNonceSha256": { "$ref": "#/$defs/sha256" },
+        "publicKeySha256": { "$ref": "#/$defs/sha256" },
+        "svidSha256": { "$ref": "#/$defs/sha256" },
+        "spiffeId": { "type": "string", "maxLength": 512 },
+        "tenant": { "$ref": "#/$defs/label" },
+        "workload": { "$ref": "#/$defs/label" },
+        "instance": { "$ref": "#/$defs/label" },
+        "platformIssuer": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "trustAnchorId": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "measurementPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "verifierId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "verifierPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "issuedAt": { "type": "string", "format": "date-time" },
+        "verifiedAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "errorResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "requestId", "status", "reason"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "requestId": { "type": "string", "format": "uuid" },
+        "status": { "const": "rejected" },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "attestation_contract_version_unsupported",
+            "attestation_evidence_malformed",
+            "attestation_evidence_too_large",
+            "attestation_kind_unsupported",
+            "attestation_challenge_invalid",
+            "attestation_nonce_mismatch",
+            "attestation_evidence_future",
+            "attestation_evidence_stale",
+            "attestation_key_mismatch",
+            "attestation_svid_mismatch",
+            "attestation_identity_mismatch",
+            "attestation_tenant_mismatch",
+            "attestation_workload_mismatch",
+            "attestation_instance_mismatch",
+            "attestation_measurement_unapproved",
+            "attestation_issuer_untrusted",
+            "attestation_verifier_policy_mismatch",
+            "attestation_verifier_unavailable",
+            "attestation_result_invalid"
+          ]
+        }
+      }
+    }
+  }
+}

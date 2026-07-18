@@ -77,7 +77,7 @@ jobs:
           python3 scripts/check-listener-matrix.py --manifest /tmp/production.yaml --values tests/values-production.yaml
           python3 scripts/check-listener-matrix.py --manifest /tmp/optional.yaml --values tests/values-optional.yaml
           python3 scripts/check-listener-matrix.py --manifest /tmp/bundled.yaml --values tests/values-bundled.yaml
-          python3 -m unittest -v tests/test_listener_matrix.py
+          python3 -m unittest discover -v -s tests -p 'test_*.py'
 
       - name: Prometheus rule syntax + console alert evaluation
         run: |

@@ -54,7 +54,8 @@ charts/clavenar/
     _helpers.tpl        # serviceFullname, imageRef, natsUrl, backendEnvs, probe/metrics helpers — the load-bearing logic
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
     services.yaml       # the 9 Deployments + Services
-    configmap.yaml workload-capability-bundle.yaml shared-tokens-secret.yaml vault-token-secret.yaml
+    configmap.yaml workload-capability-bundle.yaml attestation-verifier-contract.yaml
+    shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
     vault-{bootstrap,seed}-job.yaml       # dev-mode transit engine + stub agent credential
