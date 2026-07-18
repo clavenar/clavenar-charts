@@ -14,6 +14,7 @@ inside the range is the iterated value.
 {{- $persist := index $.Values.persistence $name | default dict }}
 {{- $operatorMtls := and (eq $name "console") (dig "operatorMtls" "enabled" false $cfg) }}
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
+{{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
@@ -53,6 +54,9 @@ spec:
         # bundle would otherwise keep using the stale cert/CA until
         # something else forced a restart.
         checksum/tls-automint-script: {{ include (print $.Template.BasePath "/tls-automint-script.yaml") $ | sha256sum }}
+        {{- end }}
+        {{- if $mountsCapability }}
+        checksum/workload-capability-bundle: {{ $.Files.Get "files/workload-capability-bundle.json" | sha256sum }}
         {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" $ }}
@@ -161,7 +165,7 @@ spec:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- $mountsOperatorTrust := $operatorMtls }}
-          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -177,11 +181,17 @@ spec:
               mountPath: /operator-trust
               readOnly: true
             {{- end }}
+            {{- if $mountsCapability }}
+            - name: workload-capabilities
+              mountPath: /etc/clavenar/workload-capability-bundle.json
+              subPath: workload-capability-bundle.json
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -258,6 +268,14 @@ spec:
                 path: ca.crt
               - key: operators.json
                 path: operators.json
+        {{- end }}
+        {{- if $mountsCapability }}
+        - name: workload-capabilities
+          configMap:
+            name: {{ include "clavenar.fullname" $ }}-workload-capabilities
+            items:
+              - key: workload-capability-bundle.json
+                path: workload-capability-bundle.json
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

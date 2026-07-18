@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import copy
+import hashlib
 import importlib.util
 import json
 import shutil
@@ -25,6 +26,11 @@ NATS_TLS_ENV = {
     "NATS_TLS_CERT_PATH",
     "NATS_TLS_KEY_PATH",
     "NATS_TLS_CA_PATH",
+}
+CAPABILITY_ENV = {
+    "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
+    "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+    "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
 }
 GOVERNED_ENV_BY_SERVICE = {
     "proxy": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
@@ -57,28 +63,28 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS",
         "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES",
     },
-    "policyEngine": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+    "policyEngine": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_POLICY_ENGINE_BRAIN_URL",
         "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE",
         "CLAVENAR_POLICY_TLS_DIR",
         "CLAVENAR_POLICY_ALLOWED_CALLERS",
         "CLAVENAR_POLICY_HEALTH_ADDR",
     },
-    "ledger": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+    "ledger": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_LEDGER_ALLOWED_CALLERS",
         "CLAVENAR_LEDGER_TLS_DIR",
         "CLAVENAR_LEDGER_MTLS_ADDR",
         "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY",
         "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE",
     },
-    "hil": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+    "hil": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_HIL_TLS_DIR",
         "CLAVENAR_HIL_ALLOWED_CALLERS",
         "CLAVENAR_HIL_HEALTH_ADDR",
         "CLAVENAR_HIL_DECIDE_TOKEN",
         "CLAVENAR_HIL_SESSION_KEY",
     },
-    "identity": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
+    "identity": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_IDENTITY_TLS_DIR",
         "CLAVENAR_IDENTITY_ALLOWED_CALLERS",
         "CLAVENAR_IDENTITY_MTLS_ADDR",
@@ -478,8 +484,8 @@ class ListenerMatrixTest(unittest.TestCase):
             "proxy": "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
             "brain": "CLAVENAR_BRAIN_TLS_DIR",
             "policyEngine": "CLAVENAR_POLICY_TLS_DIR",
-            "ledger": "CLAVENAR_LEDGER_ALLOWED_CALLERS",
-            "hil": "CLAVENAR_HIL_ALLOWED_CALLERS",
+            "ledger": "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+            "hil": "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
             "identity": "CLAVENAR_IDENTITY_MTLS_ADDR",
             "deepReview": "NATS_TLS_CA_PATH",
             "assurance": "CLAVENAR_ASSURANCE_ADMIN_PORT",
@@ -594,7 +600,7 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         self.assertIn("valid demo cookie narrows", listener["authentication"])
         self.assertIn(
-            "SPIFFE allowlist [proxy, console, simulator]",
+            "digest-bound generated route capabilities",
             listener["authentication"],
         )
         self.assertIn("simulator", listener["authorizedCallers"])
@@ -1028,18 +1034,28 @@ class ListenerMatrixTest(unittest.TestCase):
             "spiffe://clavenar.local/service/website",
             env["CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"],
         )
+        bundle_bytes = (
+            ROOT / "charts/clavenar/files/workload-capability-bundle.json"
+        ).read_bytes()
+        bundle = json.loads(bundle_bytes)
         self.assertEqual(
-            "spiffe://clavenar.local/service/proxy,"
-            "spiffe://clavenar.local/service/console,"
-            "spiffe://clavenar.local/service/deep-review,"
-            "spiffe://clavenar.local/service/simulator",
-            env["CLAVENAR_LEDGER_ALLOWED_CALLERS"],
+            "/etc/clavenar/workload-capability-bundle.json",
+            env["CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE"],
         )
+        self.assertEqual(
+            "sha256:" + hashlib.sha256(bundle_bytes).hexdigest(),
+            env["CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256"],
+        )
+        self.assertEqual(
+            bundle["matrixSha256"],
+            env["CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256"],
+        )
+        self.assertNotIn("CLAVENAR_LEDGER_ALLOWED_CALLERS", env)
         internal_listener = next(
             item for item in self.matrix["listeners"]
             if item["service"] == "ledger" and item["listenerId"] == "internal-mtls"
         )
-        self.assertIn("explicitly excludes website", internal_listener["authentication"])
+        self.assertIn("generated route capabilities", internal_listener["authentication"])
         self.assertIn("public /verify branch", internal_listener["authentication"])
 
         configured_peers = values["networkPolicy"]["ledger"]["trustedProxy"]["allowedPeers"]
@@ -1425,9 +1441,9 @@ class ListenerMatrixTest(unittest.TestCase):
         env = ledger["spec"]["template"]["spec"]["containers"][0]["env"]
         next(
             entry for entry in env
-            if entry["name"] == "CLAVENAR_LEDGER_ALLOWED_CALLERS"
-        )["value"] += ",spiffe://clavenar.local/service/website"
-        mutations["website escalated into internal-route allowlist"] = allowlist
+            if entry["name"] == "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256"
+        )["value"] = "sha256:" + ("0" * 64)
+        mutations["generated capability digest substitution"] = allowlist
 
         wrong_port = copy.deepcopy(self.rendered["production"])
         policy = next(

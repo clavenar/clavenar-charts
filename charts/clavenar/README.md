@@ -310,6 +310,12 @@ apply walkthrough.
   private key. Generate the bundle with
   `clavenar-proxy/scripts/gen_certs.sh --env prod` then
   `kubectl create secret generic clavenar-tls --from-file=clavenar-proxy/certs/`.
+- **Generated route capabilities** — the chart packages the canonical
+  `workload-capability-bundle.json` byte-for-byte in an immutable ConfigMap.
+  Ledger, Policy Engine, HIL, and Identity mount the same file and receive its
+  exact bundle and endpoint-matrix SHA-256 receipts. Any missing, stale, or
+  substituted policy prevents the mTLS application listener from starting;
+  the old per-service `*_ALLOWED_CALLERS` overrides are rejected.
 - **Dedicated operator trust projection** — when
   `services.console.operatorMtls.enabled=true`, the console additionally
   mounts only `ca.crt` + `operators.json` from

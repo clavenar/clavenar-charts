@@ -290,6 +290,12 @@ per environment variable.
         "CLAVENAR_HIL_DECIDE_TOKEN"
         "CLAVENAR_CONSOLE_ALLOW_DISABLED_NETWORK") -}}
 {{- $governed := concat $common (default (list) (get $byService $service)) -}}
+{{- if has $service (list "ledger" "policyEngine" "hil" "identity") -}}
+{{- $governed = concat $governed (list
+      "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE"
+      "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256"
+      "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256") -}}
+{{- end -}}
 {{- if and (eq $service "proxy") (or $ctx.Values.exec.enabled $ctx.Values.upstreamStub.enabled) -}}
 {{- $governed = append $governed "CLAVENAR_UPSTREAM_URL" -}}
 {{- end -}}
@@ -344,6 +350,18 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $tlsOn := not (empty $tls) -}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- $policyScheme := ternary "https" "http" $tlsOn -}}
+{{- if and $tlsOn (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
+{{- $capabilityBundle := .ctx.Files.Get "files/workload-capability-bundle.json" -}}
+{{- $capabilityDocument := fromJson $capabilityBundle -}}
+# All four application mTLS listeners consume the byte-identical generated
+# policy. The file digest and its canonical matrix binding are startup gates.
+- name: CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE
+  value: "/etc/clavenar/workload-capability-bundle.json"
+- name: CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256
+  value: "sha256:{{ sha256sum $capabilityBundle }}"
+- name: CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256
+  value: {{ required "generated capability bundle requires matrixSha256" $capabilityDocument.matrixSha256 | quote }}
+{{- end }}
 {{- if eq $name "proxy" }}
 - name: CLAVENAR_PROXY_HEALTH_ADDR
   value: "0.0.0.0:8080"
@@ -415,7 +433,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ printf "%d" (int .ctx.Values.services.brain.auxBodyLimitBytes) | quote }}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 3). Bundle mounted → brain binds
-# rustls + SPIFFE-URI allowlist on the application port; /health +
+# rustls + generated route capabilities on the application port; /health +
 # /readyz + /metrics move to the plain-HTTP health port so kubelet
 # probes don't need a client cert.
 - name: CLAVENAR_BRAIN_TLS_DIR
@@ -438,11 +456,9 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # mTLS receive (B7 v1.x+2 session 4). Bundle mounted → engine binds
 # rustls + SPIFFE-URI allowlist on the application port; /health +
 # /readyz + /metrics move to the plain-HTTP health port. Session 5
-# adds console to the allowlist for the explicit policy-management routes.
+# adds route-specific generated capabilities for policy management.
 - name: CLAVENAR_POLICY_TLS_DIR
   value: {{ $mount | quote }}
-- name: CLAVENAR_POLICY_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console"
 - name: CLAVENAR_POLICY_HEALTH_ADDR
   value: "0.0.0.0:9082"
 {{- end }}
@@ -451,14 +467,12 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 6). Port 8084 becomes rustls when the
 # bundle is mounted. Its application branch additionally enforces the
-# SPIFFE allowlist; the four operational routes remain merged on 8084
+# generated route capabilities; the four operational routes remain merged on 8084
 # outside that route middleware and are also served on
 # `services.hil.healthPort` (default 9084), so kubelet
 # + Prometheus can use plain HTTP without a client cert.
 - name: CLAVENAR_HIL_TLS_DIR
   value: {{ $mount | quote }}
-- name: CLAVENAR_HIL_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/simulator"
 - name: CLAVENAR_HIL_HEALTH_ADDR
   value: "0.0.0.0:9084"
 {{- end }}
@@ -478,7 +492,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 #     including durable CSR-bound `/svid` (one-use Simulator bootstrap,
 #     then exact current-agent-SVID renewal; private keys stay caller-side),
 #     `/grant`, `/revoke`, `/sign`, `/actor-token*`,
-#     `/agents*`. SPIFFE allowlist gates every internal route.
+#     `/agents*`. Generated capabilities gate every internal route.
 #
 # Service template emits a second port (`name: mtls`) alongside
 # `http` when tlsBundle.secretName is set, so the chart-wired
@@ -486,8 +500,6 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # without any per-release manifest tweak.
 - name: CLAVENAR_IDENTITY_TLS_DIR
   value: {{ $mount | quote }}
-- name: CLAVENAR_IDENTITY_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/simulator,spiffe://clavenar.local/tenant/simulator/agent/"
 - name: CLAVENAR_IDENTITY_MTLS_ADDR
   value: "0.0.0.0:8186"
 {{- end }}
@@ -509,8 +521,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # + internal readers reach this without a client cert). mTLS on
 # `mtlsPort` (default 8183) serves the full router; the internal write
 # + console-only read subset (the exact routes are governed by
-# `listeners.yaml`) is SPIFFE-gated by the
-# allowlist. The plain HTTP router STRIPS those routes so a cluster-
+# `listeners.yaml`) is SPIFFE-gated by generated route capabilities. The plain
+# HTTP router STRIPS those routes so a cluster-
 # network attacker cannot bypass mTLS by hitting `port` directly.
 # Service template emits a second port (`name: mtls`) alongside
 # `http` when tlsBundle.secretName is set so in-cluster clients can
@@ -518,12 +530,6 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # Service DNS.
 - name: CLAVENAR_LEDGER_TLS_DIR
   value: {{ $mount | quote }}
-# This allowlist gates internal /log, audit, export, case, and administrative
-# routes. The website is deliberately absent: it reaches only /verify outside
-# the internal route middleware, then trusted-proxy handling independently
-# requires its exact mTLS identity before accepting a forwarded address.
-- name: CLAVENAR_LEDGER_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/deep-review,spiffe://clavenar.local/service/simulator"
 - name: CLAVENAR_LEDGER_MTLS_ADDR
   value: "0.0.0.0:8183"
 {{- end }}

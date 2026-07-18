@@ -370,6 +370,129 @@ def validate_deployment_profile(values, errors):
         errors.append("production profile requires separate workload and operator trust Secrets")
 
 
+def validate_workload_capability_contract(values, docs, release, errors):
+    """Validate the byte-bound generated policy on all four mTLS services."""
+
+    configmaps = [
+        doc for doc in docs
+        if doc.get("kind") == "ConfigMap"
+        and doc.get("metadata", {}).get("name")
+        == f"{release}-workload-capabilities"
+    ]
+    if len(configmaps) != 1:
+        errors.append(
+            "generated workload capabilities must render exactly one ConfigMap"
+        )
+        return
+    configmap = configmaps[0]
+    raw = (configmap.get("data") or {}).get("workload-capability-bundle.json")
+    if not isinstance(raw, str):
+        errors.append("generated workload capability ConfigMap is missing its bundle")
+        return
+    try:
+        bundle = json.loads(raw)
+    except json.JSONDecodeError:
+        errors.append("generated workload capability ConfigMap is not valid JSON")
+        return
+    if configmap.get("immutable") is not True:
+        errors.append("generated workload capability ConfigMap must be immutable")
+    bundle_sha = f"sha256:{hashlib.sha256(raw.encode()).hexdigest()}"
+    identities = bundle.get("workloadIdentities") or []
+    services = bundle.get("services") or {}
+    families = {
+        route.get("family")
+        for policy in services.values()
+        for route in policy.get("routes", [])
+    }
+    route_count = sum(len(policy.get("routes", [])) for policy in services.values())
+    if (
+        bundle.get("schemaVersion") != 1
+        or bundle.get("feature") != "WP-02.9"
+        or len(identities) != 11
+        or set(services) != {"ledger", "policy-engine", "hil", "identity"}
+        or len(families) != 52
+        or route_count != 117
+    ):
+        errors.append("generated workload capability inventory is not canonical")
+        return
+    ledger_callers = {
+        caller
+        for route in services["ledger"]["routes"]
+        for caller in route.get("allowedCallerIds", [])
+    }
+    if "service-website" in ledger_callers:
+        errors.append("website identity entered generated ledger application routes")
+
+    tls_enabled = bool(value_at(values, "tlsBundle.secretName"))
+    targets = {
+        "ledger": "ledger",
+        "policyEngine": "policy-engine",
+        "hil": "hil",
+        "identity": "identity",
+    }
+    governed_names = {
+        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
+        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+        "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
+    }
+    for values_name, workload_name in targets.items():
+        if not value_at(values, f"services.{values_name}.enabled"):
+            continue
+        deployments = [
+            doc for doc in docs
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == f"{release}-{workload_name}"
+        ]
+        if len(deployments) != 1:
+            errors.append(f"{workload_name} capability deployment is not unique")
+            continue
+        pod = deployments[0].get("spec", {}).get("template", {}).get("spec", {})
+        containers = [
+            item for item in pod.get("containers", [])
+            if item.get("name") == workload_name
+        ]
+        if len(containers) != 1:
+            errors.append(f"{workload_name} capability container is not unique")
+            continue
+        container = containers[0]
+        entries = [
+            item for item in container.get("env", [])
+            if item.get("name") in governed_names
+        ]
+        actual = {item.get("name"): item.get("value") for item in entries}
+        mounts = {
+            item.get("name"): item for item in container.get("volumeMounts", [])
+        }
+        volumes = {item.get("name"): item for item in pod.get("volumes", [])}
+        if not tls_enabled:
+            if entries or "workload-capabilities" in mounts or "workload-capabilities" in volumes:
+                errors.append(
+                    f"{workload_name} mounts generated capabilities without workload TLS"
+                )
+            continue
+        expected = {
+            "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE": (
+                "/etc/clavenar/workload-capability-bundle.json"
+            ),
+            "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256": bundle_sha,
+            "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256": bundle.get(
+                "matrixSha256"
+            ),
+        }
+        if len(entries) != 3 or actual != expected:
+            errors.append(f"{workload_name} generated capability environment drifted")
+        mount = mounts.get("workload-capabilities") or {}
+        volume = (volumes.get("workload-capabilities") or {}).get("configMap", {})
+        if (
+            mount.get("mountPath")
+            != "/etc/clavenar/workload-capability-bundle.json"
+            or mount.get("subPath") != "workload-capability-bundle.json"
+            or mount.get("readOnly") is not True
+            or volume.get("name") != f"{release}-workload-capabilities"
+        ):
+            errors.append(f"{workload_name} generated capability mount drifted")
+
+
 def validate_ledger_trusted_proxy_contract(values, docs, release, errors):
     if not value_at(values, "services.ledger.enabled"):
         return
@@ -410,23 +533,6 @@ def validate_ledger_trusted_proxy_contract(values, docs, release, errors):
     expected_spiffe = [trusted_spiffe] if trusted_spiffe else []
     if spiffe_entries != expected_spiffe:
         errors.append("ledger governed trusted-proxy SPIFFE does not match values")
-
-    tls_enabled = bool(value_at(values, "tlsBundle.secretName"))
-    allowed_entries = [
-        entry.get("value") for entry in env_entries
-        if entry.get("name") == "CLAVENAR_LEDGER_ALLOWED_CALLERS"
-    ]
-    base_callers = [
-        "spiffe://clavenar.local/service/proxy",
-        "spiffe://clavenar.local/service/console",
-        "spiffe://clavenar.local/service/deep-review",
-        "spiffe://clavenar.local/service/simulator",
-    ]
-    expected_allowed = [",".join(base_callers)] if tls_enabled else []
-    if allowed_entries != expected_allowed:
-        errors.append("ledger internal-route mTLS allowlist drifted")
-    if any("spiffe://clavenar.local/service/website" in str(item) for item in allowed_entries):
-        errors.append("website trusted-proxy identity must not enter ledger's internal-route allowlist")
 
     configured_peers = value_at(
         values, "networkPolicy.ledger.trustedProxy.allowedPeers"
@@ -1361,6 +1467,7 @@ def validate(
     )
     validate_brain_auxiliary_contract(values, docs, release, errors)
     validate_assurance_contract(values, docs, release, errors)
+    validate_workload_capability_contract(values, docs, release, errors)
     validate_ledger_trusted_proxy_contract(values, docs, release, errors)
     validate_service_env_uniqueness(docs, release, errors)
     return errors

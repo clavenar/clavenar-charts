@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-workload-capabilities
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "workload-capabilities") | nindent 4 }}
+immutable: true
+data:
+  workload-capability-bundle.json: |
+{{ .Files.Get "files/workload-capability-bundle.json" | trimSuffix "\n" | indent 4 }}

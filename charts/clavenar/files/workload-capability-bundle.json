@@ -1,0 +1,1195 @@
+{
+  "agentWorkloadCaller": "agent-workload",
+  "contractVersion": "1.3.0",
+  "feature": "WP-02.9",
+  "listenerMatrixSha256": "sha256:12a59c7557781459e0a98afa6e6c20fb6f0a68d6715e9ece6c5bedea668ecf86",
+  "matrixSha256": "sha256:9f91f97108b19d815dc9f484501710c83949eeceb376b7acc55d3cefb9c8612b",
+  "schemaVersion": 1,
+  "services": {
+    "hil": {
+      "routes": [
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.identity.manage",
+          "family": "hil-identity-manage",
+          "method": "DELETE",
+          "pathTemplate": "/identities/{oidc_sub}/slack"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.identity.manage",
+          "family": "hil-identity-manage",
+          "method": "DELETE",
+          "pathTemplate": "/identities/{oidc_sub}/teams"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.read",
+          "family": "hil-pending-read",
+          "method": "GET",
+          "pathTemplate": "/approvals/stats"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.auth.ceremony",
+          "family": "hil-auth",
+          "method": "GET",
+          "pathTemplate": "/auth/me"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.identity.read",
+          "family": "hil-identity-read",
+          "method": "GET",
+          "pathTemplate": "/identities/{oidc_sub}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.notification.read",
+          "family": "hil-notification-read",
+          "method": "GET",
+          "pathTemplate": "/notifications/config"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.read",
+          "family": "hil-pending-read",
+          "method": "GET",
+          "pathTemplate": "/pending"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.read",
+          "family": "hil-pending-read",
+          "method": "GET",
+          "pathTemplate": "/pending/by-correlation/{correlation_id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.read",
+          "family": "hil-pending-read",
+          "method": "GET",
+          "pathTemplate": "/pending/stream"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.read",
+          "family": "hil-pending-read",
+          "method": "GET",
+          "pathTemplate": "/pending/summaries"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.read",
+          "family": "hil-pending-read",
+          "method": "GET",
+          "pathTemplate": "/pending/{id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.decision-link.manage",
+          "family": "hil-decision-link",
+          "method": "GET",
+          "pathTemplate": "/pending/{id}/decision-link"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.pending.manage",
+          "family": "hil-pending-manage",
+          "method": "PATCH",
+          "pathTemplate": "/pending/{id}/incident"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.auth.ceremony",
+          "family": "hil-auth",
+          "method": "POST",
+          "pathTemplate": "/auth/login/finish"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.auth.ceremony",
+          "family": "hil-auth",
+          "method": "POST",
+          "pathTemplate": "/auth/login/start"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.auth.ceremony",
+          "family": "hil-auth",
+          "method": "POST",
+          "pathTemplate": "/auth/logout"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.auth.ceremony",
+          "family": "hil-auth",
+          "method": "POST",
+          "pathTemplate": "/auth/register/finish"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.auth.ceremony",
+          "family": "hil-auth",
+          "method": "POST",
+          "pathTemplate": "/auth/register/start"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-simulator"
+          ],
+          "capability": "hil.decision.execute",
+          "family": "hil-decision",
+          "method": "POST",
+          "pathTemplate": "/decide/{id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.decision-link.manage",
+          "family": "hil-decision-link",
+          "method": "POST",
+          "pathTemplate": "/decision-link/verify"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.identity.manage",
+          "family": "hil-identity-manage",
+          "method": "POST",
+          "pathTemplate": "/identities/upsert"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.notification.manage",
+          "family": "hil-notification-manage",
+          "method": "POST",
+          "pathTemplate": "/notifications/test"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "hil.pending.create",
+          "family": "hil-pending-create",
+          "method": "POST",
+          "pathTemplate": "/pending"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.pending.manage",
+          "family": "hil-pending-manage",
+          "method": "POST",
+          "pathTemplate": "/pending/{id}/assign"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.webhook.receive",
+          "family": "hil-webhooks",
+          "method": "POST",
+          "pathTemplate": "/webhook/slack"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.webhook.receive",
+          "family": "hil-webhooks",
+          "method": "POST",
+          "pathTemplate": "/webhook/teams"
+        }
+      ]
+    },
+    "identity": {
+      "routes": [
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.decoy.manage",
+          "family": "identity-decoy-manage",
+          "method": "DELETE",
+          "pathTemplate": "/decoys/{name}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.agent.read",
+          "family": "identity-agent-read",
+          "method": "GET",
+          "pathTemplate": "/agents"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.agent.read",
+          "family": "identity-agent-read",
+          "method": "GET",
+          "pathTemplate": "/agents/orphans"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.agent.read",
+          "family": "identity-agent-read",
+          "method": "GET",
+          "pathTemplate": "/agents/{id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.agent.read",
+          "family": "identity-agent-read",
+          "method": "GET",
+          "pathTemplate": "/agents/{id}/containment"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.decoy.read",
+          "family": "identity-decoy-read",
+          "method": "GET",
+          "pathTemplate": "/decoys"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.revocation.read",
+          "family": "identity-revocation-read",
+          "method": "GET",
+          "pathTemplate": "/grants"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.revocation.read",
+          "family": "identity-revocation-read",
+          "method": "GET",
+          "pathTemplate": "/revocation/list"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.budget.read",
+          "family": "identity-budget-read",
+          "method": "GET",
+          "pathTemplate": "/tenants/{tenant}/budget"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.upstream.read",
+          "family": "identity-upstream-read",
+          "method": "GET",
+          "pathTemplate": "/upstreams"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.upstream.read",
+          "family": "identity-upstream-read",
+          "method": "GET",
+          "pathTemplate": "/upstreams/{id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy"
+          ],
+          "capability": "identity.actor-token.issue",
+          "family": "identity-actor-token-issue",
+          "method": "POST",
+          "pathTemplate": "/actor-token"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy"
+          ],
+          "capability": "identity.actor-token.redeem",
+          "family": "identity-actor-token-redeem",
+          "method": "POST",
+          "pathTemplate": "/actor-token/redeem"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/attestation-kinds"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/certification"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "identity.agent.containment",
+          "family": "identity-agent-containment",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/containment/clear"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.lifecycle",
+          "family": "identity-agent-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/decommission"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/description"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/envelope/narrow"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/envelope/widen"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.manage",
+          "family": "identity-agent-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/owner-team"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.lifecycle",
+          "family": "identity-agent-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/suspend"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.agent.lifecycle",
+          "family": "identity-agent-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/unsuspend"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.decoy.manage",
+          "family": "identity-decoy-manage",
+          "method": "POST",
+          "pathTemplate": "/decoys"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "identity.grant.manage",
+          "family": "identity-grants",
+          "method": "POST",
+          "pathTemplate": "/grant"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.revocation.manage",
+          "family": "identity-revoke",
+          "method": "POST",
+          "pathTemplate": "/revoke"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy"
+          ],
+          "capability": "identity.sign.action",
+          "family": "identity-sign-action",
+          "method": "POST",
+          "pathTemplate": "/sign"
+        },
+        {
+          "allowedCallerIds": [
+            "service-ledger"
+          ],
+          "capability": "identity.sign.blob",
+          "family": "identity-sign-blob",
+          "method": "POST",
+          "pathTemplate": "/sign/blob"
+        },
+        {
+          "allowedCallerIds": [
+            "agent-workload",
+            "service-simulator"
+          ],
+          "capability": "identity.svid.agent.issue",
+          "family": "identity-agent-svid",
+          "method": "POST",
+          "pathTemplate": "/svid"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.budget.manage",
+          "family": "identity-budget-manage",
+          "method": "POST",
+          "pathTemplate": "/tenants/{tenant}/budget"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.tenant.offboard",
+          "family": "identity-tenant-offboard",
+          "method": "POST",
+          "pathTemplate": "/tenants/{tenant}/offboard"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy"
+          ],
+          "capability": "identity.tool-definition.pin",
+          "family": "identity-tool-pin",
+          "method": "POST",
+          "pathTemplate": "/tool-definitions/pin"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.upstream.manage",
+          "family": "identity-upstream-manage",
+          "method": "POST",
+          "pathTemplate": "/upstreams"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.upstream.manage",
+          "family": "identity-upstream-manage",
+          "method": "POST",
+          "pathTemplate": "/upstreams/{id}/retire"
+        },
+        {
+          "allowedCallerIds": [
+            "service-brain",
+            "service-console",
+            "service-hil",
+            "service-identity",
+            "service-ledger",
+            "service-policy-engine",
+            "service-proxy",
+            "service-simulator"
+          ],
+          "capability": "identity.svid.workload.issue",
+          "family": "identity-workload-svid",
+          "method": "POST",
+          "pathTemplate": "/workload-svid"
+        }
+      ]
+    },
+    "ledger": {
+      "routes": [
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.silence.manage",
+          "family": "ledger-silence-manage",
+          "method": "DELETE",
+          "pathTemplate": "/silence-allowlist/{agent_id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/agents"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.analysis.read",
+          "family": "ledger-analysis-read",
+          "method": "GET",
+          "pathTemplate": "/analysis/agent-behavioral-baseline"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.analysis.read",
+          "family": "ledger-analysis-read",
+          "method": "GET",
+          "pathTemplate": "/analysis/agent-envelope-recommendations"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.analysis.read",
+          "family": "ledger-analysis-read",
+          "method": "GET",
+          "pathTemplate": "/analysis/fleet-behavioral-diff"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.analysis.read",
+          "family": "ledger-analysis-read",
+          "method": "GET",
+          "pathTemplate": "/analysis/model-upgrade-canary"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.analysis.read",
+          "family": "ledger-analysis-read",
+          "method": "GET",
+          "pathTemplate": "/analysis/silent-agents"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/agent/{tenant}/{agent_id}/lifecycle"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/correlation/{correlation_id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/entry/{entry_id}/masked-params"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/hunt"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/replay/corpus"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/{agent_id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.audit.read",
+          "family": "ledger-audit-read",
+          "method": "GET",
+          "pathTemplate": "/audit/{agent_id}/count"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.read",
+          "family": "ledger-case-read",
+          "method": "GET",
+          "pathTemplate": "/cases"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.read",
+          "family": "ledger-case-read",
+          "method": "GET",
+          "pathTemplate": "/cases/{id}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.export.read",
+          "family": "ledger-export-read",
+          "method": "GET",
+          "pathTemplate": "/exports"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.analysis.read",
+          "family": "ledger-analysis-read",
+          "method": "GET",
+          "pathTemplate": "/finops/spend"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.silence.read",
+          "family": "ledger-silence-read",
+          "method": "GET",
+          "pathTemplate": "/silence-allowlist"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.audit.stream",
+          "family": "ledger-audit-stream",
+          "method": "GET",
+          "pathTemplate": "/stream/audit"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.tombstone.execute",
+          "family": "ledger-tombstone",
+          "method": "POST",
+          "pathTemplate": "/admin/tenants/{tenant}/tombstone"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.manage",
+          "family": "ledger-case-manage",
+          "method": "POST",
+          "pathTemplate": "/cases"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.manage",
+          "family": "ledger-case-manage",
+          "method": "POST",
+          "pathTemplate": "/cases/{id}/attach"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.manage",
+          "family": "ledger-case-manage",
+          "method": "POST",
+          "pathTemplate": "/cases/{id}/classify"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.manage",
+          "family": "ledger-case-manage",
+          "method": "POST",
+          "pathTemplate": "/cases/{id}/status"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-deep-review"
+          ],
+          "capability": "ledger.case.manage",
+          "family": "ledger-case-manage",
+          "method": "POST",
+          "pathTemplate": "/cases/{id}/timeline"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.compliance.evidence",
+          "family": "ledger-compliance-evidence",
+          "method": "POST",
+          "pathTemplate": "/compliance/evidence"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.export.create",
+          "family": "ledger-export-create",
+          "method": "POST",
+          "pathTemplate": "/export"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.export.regulatory",
+          "family": "ledger-regulatory-export",
+          "method": "POST",
+          "pathTemplate": "/export/regulatory"
+        },
+        {
+          "allowedCallerIds": [
+            "service-deep-review",
+            "service-proxy"
+          ],
+          "capability": "ledger.append",
+          "family": "ledger-append",
+          "method": "POST",
+          "pathTemplate": "/log"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.silence.manage",
+          "family": "ledger-silence-manage",
+          "method": "POST",
+          "pathTemplate": "/silence-allowlist"
+        }
+      ]
+    },
+    "policy-engine": {
+      "routes": [
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "policy.tenant.lifecycle",
+          "family": "policy-tenant-lifecycle",
+          "method": "DELETE",
+          "pathTemplate": "/policies/tenant/{prefix}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "DELETE",
+          "pathTemplate": "/policies/{name}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies/templates"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies/templates/{name}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies/{name}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies/{name}/diff"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies/{name}/versions"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.read",
+          "family": "policy-read",
+          "method": "GET",
+          "pathTemplate": "/policies/{name}/versions/{version}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "policy.evaluate",
+          "family": "policy-evaluate",
+          "method": "POST",
+          "pathTemplate": "/evaluate"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "policy.evaluate",
+          "family": "policy-evaluate",
+          "method": "POST",
+          "pathTemplate": "/evaluate-egress"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/categories/{domain}/activate"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/categories/{domain}/deactivate"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.batch.evaluate",
+          "family": "policy-batch-evaluate",
+          "method": "POST",
+          "pathTemplate": "/policies/evaluate-batch"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.mine",
+          "family": "policy-mine",
+          "method": "POST",
+          "pathTemplate": "/policies/mine"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/templates/{name}/install"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/templates/{name}/lab"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console",
+            "service-proxy"
+          ],
+          "capability": "policy.tenant.lifecycle",
+          "family": "policy-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/policies/tenant/{prefix}/provision"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.validate",
+          "family": "policy-validate",
+          "method": "POST",
+          "pathTemplate": "/policies/validate"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/{name}/activate"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/{name}/deactivate"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "POST",
+          "pathTemplate": "/policies/{name}/rollback/{version}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.manage",
+          "family": "policy-manage",
+          "method": "PUT",
+          "pathTemplate": "/policies/{name}"
+        }
+      ]
+    }
+  },
+  "trustDomain": "clavenar.local",
+  "workloadIdentities": [
+    {
+      "callerId": "service-assurance",
+      "spiffeId": "spiffe://clavenar.local/service/assurance"
+    },
+    {
+      "callerId": "service-brain",
+      "spiffeId": "spiffe://clavenar.local/service/brain"
+    },
+    {
+      "callerId": "service-console",
+      "spiffeId": "spiffe://clavenar.local/service/console"
+    },
+    {
+      "callerId": "service-deep-review",
+      "spiffeId": "spiffe://clavenar.local/service/deep-review"
+    },
+    {
+      "callerId": "service-hil",
+      "spiffeId": "spiffe://clavenar.local/service/hil"
+    },
+    {
+      "callerId": "service-identity",
+      "spiffeId": "spiffe://clavenar.local/service/identity"
+    },
+    {
+      "callerId": "service-ledger",
+      "spiffeId": "spiffe://clavenar.local/service/ledger"
+    },
+    {
+      "callerId": "service-policy-engine",
+      "spiffeId": "spiffe://clavenar.local/service/policy-engine"
+    },
+    {
+      "callerId": "service-proxy",
+      "spiffeId": "spiffe://clavenar.local/service/proxy"
+    },
+    {
+      "callerId": "service-simulator",
+      "spiffeId": "spiffe://clavenar.local/service/simulator"
+    },
+    {
+      "callerId": "service-website",
+      "spiffeId": "spiffe://clavenar.local/service/website"
+    }
+  ]
+}

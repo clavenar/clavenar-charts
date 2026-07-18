@@ -54,7 +54,7 @@ charts/clavenar/
     _helpers.tpl        # serviceFullname, imageRef, natsUrl, backendEnvs, probe/metrics helpers — the load-bearing logic
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
     services.yaml       # the 9 Deployments + Services
-    configmap.yaml shared-tokens-secret.yaml vault-token-secret.yaml
+    configmap.yaml workload-capability-bundle.yaml shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
     vault-{bootstrap,seed}-job.yaml       # dev-mode transit engine + stub agent credential
@@ -98,8 +98,9 @@ upstream-stub 9000 · exec 9001.
   component artifacts and one signed stack-BOM reference from clavenar-e2e.
 - **tlsBundle drives mTLS.** Empty `tlsBundle.secretName` → no `/certs` mount →
   proxy + identity panic at boot. When set, backend services flip their app port
-  to rustls + SPIFFE-URI allowlist and move health/`/metrics` to a plain-HTTP
-  health port (so kubelet + Prometheus need no client cert). Per-pod projection:
+  to rustls; Ledger, Policy Engine, HIL, and Identity then require the packaged
+  digest-bound generated route capabilities. Health/`/metrics` move to a
+  plain-HTTP health port (so kubelet + Prometheus need no client cert). Per-pod projection:
   each pod sees only `ca.crt` + its own `service-<name>.{crt,key}` — no pod reads
   another's private key. Don't collapse that isolation.
 - **Brain provider operations never use diagnostics.** The chart renders

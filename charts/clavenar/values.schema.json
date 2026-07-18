@@ -97,6 +97,9 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+                        "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
                         "CLAVENAR_POLICY_ENGINE_BRAIN_URL",
                         "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE",
                         "CLAVENAR_POLICY_TLS_DIR",
@@ -127,6 +130,9 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+                        "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
                         "CLAVENAR_HIL_TLS_DIR",
                         "CLAVENAR_HIL_ALLOWED_CALLERS",
                         "CLAVENAR_HIL_HEALTH_ADDR",
@@ -162,6 +168,9 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+                        "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
                         "CLAVENAR_IDENTITY_TLS_DIR",
                         "CLAVENAR_IDENTITY_ALLOWED_CALLERS",
                         "CLAVENAR_IDENTITY_MTLS_ADDR",
@@ -237,6 +246,9 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
+                        "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
+                        "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",
                         "CLAVENAR_LEDGER_ALLOWED_CALLERS",
                         "CLAVENAR_LEDGER_TLS_DIR",
                         "CLAVENAR_LEDGER_MTLS_ADDR",
