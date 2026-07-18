@@ -475,7 +475,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 #     subset (`/stats`, `/jwks.json`, `/.well-known/spiffe-bundle`,
 #     health). Internal routes are STRIPPED on this port.
 #   * mTLS on `services.identity.mtlsPort` (default 8186) — full surface
-#     including CSR-bound `/svid` (agent private keys stay caller-side),
+#     including durable CSR-bound `/svid` (one-use Simulator bootstrap,
+#     then exact current-agent-SVID renewal; private keys stay caller-side),
 #     `/grant`, `/revoke`, `/sign`, `/actor-token*`,
 #     `/agents*`. SPIFFE allowlist gates every internal route.
 #
@@ -486,7 +487,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_IDENTITY_TLS_DIR
   value: {{ $mount | quote }}
 - name: CLAVENAR_IDENTITY_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/simulator"
+  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/simulator,spiffe://clavenar.local/tenant/simulator/agent/"
 - name: CLAVENAR_IDENTITY_MTLS_ADDR
   value: "0.0.0.0:8186"
 {{- end }}
