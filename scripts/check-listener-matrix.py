@@ -410,8 +410,8 @@ def validate_workload_capability_contract(values, docs, release, errors):
         or bundle.get("feature") != "WP-02.9"
         or len(identities) != 11
         or set(services) != {"ledger", "policy-engine", "hil", "identity"}
-        or len(families) != 57
-        or route_count != 122
+        or len(families) != 58
+        or route_count != 123
     ):
         errors.append("generated workload capability inventory is not canonical")
         return

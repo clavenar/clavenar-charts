@@ -34,7 +34,7 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
         self.assertEqual(11, len(bundle["workloadIdentities"]))
         self.assertEqual(set(TARGETS), set(bundle["services"]))
         self.assertEqual(
-            57,
+            58,
             len(
                 {
                     route["family"]
@@ -44,7 +44,7 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
             ),
         )
         self.assertEqual(
-            122,
+            123,
             sum(len(policy["routes"]) for policy in bundle["services"].values()),
         )
         configmap = next(

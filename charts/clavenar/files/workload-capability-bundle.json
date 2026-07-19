@@ -2,8 +2,8 @@
   "agentWorkloadCaller": "agent-workload",
   "contractVersion": "1.4.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:3e767886351e3d4210f61ead3b3c0412a674180ffa38b0ff1b5bc034478e895d",
-  "matrixSha256": "sha256:e25261600c1a1f6f3485b3c4c6614338e9cfa8a670e00f4885ea7fecc590ad1d",
+  "listenerMatrixSha256": "sha256:cd286f8cc7c64d99e393fce65990f3bf06342b35e2b04620091f929f322aa469",
+  "matrixSha256": "sha256:a6e54cd2d7485ed4f0c664317dffa2b7e796fafb7bb2fb7f9e94293a9465e885",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -526,6 +526,15 @@
           "family": "identity-attestation-measurement-manage",
           "method": "POST",
           "pathTemplate": "/attestation/measurements/{id}/retire"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy"
+          ],
+          "capability": "identity.attestation.runtime.read",
+          "family": "identity-attestation-runtime-read",
+          "method": "POST",
+          "pathTemplate": "/attestation/runtime"
         },
         {
           "allowedCallerIds": [
