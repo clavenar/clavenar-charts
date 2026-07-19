@@ -3,7 +3,7 @@
   "contractVersion": "1.4.0",
   "feature": "WP-02.9",
   "listenerMatrixSha256": "sha256:cd286f8cc7c64d99e393fce65990f3bf06342b35e2b04620091f929f322aa469",
-  "matrixSha256": "sha256:a6e54cd2d7485ed4f0c664317dffa2b7e796fafb7bb2fb7f9e94293a9465e885",
+  "matrixSha256": "sha256:fde6047a252e4cc59210e3748d31af0e2b93c3520aa02e23ba9c3c140afd40ce",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -538,6 +538,7 @@
         },
         {
           "allowedCallerIds": [
+            "agent-workload",
             "service-identity",
             "service-proxy"
           ],
