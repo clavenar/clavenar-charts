@@ -477,6 +477,22 @@ services:
       type: httpGet
       health: /health
       ready: /readyz
+    # Restart-safe WebAuthn ceremony governance. HIL enforces all dimensions
+    # transactionally in the same SQLite database as the credential roster.
+    webauthnCeremony:
+      ttlSeconds: 300
+      attemptLimit: 10
+      rateWindowSeconds: 60
+      startLimits:
+        subject: 5
+        tenant: 100
+        source: 20
+        deployment: 500
+      pendingLimits:
+        subject: 3
+        tenant: 64
+        source: 12
+        deployment: 256
     extraEnv:
       - name: CLAVENAR_HIL_DB
         value: /var/lib/clavenar/hil.db

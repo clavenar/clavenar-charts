@@ -139,6 +139,35 @@
         "hil": {
           "type": "object",
           "properties": {
+            "webauthnCeremony": {
+              "type": "object",
+              "required": ["ttlSeconds", "attemptLimit", "rateWindowSeconds", "startLimits", "pendingLimits"],
+              "properties": {
+                "ttlSeconds": { "type": "integer", "minimum": 30, "maximum": 3600 },
+                "attemptLimit": { "type": "integer", "minimum": 1, "maximum": 10 },
+                "rateWindowSeconds": { "type": "integer", "minimum": 1, "maximum": 3600 },
+                "startLimits": {
+                  "type": "object",
+                  "required": ["subject", "tenant", "source", "deployment"],
+                  "properties": {
+                    "subject": { "type": "integer", "minimum": 1, "maximum": 100000 },
+                    "tenant": { "type": "integer", "minimum": 1, "maximum": 100000 },
+                    "source": { "type": "integer", "minimum": 1, "maximum": 100000 },
+                    "deployment": { "type": "integer", "minimum": 1, "maximum": 100000 }
+                  }
+                },
+                "pendingLimits": {
+                  "type": "object",
+                  "required": ["subject", "tenant", "source", "deployment"],
+                  "properties": {
+                    "subject": { "type": "integer", "minimum": 1, "maximum": 100000 },
+                    "tenant": { "type": "integer", "minimum": 1, "maximum": 100000 },
+                    "source": { "type": "integer", "minimum": 1, "maximum": 100000 },
+                    "deployment": { "type": "integer", "minimum": 1, "maximum": 100000 }
+                  }
+                }
+              }
+            },
             "extraEnv": {
               "type": "array",
               "items": {
@@ -160,6 +189,17 @@
                         "CLAVENAR_HIL_SESSION_KEY",
                         "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
                         "CLAVENAR_HIL_DEPLOYMENT_ID",
+                        "CLAVENAR_HIL_WEBAUTHN_TTL_SECS",
+                        "CLAVENAR_HIL_WEBAUTHN_ATTEMPT_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_RATE_WINDOW_SECS",
+                        "CLAVENAR_HIL_WEBAUTHN_SUBJECT_START_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_TENANT_START_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_SOURCE_START_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_DEPLOYMENT_START_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_SUBJECT_PENDING_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_TENANT_PENDING_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_SOURCE_PENDING_LIMIT",
+                        "CLAVENAR_HIL_WEBAUTHN_DEPLOYMENT_PENDING_LIMIT",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH"
