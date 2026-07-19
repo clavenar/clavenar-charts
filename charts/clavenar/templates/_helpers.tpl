@@ -137,7 +137,7 @@ secretKeyRef.
 {{- $service := .service -}}
 {{- range $entry := default (list) .svcCfg.extraEnv -}}
 {{- $name := default "" $entry.name -}}
-{{- if and (eq $service "hil") (or (eq $name "CLAVENAR_HIL_SESSION_KEY") (eq $name "CLAVENAR_HIL_DECIDE_TOKEN")) -}}
+{{- if and (eq $service "hil") (or (eq $name "CLAVENAR_HIL_SESSION_KEY") (eq $name "CLAVENAR_HIL_DECIDE_TOKEN") (eq $name "CLAVENAR_HIL_BOOTSTRAP_TOKEN")) -}}
 {{- fail (printf "services.%s.extraEnv must not override chart-owned authentication variable %s; use authSecrets.existingSecretName" $service $name) -}}
 {{- end -}}
 {{- if and (eq $service "identity") (or (eq $name "CLAVENAR_IDENTITY_OIDC_HS256_KEY") (regexMatch "^CLAVENAR_IDENTITY_OIDC_TENANT_.*_HS256_KEY$" $name)) -}}
@@ -229,6 +229,8 @@ per environment variable.
         "CLAVENAR_HIL_HEALTH_ADDR"
         "CLAVENAR_HIL_DECIDE_TOKEN"
         "CLAVENAR_HIL_SESSION_KEY"
+        "CLAVENAR_HIL_BOOTSTRAP_TOKEN"
+        "CLAVENAR_HIL_DEPLOYMENT_ID"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH")

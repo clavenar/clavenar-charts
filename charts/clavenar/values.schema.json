@@ -158,6 +158,8 @@
                         "CLAVENAR_HIL_HEALTH_ADDR",
                         "CLAVENAR_HIL_DECIDE_TOKEN",
                         "CLAVENAR_HIL_SESSION_KEY",
+                        "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
+                        "CLAVENAR_HIL_DEPLOYMENT_ID",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH"

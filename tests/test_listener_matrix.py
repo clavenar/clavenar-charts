@@ -85,6 +85,8 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_HIL_HEALTH_ADDR",
         "CLAVENAR_HIL_DECIDE_TOKEN",
         "CLAVENAR_HIL_SESSION_KEY",
+        "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
+        "CLAVENAR_HIL_DEPLOYMENT_ID",
     },
     "identity": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_RUNTIME_ENVIRONMENT",
@@ -306,7 +308,7 @@ class ListenerMatrixTest(unittest.TestCase):
             and doc.get("metadata", {}).get("name") == "smoke-shared-tokens"
         )
         self.assertEqual(
-            {"hil-decide-token", "hil-session-key"},
+            {"hil-decide-token", "hil-session-key", "hil-bootstrap-token"},
             set(generated["data"]),
         )
         self.assertEqual(
@@ -337,6 +339,7 @@ class ListenerMatrixTest(unittest.TestCase):
         for env_name, key in (
             ("CLAVENAR_HIL_DECIDE_TOKEN", "hil-decide-token"),
             ("CLAVENAR_HIL_SESSION_KEY", "hil-session-key"),
+            ("CLAVENAR_HIL_BOOTSTRAP_TOKEN", "hil-bootstrap-token"),
         ):
             self.assertNotIn("value", default_env[env_name])
             self.assertEqual(
@@ -371,6 +374,7 @@ class ListenerMatrixTest(unittest.TestCase):
             "smoke-hil": {
                 "CLAVENAR_HIL_DECIDE_TOKEN": "hil-decide-token",
                 "CLAVENAR_HIL_SESSION_KEY": "hil-session-key",
+                "CLAVENAR_HIL_BOOTSTRAP_TOKEN": "hil-bootstrap-token",
                 "CLAVENAR_HIL_DEMO_SESSION_HS256": "demo-session-hs256",
             },
             "smoke-ledger": {
@@ -436,6 +440,7 @@ class ListenerMatrixTest(unittest.TestCase):
         cases = (
             ("hil", "CLAVENAR_HIL_SESSION_KEY"),
             ("hil", "CLAVENAR_HIL_DECIDE_TOKEN"),
+            ("hil", "CLAVENAR_HIL_BOOTSTRAP_TOKEN"),
             ("hil", "CLAVENAR_HIL_DEMO_SESSION_HS256"),
             ("console", "CLAVENAR_CONSOLE_DEMO_SESSION_HS256"),
             ("ledger", "CLAVENAR_LEDGER_DEMO_SESSION_HS256"),

@@ -162,6 +162,16 @@ spec:
                 secretKeyRef:
                   name: {{ include "clavenar.authSecretName" $ }}
                   key: hil-session-key
+            # Separate one-use first-enrollment authority. HIL persists only
+            # its digest and permanently refuses another bootstrap after the
+            # deployment-scoped authority reaches a terminal state.
+            - name: CLAVENAR_HIL_BOOTSTRAP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "clavenar.authSecretName" $ }}
+                  key: hil-bootstrap-token
+            - name: CLAVENAR_HIL_DEPLOYMENT_ID
+              value: {{ include "clavenar.fullname" $ | quote }}
             {{- end }}
             {{- if $mountsAttestationTrust }}
             - name: CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE
