@@ -457,6 +457,9 @@ services:
 
   hil:
     enabled: true
+    # Machine decisions are synthesized by HIL from the simulator workload
+    # certificate and confined to this exact tenant.
+    simulatorTenant: simulator
     # SQLite-backed; pin replicas to 1. No Postgres backend planned
     # for hil in v1 — multi-replica HIL is gated on the storage
     # trait migration spreading from ledger to hil + identity.

@@ -172,6 +172,8 @@ spec:
                   key: hil-bootstrap-token
             - name: CLAVENAR_HIL_DEPLOYMENT_ID
               value: {{ include "clavenar.fullname" $ | quote }}
+            - name: CLAVENAR_HIL_SIMULATOR_TENANT
+              value: {{ $cfg.simulatorTenant | quote }}
             # Durable WebAuthn ceremony bounds. Keep the four dimensions
             # explicit in the rendered workload so production posture does
             # not depend on binary-only defaults.

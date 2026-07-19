@@ -100,6 +100,7 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_HIL_SESSION_KEY",
         "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
         "CLAVENAR_HIL_DEPLOYMENT_ID",
+        "CLAVENAR_HIL_SIMULATOR_TENANT",
     },
     "identity": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_RUNTIME_ENVIRONMENT",
@@ -378,6 +379,7 @@ class ListenerMatrixTest(unittest.TestCase):
                 for name in HIL_WEBAUTHN_CEREMONY_ENV
             },
         )
+        self.assertEqual(default_env["CLAVENAR_HIL_SIMULATOR_TENANT"]["value"], "simulator")
 
         command = [
             "helm", "template", "smoke", str(ROOT / "charts/clavenar"),

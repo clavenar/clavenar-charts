@@ -139,6 +139,7 @@
         "hil": {
           "type": "object",
           "properties": {
+            "simulatorTenant": { "type": "string", "minLength": 1, "maxLength": 128 },
             "webauthnCeremony": {
               "type": "object",
               "required": ["ttlSeconds", "attemptLimit", "rateWindowSeconds", "startLimits", "pendingLimits"],
@@ -189,6 +190,7 @@
                         "CLAVENAR_HIL_SESSION_KEY",
                         "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
                         "CLAVENAR_HIL_DEPLOYMENT_ID",
+                        "CLAVENAR_HIL_SIMULATOR_TENANT",
                         "CLAVENAR_HIL_WEBAUTHN_TTL_SECS",
                         "CLAVENAR_HIL_WEBAUTHN_ATTEMPT_LIMIT",
                         "CLAVENAR_HIL_WEBAUTHN_RATE_WINDOW_SECS",
