@@ -8,6 +8,14 @@ This is the canonical chart — the older skeleton at
 `clavenar-e2e/charts/clavenar/` is preserved for HA_RUNBOOK reference
 only and will not receive new features.
 
+The chart wires Proxy to the in-release Brain, Policy, HIL, and Identity
+services as one pre-execution boundary. This is security-bearing for HIL
+modification re-gating (WP-04.7): a typed diff is only a candidate, and the
+Proxy image must reparse it, re-read current authority and attestation, and run
+Brain plus Policy before signing, actor-token minting, or upstream execution.
+A fresh Yellow candidate blocks on a distinct plain-approval row; Helm does not
+offer a value that bypasses that second decision.
+
 ## Quickstart
 
 Two paths — pick by what's already in your cluster.
