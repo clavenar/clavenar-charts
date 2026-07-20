@@ -179,6 +179,7 @@ per environment variable.
         "CLAVENAR_BRAIN_URL"
         "CLAVENAR_POLICY_URL"
         "CLAVENAR_HIL_URL"
+        "CLAVENAR_LEDGER_URL"
         "CLAVENAR_IDENTITY_URL"
         "CLAVENAR_PROXY_GRANT_JWKS_URL"
         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS"
@@ -399,6 +400,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082/evaluate"
 - name: CLAVENAR_HIL_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
+- name: CLAVENAR_LEDGER_URL
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
 - name: CLAVENAR_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
 # JWKS is public verification material on identity's plain public listener,
@@ -428,8 +431,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- if $tlsOn }}
 # Outbound mTLS (B7 v1.x+2 sessions 3-6) — service-proxy cert covers
-# brain, policy, hil, identity, and the HIL poll path. One bundle, four
-# downstream listeners.
+# brain, policy, hil, identity, ledger, and the HIL poll / exact-receipt
+# paths. One bundle, five downstream listeners.
 - name: CLAVENAR_PROXY_OUTBOUND_CERT_PATH
   value: "{{ $mount }}/service-proxy.crt"
 - name: CLAVENAR_PROXY_OUTBOUND_KEY_PATH

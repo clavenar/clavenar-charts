@@ -2,8 +2,8 @@
   "agentWorkloadCaller": "agent-workload",
   "contractVersion": "1.4.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:eeb30631960d573b8cb3d29d659af94f5d30610f58605ef816517ce178b6cae2",
-  "matrixSha256": "sha256:ae1aa01bfcc991bea1c630b4ca8febbc2a53d451a34cda00fa3bccd1f969aed2",
+  "listenerMatrixSha256": "sha256:a7677796923cc199dbd1a9d9976d864eb1da1c7398d02601149035f33adee2b9",
+  "matrixSha256": "sha256:2643bdd2b19fe6e0595587d9d798f262f32d681a0d3479bf877b8a6ac63b2f99",
   "schemaVersion": 1,
   "services": {
     "hil": {
