@@ -53,8 +53,9 @@ signed demo routes stay closed until an operator supplies one dedicated key to
 console, HIL, and ledger as documented in the chart README.
 
 HIL's session and decision credentials are always rendered into Deployments as
-Kubernetes `secretKeyRef`s, never literal values. By default the chart manages
-the upgrade-stable `<release>-shared-tokens` Secret; production operators can
+Kubernetes `secretKeyRef`s, never literal values. Brain receives its cache-HMAC
+key only as a mode-0440 Secret file and refuses to bind without it. By default
+the chart manages the upgrade-stable `<release>-shared-tokens` Secret; production operators can
 set `authSecrets.existingSecretName` to a Secret reconciled by their own secret
 manager instead. `authSecrets.rotationId` is the non-secret rollout generation:
 the same value preserves chart-managed keys, while a new value rotates those

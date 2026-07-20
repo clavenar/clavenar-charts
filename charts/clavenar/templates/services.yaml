@@ -17,6 +17,7 @@ inside the range is the iterated value.
 {{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
+{{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
@@ -152,6 +153,15 @@ spec:
                   name: {{ include "clavenar.authSecretName" $ }}
                   key: hil-decide-token
             {{- end }}
+            {{- if $mountsBrainCacheKey }}
+            # Exact cache identity is a domain-separated tenant-HMAC digest.
+            # The key is projected as a file, never an environment value, and
+            # Brain refuses listener bind if it is absent or unsafe.
+            - name: CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE
+              value: /run/secrets/brain-cache-hmac-key
+            - name: CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY
+              value: "true"
+            {{- end }}
             {{- if eq $name "hil" }}
             # CLAVENAR_HIL_SESSION_KEY: HIL session-cookie HMAC key
             # (64-char hex). HIL auto-mints an ephemeral key when unset,
@@ -212,7 +222,7 @@ spec:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- $mountsOperatorTrust := $operatorMtls }}
-          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -245,11 +255,17 @@ spec:
               subPath: k8s-trust-anchors.json
               readOnly: true
             {{- end }}
+            {{- if $mountsBrainCacheKey }}
+            - name: brain-cache-hmac-key
+              mountPath: /run/secrets/brain-cache-hmac-key
+              subPath: brain-cache-hmac-key
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -353,6 +369,15 @@ spec:
             items:
               - key: {{ $.Values.attestationTrustAnchors.key }}
                 path: k8s-trust-anchors.json
+        {{- end }}
+        {{- if $mountsBrainCacheKey }}
+        - name: brain-cache-hmac-key
+          secret:
+            secretName: {{ include "clavenar.authSecretName" $ }}
+            defaultMode: 0440
+            items:
+              - key: brain-cache-hmac-key
+                path: brain-cache-hmac-key
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

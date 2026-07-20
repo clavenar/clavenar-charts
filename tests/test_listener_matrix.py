@@ -77,6 +77,8 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR",
         "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS",
         "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES",
+        "CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE",
+        "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY",
     },
     "policyEngine": COMMON_GOVERNED_ENV | NATS_TLS_ENV | CAPABILITY_ENV | {
         "CLAVENAR_POLICY_ENGINE_BRAIN_URL",
@@ -322,7 +324,12 @@ class ListenerMatrixTest(unittest.TestCase):
             and doc.get("metadata", {}).get("name") == "smoke-shared-tokens"
         )
         self.assertEqual(
-            {"hil-decide-token", "hil-session-key", "hil-bootstrap-token"},
+            {
+                "brain-cache-hmac-key",
+                "hil-decide-token",
+                "hil-session-key",
+                "hil-bootstrap-token",
+            },
             set(generated["data"]),
         )
         self.assertEqual(
@@ -381,6 +388,31 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         self.assertEqual(default_env["CLAVENAR_HIL_SIMULATOR_TENANT"]["value"], "simulator")
 
+        default_brain = next(
+            doc for doc in self.rendered["default"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-brain"
+        )
+        brain_spec = default_brain["spec"]["template"]["spec"]
+        brain_env = {
+            entry["name"]: entry
+            for entry in brain_spec["containers"][0]["env"]
+        }
+        self.assertEqual(
+            "/run/secrets/brain-cache-hmac-key",
+            brain_env["CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE"]["value"],
+        )
+        self.assertEqual(
+            "true",
+            brain_env["CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY"]["value"],
+        )
+        brain_cache_volume = next(
+            volume for volume in brain_spec["volumes"]
+            if volume["name"] == "brain-cache-hmac-key"
+        )
+        self.assertEqual("smoke-shared-tokens", brain_cache_volume["secret"]["secretName"])
+        self.assertEqual(0o440, brain_cache_volume["secret"]["defaultMode"])
+
         command = [
             "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
             "-f", str(ROOT / "tests/values-all-on.yaml"),
@@ -415,6 +447,19 @@ class ListenerMatrixTest(unittest.TestCase):
                 "CLAVENAR_LEDGER_DEMO_SESSION_HS256": "demo-session-hs256",
             },
         }
+        brain = next(
+            doc for doc in rendered
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-brain"
+        )
+        brain_cache_volume = next(
+            volume for volume in brain["spec"]["template"]["spec"]["volumes"]
+            if volume["name"] == "brain-cache-hmac-key"
+        )
+        self.assertEqual(
+            "clavenar-runtime-auth",
+            brain_cache_volume["secret"]["secretName"],
+        )
         for deployment_name, secret_env in expected.items():
             deployment = next(
                 doc for doc in rendered

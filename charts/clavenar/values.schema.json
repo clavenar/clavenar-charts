@@ -403,7 +403,9 @@
                         "CLAVENAR_BRAIN_NARRATE_RATE_LIMIT_PER_MINUTE",
                         "CLAVENAR_BRAIN_AUX_SPEND_BUDGET_MICRO_USD_PER_HOUR",
                         "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS",
-                        "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES"
+                        "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES",
+                        "CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE",
+                        "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY"
                       ]
                     }
                   }

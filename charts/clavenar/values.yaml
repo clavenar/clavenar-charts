@@ -17,12 +17,12 @@ imagePullSecrets: []
 
 # Shared HIL authentication material. With the default empty
 # existingSecretName, the chart creates `<release>-shared-tokens` and
-# preserves its generated `hil-session-key`, `hil-decide-token`, and
-# one-use `hil-bootstrap-token` data across
+# preserves its generated `hil-session-key`, `hil-decide-token`, one-use
+# `hil-bootstrap-token`, and Brain `brain-cache-hmac-key` data across
 # upgrades. Production operators can instead point every chart-managed
 # secretKeyRef at a Secret populated by External Secrets, Secrets Store CSI,
 # Sealed Secrets, or another secret manager. The existing Secret must contain
-# all three keys; the chart deliberately does not copy or render their values.
+# all four keys; the chart deliberately does not copy or render their values.
 authSecrets:
   existingSecretName: ""
   # Public, non-secret credential generation identifier. Change this only

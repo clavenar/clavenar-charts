@@ -108,7 +108,7 @@ recovery, and runtime behavior in the target cluster.
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
-| HIL auth keys | Chart creates and upgrade-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret |
+| HIL and Brain cache keys | Chart creates and upgrade-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret containing all governed keys |
 | Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
 | Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes 7 Claude-Code-built-in-parity tools (`bash`, `read_file`, …) so an agent whose built-ins are denylisted still has a shell, but every call lands in the ledger | Lab-only; production still routes to a real MCP via `CLAVENAR_UPSTREAM_URL` |
@@ -123,14 +123,18 @@ recovery, and runtime behavior in the target cluster.
 The default remains backwards compatible: the chart generates
 `<release>-shared-tokens`, keeps its data stable across upgrades, and injects
 the HIL session and console-to-HIL decision credentials only through
-`secretKeyRef`. For production, pre-provision an Opaque Secret containing
-`hil-session-key` and `hil-decide-token`, then select it without putting either
-value in a values file or Deployment manifest:
+`secretKeyRef`; Brain receives its cache HMAC key only through a mode-0440 file
+projection. For production, pre-provision an Opaque Secret containing
+`hil-session-key`, `hil-decide-token`, `hil-bootstrap-token`, and
+`brain-cache-hmac-key`, then select it without putting any value in a values
+file or Deployment manifest:
 
 ```bash
 kubectl -n clavenar create secret generic clavenar-runtime-auth \
   --from-file=hil-session-key=/secure/path/hil-session-key \
-  --from-file=hil-decide-token=/secure/path/hil-decide-token
+  --from-file=hil-decide-token=/secure/path/hil-decide-token \
+  --from-file=hil-bootstrap-token=/secure/path/hil-bootstrap-token \
+  --from-file=brain-cache-hmac-key=/secure/path/brain-cache-hmac-key
 
 helm upgrade --install my-clavenar . --namespace clavenar \
   --set authSecrets.existingSecretName=clavenar-runtime-auth \
@@ -139,8 +143,8 @@ helm upgrade --install my-clavenar . --namespace clavenar \
 
 The Secret can instead be reconciled by External Secrets, Secrets Store CSI,
 Sealed Secrets, or another controller. When `existingSecretName` is non-empty,
-this chart does not create, copy, or take ownership of that Secret. Both keys
-must already exist; missing keys keep the affected Pods from starting.
+this chart does not create, copy, or take ownership of that Secret. All four
+keys must already exist; missing keys keep the affected Pods from starting.
 
 Optional symmetric credentials use the same `valueFrom.secretKeyRef` shape
 through per-service `extraEnv`. For example, a dedicated demo-session key
@@ -406,7 +410,7 @@ vault: { addr: "", tokenSecretName: "" }
 
 authSecrets:
   existingSecretName: ""               # empty: chart-managed <release>-shared-tokens
-                                        # set: existing Secret with both HIL keys
+                                        # set: existing Secret with HIL + Brain cache keys
   rotationId: bootstrap-v1              # change explicitly to rotate and roll consumers
 
 drainCapSecs: 30                         # CLAVENAR_GRACEFUL_DRAIN_SECS
