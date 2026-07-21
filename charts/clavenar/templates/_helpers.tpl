@@ -185,6 +185,7 @@ per environment variable.
         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS"
         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS"
         "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS"
+        "CLAVENAR_PROXY_SERVER_EXECUTION_DB"
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH"
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH"
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH"
@@ -416,6 +417,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ .ctx.Values.services.proxy.grantJwksMaxStalenessSeconds | quote }}
 - name: CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS
   value: {{ .ctx.Values.services.proxy.grantJwksFetchTimeoutSeconds | quote }}
+- name: CLAVENAR_PROXY_SERVER_EXECUTION_DB
+  value: "/var/lib/clavenar/server-execution.db"
 {{- if .ctx.Values.exec.enabled }}
 # Execution-gateway in front of any upstream. clavenar-exec runs the
 # Claude-Code-built-in-parity tools locally and forwards everything

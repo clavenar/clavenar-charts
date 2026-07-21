@@ -702,8 +702,16 @@ services:
       path: /metrics
 
 # Persistence — SQLite-backed services only. Mounts at /var/lib/clavenar
-# (matches CLAVENAR_*_DB defaults). Disable for emptyDir.
+# (matches CLAVENAR_*_DB defaults). Disable only for disposable data.
 persistence:
+  # Required for the Proxy's durable server-execution intent, result, and
+  # forensic-outbox contract. The chart rejects replicas >1 while this
+  # SQLite volume is enabled.
+  proxy:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
   ledger:
     enabled: true
     size: 5Gi

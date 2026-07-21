@@ -1,7 +1,7 @@
 {{/*
 Emit a Deployment + Service per enabled service, plus a PVC when
 .Values.persistence.<service>.enabled. PVCs mount at /var/lib/clavenar,
-which matches the CLAVENAR_*_DB defaults.
+which matches the CLAVENAR_*_DB defaults, including Proxy server execution.
 
 `$` is the root context — passed explicitly to helpers because `.`
 inside the range is the iterated value.

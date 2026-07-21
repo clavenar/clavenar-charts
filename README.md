@@ -23,6 +23,10 @@ certification. Operators must still validate the deployed service images,
 external PKI and CNI enforcement, release artifacts, persistence, backup and
 disaster recovery, and runtime behavior in their own environment.
 
+The default Proxy PVC retains the durable server-execution intent, exact
+result, and forensic outbox across pod restarts. Because that store is SQLite,
+the chart keeps Proxy at one replica while `persistence.proxy.enabled=true`.
+
 The console defaults to a curated `demo-only` router with no operator or
 Admin authority; a valid demo cookie carries only a prefix-scoped demo
 Viewer. Its optional operator path terminates mTLS

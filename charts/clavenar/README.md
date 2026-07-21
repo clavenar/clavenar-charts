@@ -463,6 +463,7 @@ services:
     demo: { enabled: false }
 
 persistence:
+  proxy:   { enabled: true, size: 1Gi, ... } # durable server-execution receipts/outbox
   ledger:   { enabled: true, size: 5Gi, ... }
   hil:      { enabled: true, size: 1Gi, ... }
   identity: { enabled: true, size: 1Gi, ... }
