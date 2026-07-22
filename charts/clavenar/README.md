@@ -238,6 +238,14 @@ history, discard policy, deletion policy, and replica count before accepting a
 redemption. Missing, partitioned, full, or mismatched replay storage fails
 closed; there is no local replay fallback.
 
+The broader distributed-control inventory is packaged byte-for-byte as
+`clavenar.distributed-control-state/v1`. Set `controlState.replicas` (1..5) to
+the exact JetStream replica count shared by Identity and Proxy. The chart emits
+`CLAVENAR_CONTROL_STATE_REPLICAS` to both services and rejects `extraEnv`
+shadowing. Revocation, force-HIL, decoy, and grant-use projections remain
+file-backed; configured tenant budgets and monthly spend remain retained in
+Identity and Ledger rather than being replaced by Proxy's bounded cache.
+
 Bundled NATS maps the verified workload certificate DNS SAN to one exact user
 with `verify_and_map`. The grants are generated from
 `files/nats-authorization-v1.fixture.json` and limit application subjects,
@@ -381,6 +389,11 @@ apply walkthrough.
   `/etc/clavenar/attestation` projection and roll only when either governed
   file changes. This packages the verifier boundary; it does not enable a
   mock provider as a production verifier.
+- **Distributed control-state contract** — an immutable ConfigMap preserves
+  the seven-row public authority/classification/replication inventory. Proxy
+  and Identity receive the same validated `controlState.replicas` value; six
+  controls remain mandatory and decoy catalog advertisement is the sole
+  advisory projection.
 - **Dedicated operator trust projection** — when
   `services.console.operatorMtls.enabled=true`, the console additionally
   mounts only `ca.crt` + `operators.json` from
@@ -444,6 +457,7 @@ imagePullPolicy: IfNotPresent
 imagePullSecrets: []
 
 nats:  { url: nats://nats:4222 }
+controlState: { replicas: 1 }             # exact shared control KV replicas (1..5)
 vault: { addr: "", tokenSecretName: "", identityTokenKey: identity-token, proxyTokenKey: proxy-token }
 
 authSecrets:

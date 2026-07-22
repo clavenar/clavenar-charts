@@ -197,6 +197,7 @@ per environment variable.
       "CLAVENAR_GRACEFUL_DRAIN_SECS" -}}
 {{- $byService := dict
       "proxy" (list
+        "CLAVENAR_CONTROL_STATE_REPLICAS"
         "CLAVENAR_RUNTIME_ENVIRONMENT"
         "CLAVENAR_ATTESTATION_PROVIDER"
         "CLAVENAR_PROXY_HEALTH_ADDR"
@@ -276,6 +277,7 @@ per environment variable.
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH")
       "identity" (list
+        "CLAVENAR_CONTROL_STATE_REPLICAS"
         "CLAVENAR_RUNTIME_ENVIRONMENT"
         "CLAVENAR_ATTESTATION_PROVIDER"
         "CLAVENAR_IDENTITY_TLS_DIR"
@@ -431,6 +433,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ ternary "production" "development" (eq .ctx.Values.deploymentProfile "production") | quote }}
 - name: CLAVENAR_ATTESTATION_PROVIDER
   value: {{ ternary "identity-k8s-key-bound" (ternary "mock" "identity-k8s-key-bound" (eq $name "proxy")) (eq .ctx.Values.deploymentProfile "production") | quote }}
+# Retained JetStream control projections use one exact replica contract across
+# their Identity writer and Proxy reader/CAS writer.
+- name: CLAVENAR_CONTROL_STATE_REPLICAS
+  value: {{ .ctx.Values.controlState.replicas | quote }}
 {{- end }}
 {{- if and $tlsOn (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $capabilityBundle := .ctx.Files.Get "files/workload-capability-bundle.json" -}}

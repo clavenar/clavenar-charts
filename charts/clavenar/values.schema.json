@@ -66,6 +66,18 @@
         }
       }
     },
+    "controlState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas"],
+      "properties": {
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
     "persistence": {
       "type": "object",
       "properties": {
@@ -135,6 +147,7 @@
                     "not": {
                       "enum": [
                         "NATS_URL",
+                        "CLAVENAR_CONTROL_STATE_REPLICAS",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_RUNTIME_ENVIRONMENT",
                         "CLAVENAR_ATTESTATION_PROVIDER",
@@ -292,6 +305,7 @@
                     "not": {
                       "enum": [
                         "NATS_URL",
+                        "CLAVENAR_CONTROL_STATE_REPLICAS",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_RUNTIME_ENVIRONMENT",
                         "CLAVENAR_ATTESTATION_PROVIDER",

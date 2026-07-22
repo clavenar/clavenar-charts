@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.distributed-control-state/v1",
+  "denyUnknownControl": true,
+  "replicaCount": {
+    "environment": "CLAVENAR_CONTROL_STATE_REPLICAS",
+    "default": 1,
+    "minimum": 1,
+    "maximum": 5
+  },
+  "controls": [
+    {
+      "id": "agent-suspension",
+      "family": "revocation",
+      "purpose": "deny requests from a suspended registered agent",
+      "applicability": "the authenticated workload maps to a registered agent",
+      "classification": "mandatory",
+      "authorities": [
+        {"service": "identity", "store": "sqlite", "resource": "agents.state", "durability": "retained", "role": "suspension source of truth"}
+      ],
+      "replication": {"mechanism": "jetstream-kv-watch", "resource": "clavenar_revocation:agent.<tenant>.<agent_name>", "writer": "identity", "readers": ["proxy"], "durability": "retained", "storage": "file", "history": 1, "maxAgeSeconds": null, "replicasEnvironment": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+      "canonicalKey": "lowercase tenant plus NUL plus registered agent name",
+      "ordering": "the committed Identity lifecycle transition precedes projection",
+      "expiry": "only an explicit committed unsuspend removes the control",
+      "recovery": "replace agent.* projection keys from the exact suspended Identity SQLite set",
+      "sources": ["clavenar-identity/src/revocation.rs", "clavenar-proxy/src/revocation.rs"]
+    },
+    {
+      "id": "decoy-advertisement",
+      "family": "decoy",
+      "purpose": "add registered bait names to the visible tool catalog",
+      "applicability": "a registered decoy has advertised=true for the tenant or wildcard scope",
+      "classification": "advisory",
+      "authorities": [
+        {"service": "identity", "store": "sqlite", "resource": "decoys", "durability": "retained", "role": "registered decoy source of truth"}
+      ],
+      "replication": {"mechanism": "jetstream-kv-watch", "resource": "clavenar_decoys:sha256(tenant NUL name)", "writer": "identity", "readers": ["proxy"], "durability": "retained", "storage": "file", "history": 1, "maxAgeSeconds": null, "replicasEnvironment": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+      "canonicalKey": "SHA-256 of tenant plus NUL plus decoy name",
+      "ordering": "the committed Identity decoy mutation precedes projection",
+      "expiry": "only an explicit committed retirement removes the catalog item",
+      "recovery": "replace the complete decoy projection from Identity SQLite without authorizing execution",
+      "sources": ["clavenar-identity/src/decoys.rs", "clavenar-proxy/src/decoy_registry.rs"]
+    },
+    {
+      "id": "decoy-invocation",
+      "family": "decoy",
+      "purpose": "deny and contain a request naming a registered decoy",
+      "applicability": "the requested tool matches a tenant or wildcard decoy registration",
+      "classification": "mandatory",
+      "authorities": [
+        {"service": "identity", "store": "sqlite", "resource": "decoys", "durability": "retained", "role": "registered decoy source of truth"}
+      ],
+      "replication": {"mechanism": "jetstream-kv-watch", "resource": "clavenar_decoys:sha256(tenant NUL name)", "writer": "identity", "readers": ["proxy"], "durability": "retained", "storage": "file", "history": 1, "maxAgeSeconds": null, "replicasEnvironment": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+      "canonicalKey": "SHA-256 of tenant plus NUL plus decoy name",
+      "ordering": "the committed Identity decoy mutation precedes projection",
+      "expiry": "only an explicit committed retirement removes enforcement",
+      "recovery": "replace the complete decoy projection from Identity SQLite",
+      "sources": ["clavenar-identity/src/decoys.rs", "clavenar-proxy/src/decoy_registry.rs"]
+    },
+    {
+      "id": "force-hil-containment",
+      "family": "force-hil",
+      "purpose": "route every request from the contained agent to human review",
+      "applicability": "an exact unexpired force-HIL flag exists for the registered agent",
+      "classification": "mandatory",
+      "authorities": [
+        {"service": "identity", "store": "sqlite", "resource": "force_hil_controls", "durability": "retained", "role": "versioned containment source of truth"}
+      ],
+      "replication": {"mechanism": "jetstream-kv-watch", "resource": "clavenar_revocation:force_hil.<tenant>.<agent_name>", "writer": "identity", "readers": ["proxy"], "durability": "retained", "storage": "file", "history": 1, "maxAgeSeconds": null, "replicasEnvironment": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+      "canonicalKey": "lowercase tenant plus NUL plus registered agent name",
+      "ordering": "strictly increasing mutation_version per key; replication never extends expires_at",
+      "expiry": "the authoritative expires_at instant or a higher-version explicit clear",
+      "recovery": "replace force_hil.* keys from exact unexpired and uncleared Identity SQLite rows",
+      "sources": ["clavenar-identity/src/agents/containment.rs", "clavenar-proxy/src/revocation.rs"]
+    },
+    {
+      "id": "grant-max-uses",
+      "family": "grant-use",
+      "purpose": "deny a delegated request after its signed maximum use count",
+      "applicability": "the verified delegation grant contains max_uses",
+      "classification": "mandatory",
+      "authorities": [
+        {"service": "proxy", "store": "jetstream-kv", "resource": "clavenar_grant_usage:usage.<jti>", "durability": "retained", "role": "atomic admitted-use counter"}
+      ],
+      "replication": {"mechanism": "jetstream-kv-cas", "resource": "clavenar_grant_usage:usage.<jti>", "writer": "proxy", "readers": ["identity", "proxy"], "durability": "retained", "storage": "file", "history": 1, "maxAgeSeconds": 90000, "replicasEnvironment": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+      "canonicalKey": "usage plus sanitized verified grant jti",
+      "ordering": "JetStream revision CAS and strictly nondecreasing uses",
+      "expiry": "25 hours after the retained counter mutation",
+      "recovery": "read the retained current JetStream KV revision; never reconstruct a smaller count",
+      "sources": ["clavenar-proxy/src/grant_usage.rs", "clavenar-shared/src/grant_usage.rs"]
+    },
+    {
+      "id": "grant-revocation",
+      "family": "revocation",
+      "purpose": "deny a verified delegation grant revoked before expiry",
+      "applicability": "the request presents a verified grant whose jti remains unexpired",
+      "classification": "mandatory",
+      "authorities": [
+        {"service": "identity", "store": "sqlite", "resource": "grants.revoked_at", "durability": "retained", "role": "grant revocation source of truth"}
+      ],
+      "replication": {"mechanism": "jetstream-kv-watch", "resource": "clavenar_revocation:grant.<jti>", "writer": "identity", "readers": ["proxy"], "durability": "retained", "storage": "file", "history": 1, "maxAgeSeconds": null, "replicasEnvironment": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+      "canonicalKey": "verified grant jti",
+      "ordering": "the committed revoked_at mutation precedes projection",
+      "expiry": "the signed grant expiry permits projection cleanup but never renewed authority",
+      "recovery": "replace grant.* projection keys from unexpired revoked Identity SQLite rows",
+      "sources": ["clavenar-identity/src/revocation.rs", "clavenar-proxy/src/revocation.rs"]
+    },
+    {
+      "id": "tenant-spend-quota",
+      "family": "quota",
+      "purpose": "deny tenant work at or above a configured monthly spend ceiling",
+      "applicability": "an authenticated operator tenant has a configured nonnegative budget",
+      "classification": "mandatory",
+      "authorities": [
+        {"service": "identity", "store": "sqlite", "resource": "tenant_budgets", "durability": "retained", "role": "configured monthly ceiling"},
+        {"service": "ledger", "store": "sqlite-or-postgres", "resource": "entries.cost_micros", "durability": "retained", "role": "authoritative current-month spend"}
+      ],
+      "replication": {"mechanism": "bounded-https-cache", "resource": "identity /tenants/{tenant}/budget plus ledger /finops/spend", "writer": "proxy", "readers": ["proxy"], "durability": "ephemeral", "storage": "memory", "history": null, "maxAgeSeconds": 300, "replicasEnvironment": null},
+      "canonicalKey": "authenticated lowercase tenant plus UTC calendar month",
+      "ordering": "a complete budget and spend pair replaces one prior cache generation",
+      "expiry": "cache deadline or UTC month rollover, whichever occurs first",
+      "recovery": "refetch both retained authorities; a partial pair is never authoritative",
+      "sources": ["clavenar-identity/src/agents/budget.rs", "clavenar-ledger/src/reads/spend.rs", "clavenar-proxy/src/quota.rs"]
+    }
+  ]
+}

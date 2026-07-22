@@ -98,6 +98,12 @@ nats:
       spec:
         type: ClusterIP
 
+# Shared replica contract for mandatory distributed control projections.
+# Identity owns the revocation/force-HIL/decoy buckets; Proxy owns grant-use
+# CAS counters. Every participating binary must receive the same exact value.
+controlState:
+  replicas: 1
+
 vault:
   # VAULT_ADDR for proxy + identity when bundled.enabled is false.
   # Empty disables Vault wiring. When bundled.enabled is true, the

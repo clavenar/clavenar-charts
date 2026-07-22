@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/distributed-control-state-v1.schema.json",
+  "title": "Clavenar distributed control-state inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contract", "denyUnknownControl", "replicaCount", "controls"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.distributed-control-state/v1"},
+    "denyUnknownControl": {"const": true},
+    "replicaCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["environment", "default", "minimum", "maximum"],
+      "properties": {
+        "environment": {"const": "CLAVENAR_CONTROL_STATE_REPLICAS"},
+        "default": {"const": 1},
+        "minimum": {"const": 1},
+        "maximum": {"const": 5}
+      }
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/control"}
+    }
+  },
+  "$defs": {
+    "service": {
+      "type": "string",
+      "enum": ["identity", "ledger", "proxy"]
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "store", "resource", "durability", "role"],
+      "properties": {
+        "service": {"$ref": "#/$defs/service"},
+        "store": {"type": "string", "enum": ["sqlite", "sqlite-or-postgres", "jetstream-kv"]},
+        "resource": {"type": "string", "minLength": 1},
+        "durability": {"const": "retained"},
+        "role": {"type": "string", "minLength": 1}
+      }
+    },
+    "replication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mechanism", "resource", "writer", "readers", "durability", "storage", "history", "maxAgeSeconds", "replicasEnvironment"],
+      "properties": {
+        "mechanism": {"type": "string", "enum": ["jetstream-kv-watch", "jetstream-kv-cas", "bounded-https-cache"]},
+        "resource": {"type": "string", "minLength": 1},
+        "writer": {"$ref": "#/$defs/service"},
+        "readers": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/service"}, "uniqueItems": true},
+        "durability": {"type": "string", "enum": ["retained", "ephemeral"]},
+        "storage": {"type": "string", "enum": ["file", "memory"]},
+        "history": {"type": ["integer", "null"], "minimum": 1, "maximum": 64},
+        "maxAgeSeconds": {"type": ["integer", "null"], "minimum": 1},
+        "replicasEnvironment": {"type": ["string", "null"], "enum": ["CLAVENAR_CONTROL_STATE_REPLICAS", null]}
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "family", "purpose", "applicability", "classification", "authorities", "replication", "canonicalKey", "ordering", "expiry", "recovery", "sources"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][a-z0-9-]{2,63}$"},
+        "family": {"type": "string", "enum": ["revocation", "force-hil", "quota", "grant-use", "decoy"]},
+        "purpose": {"type": "string", "minLength": 1},
+        "applicability": {"type": "string", "minLength": 1},
+        "classification": {"type": "string", "enum": ["mandatory", "advisory"]},
+        "authorities": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/authority"}},
+        "replication": {"$ref": "#/$defs/replication"},
+        "canonicalKey": {"type": "string", "minLength": 1},
+        "ordering": {"type": "string", "minLength": 1},
+        "expiry": {"type": "string", "minLength": 1},
+        "recovery": {"type": "string", "minLength": 1},
+        "sources": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"type": "string", "pattern": "^clavenar-[a-z0-9-]+/.+"},
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
