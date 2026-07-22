@@ -156,7 +156,8 @@ post-install hook Job enables the transit engine and creates the
 loses state on pod restart; the hook re-runs on every chart upgrade
 and re-provisions the key. Do not use this configuration for
 production — flip `vault.bundled.enabled=false` and supply your own
-Vault via `vault.addr` + `vault.tokenSecretName`.
+Vault via `vault.addr` + `vault.tokenSecretName`, with distinct scoped keys
+selected by `vault.identityTokenKey` and `vault.proxyTokenKey`.
 {{- end }}
 
 {{- if not .Values.networkPolicy.enabled }}

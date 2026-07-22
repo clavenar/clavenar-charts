@@ -115,6 +115,8 @@ helm install my-clavenar charts/clavenar \
   --set nats.url=nats://my-nats:4222 \
   --set vault.addr=https://vault.internal:8200 \
   --set vault.tokenSecretName=clavenar-vault-token \
+  --set vault.identityTokenKey=identity-token \
+  --set vault.proxyTokenKey=proxy-token \
   --set authSecrets.existingSecretName=clavenar-runtime-auth \
   --set attestationTrustAnchors.secretName=clavenar-attestation-trust \
   --set tlsBundle.secretName=clavenar-certs
@@ -126,7 +128,9 @@ backwards-compatible chart-generated Secret.
 Production also requires a public-only `attestationTrustAnchors` Secret; keep
 the corresponding evidence-signing private key with the cluster attester,
 outside every Clavenar pod. Its signed measurement registry requires the
-external Vault address and token Secret; production refuses bundled dev Vault.
+external Vault address and a Secret containing distinct, scoped Identity and
+Proxy token keys; production projects each key as a file and refuses bundled
+dev Vault.
 
 That default keeps console ingress denied and serves only the safe demo
 router if you port-forward it. Enabling operator mTLS additionally requires

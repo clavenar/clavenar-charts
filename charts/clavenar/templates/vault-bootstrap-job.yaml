@@ -85,7 +85,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: {{ include "clavenar.vaultTokenSecretName" . }}
-                  key: token
+                  key: bootstrap-token
             - name: TRANSIT_KEY_NAME
               value: {{ .Values.vault.bundled.transit.keyName | quote }}
           resources:

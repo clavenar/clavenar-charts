@@ -14,6 +14,8 @@ attestationTrustAnchors:
 vault:
   addr: https://vault.internal:8200
   tokenSecretName: clavenar-vault-token
+  identityTokenKey: identity-token
+  proxyTokenKey: proxy-token
 
 tlsBundle:
   secretName: clavenar-workload-tls

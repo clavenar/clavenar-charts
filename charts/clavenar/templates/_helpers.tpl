@@ -100,7 +100,7 @@ http://{{ .Release.Name }}-vault:8200
 {{- end -}}
 {{- end -}}
 
-{{/* k8s Secret name holding the Vault token (key `token`). Bundled
+{{/* k8s Secret holding disjoint Identity and Proxy Vault token keys. Bundled
 mode autogenerates `<release>-vault-token`; BYO mode honors
 .Values.vault.tokenSecretName. */}}
 {{- define "clavenar.vaultTokenSecretName" -}}
@@ -193,7 +193,7 @@ per environment variable.
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH"
         "VAULT_ADDR"
-        "VAULT_TOKEN")
+        "VAULT_TOKEN_FILE")
       "brain" (list
         "CLAVENAR_BRAIN_TLS_DIR"
         "CLAVENAR_BRAIN_ALLOWED_CALLERS"
@@ -263,7 +263,7 @@ per environment variable.
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH"
         "VAULT_ADDR"
-        "VAULT_TOKEN")
+        "VAULT_TOKEN_FILE")
       "deepReview" (list
         "CLAVENAR_DEEP_REVIEW_LEDGER_URL"
         "CLAVENAR_DEEP_REVIEW_NATS_URL"

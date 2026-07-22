@@ -106,6 +106,12 @@
 {{- if empty .Values.vault.tokenSecretName }}
 {{- fail "deploymentProfile=production requires vault.tokenSecretName for the signed measurement-registry authority" }}
 {{- end }}
+{{- if or (empty .Values.vault.identityTokenKey) (empty .Values.vault.proxyTokenKey) }}
+{{- fail "deploymentProfile=production requires non-empty scoped Vault token keys for Identity and Proxy" }}
+{{- end }}
+{{- if eq .Values.vault.identityTokenKey .Values.vault.proxyTokenKey }}
+{{- fail "deploymentProfile=production requires distinct Identity and Proxy Vault token keys" }}
+{{- end }}
 {{- if .Values.tlsBundle.autoMint }}
 {{- fail "deploymentProfile=production requires tlsBundle.autoMint=false" }}
 {{- end }}

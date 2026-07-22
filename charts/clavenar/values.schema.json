@@ -94,7 +94,7 @@
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH",
                         "VAULT_ADDR",
-                        "VAULT_TOKEN"
+                        "VAULT_TOKEN_FILE"
                       ]
                     }
                   }
@@ -247,7 +247,7 @@
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH",
                         "VAULT_ADDR",
-                        "VAULT_TOKEN"
+                        "VAULT_TOKEN_FILE"
                       ]
                     }
                   }

@@ -18,6 +18,9 @@ inside the range is the iterated value.
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
+{{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
+{{- $mountsVaultToken := and (not (empty $vaultTokenSecret)) (has $name (list "proxy" "identity")) }}
+{{- $vaultTokenKey := ternary $.Values.vault.proxyTokenKey $.Values.vault.identityTokenKey (eq $name "proxy") }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
@@ -122,14 +125,10 @@ spec:
             {{- end }}
           env:
             {{- include "clavenar.commonEnv" (dict "ctx" $ "svcCfg" $cfg "service" $name) | nindent 12 }}
-            {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
-            {{- if and $vaultTokenSecret (or (eq $name "proxy") (eq $name "identity")) }}
-            - name: VAULT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $vaultTokenSecret }}
-                  key: token
-            # VAULT_ADDR has to accompany VAULT_TOKEN — vaultrs falls
+            {{- if $mountsVaultToken }}
+            - name: VAULT_TOKEN_FILE
+              value: /run/secrets/vault-token
+            # VAULT_ADDR has to accompany VAULT_TOKEN_FILE — vaultrs falls
             # back to its compiled-in https://127.0.0.1:8200 default
             # without it, which the proxy can never reach inside a pod.
             # The ConfigMap carries the helper-computed URL (in-cluster
@@ -222,7 +221,7 @@ spec:
             {{- toYaml $cfg.resources | nindent 12 }}
           {{- $mountsCert := $.Values.tlsBundle.secretName }}
           {{- $mountsOperatorTrust := $operatorMtls }}
-          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -261,11 +260,17 @@ spec:
               subPath: brain-cache-hmac-key
               readOnly: true
             {{- end }}
+            {{- if $mountsVaultToken }}
+            - name: vault-token
+              mountPath: /run/secrets/vault-token
+              subPath: vault-token
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -378,6 +383,15 @@ spec:
             items:
               - key: brain-cache-hmac-key
                 path: brain-cache-hmac-key
+        {{- end }}
+        {{- if $mountsVaultToken }}
+        - name: vault-token
+          secret:
+            secretName: {{ $vaultTokenSecret }}
+            defaultMode: 0440
+            items:
+              - key: {{ $vaultTokenKey }}
+                path: vault-token
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

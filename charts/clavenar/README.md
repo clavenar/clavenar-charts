@@ -55,6 +55,8 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
   --set nats.url=nats://my-nats:4222 \
   --set vault.addr=https://vault.internal:8200 \
   --set vault.tokenSecretName=clavenar-vault-token \
+  --set vault.identityTokenKey=identity-token \
+  --set vault.proxyTokenKey=proxy-token \
   --set authSecrets.existingSecretName=clavenar-runtime-auth \
   --set authSecrets.rotationId=prod-20260715-01 \
   --set tlsBundle.secretName=clavenar-certs \
@@ -80,7 +82,8 @@ boundaries are present together:
 - `attestationTrustAnchors.secretName` selects the public Kubernetes Ed25519
   verifier keys (the cluster signing private key is never mounted);
 - `vault.addr` and `vault.tokenSecretName` select the external signed-registry
-  authority; bundled dev-mode Vault is refused;
+  authority, while distinct `identityTokenKey` and `proxyTokenKey` values
+  select its least-privilege credentials; bundled dev-mode Vault is refused;
 - Proxy and Identity receive the chart-owned `production` runtime posture and
   `identity-k8s-key-bound` provider. Evaluation explicitly selects the Proxy
   mock and never inherits it into production;
@@ -283,8 +286,9 @@ apply walkthrough.
   `CLAVENAR_*_DB=/var/lib/clavenar/*.db` defaults.
 - **Shared ConfigMap** carries `NATS_URL`, `CLAVENAR_GRACEFUL_DRAIN_SECS`,
   and (when set) `VAULT_ADDR`.
-- **Vault token** (when `vault.tokenSecretName` is set) is
-  injected into proxy + identity via secretKeyRef.
+- **Vault tokens** (when `vault.tokenSecretName` is set) are projected as
+  mode-0440 files. Identity and Proxy receive only their distinct configured
+  Secret key through `VAULT_TOKEN_FILE`; tokens never enter workload env.
 - **Backend URL envs** wired automatically by component — proxy knows where to
   find brain/policy/hil/identity; policy-engine receives the Brain HTTPS
   application URL plus its exact expected server identity; console knows where
@@ -376,6 +380,8 @@ apply walkthrough.
   (in-memory, root token, no Raft, no auto-unseal). Production
   deployments must turn `vault.bundled.enabled` off and point at an
   externally-managed Vault via `vault.addr` + `vault.tokenSecretName`.
+  Its Secret must hold distinct Identity and Proxy token keys selected by
+  `vault.identityTokenKey` and `vault.proxyTokenKey`.
 - **No ingress / TLS termination.** Add an operator-controlled Ingress,
   Gateway, or service-mesh layer downstream of this chart. Chart-owned
   Services are fixed to ClusterIP; `NodePort` and `LoadBalancer` values
@@ -406,7 +412,7 @@ imagePullPolicy: IfNotPresent
 imagePullSecrets: []
 
 nats:  { url: nats://nats:4222 }
-vault: { addr: "", tokenSecretName: "" }
+vault: { addr: "", tokenSecretName: "", identityTokenKey: identity-token, proxyTokenKey: proxy-token }
 
 authSecrets:
   existingSecretName: ""               # empty: chart-managed <release>-shared-tokens
@@ -653,6 +659,8 @@ helm template my-clavenar . \
   --set tlsBundle.secretName=clavenar-certs \
   --set vault.addr=http://vault:8200 \
   --set vault.tokenSecretName=clavenar-vault \
+  --set vault.identityTokenKey=identity-token \
+  --set vault.proxyTokenKey=proxy-token \
   --set networkPolicy.enabled=true \
   --set services.brain.replicas=3
 
