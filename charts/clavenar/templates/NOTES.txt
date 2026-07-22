@@ -136,6 +136,10 @@ self-signed CA + per-service workload certs. Use this for evaluation
 clusters only — production deployments should ship a bundle from a
 managed PKI (set `tlsBundle.autoMint=false` and provide
 `tlsBundle.secretName` from an existing Secret).
+Ordinary upgrades use rotation.operation=reconcile and preserve a valid
+stable Secret exactly. A trust change requires operation=rotate, a new
+rotation.generation, and reason=membership or expiry; return operation to
+reconcile/reason=none after the successful rotation release.
 {{- end }}
 
 {{- if .Values.nats.bundled.enabled }}

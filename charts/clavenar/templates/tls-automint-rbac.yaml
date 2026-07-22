@@ -1,7 +1,7 @@
 {{/*
 ServiceAccount + Role + RoleBinding scoped to the release namespace.
-The mint Job needs `get/create/patch` on Secrets in this namespace
-only — never cluster-wide, never on other resource kinds.
+The rotation Job can mutate its namespace-local Secret and coordinate only
+the release's namespaced workload controllers. It has no cluster-wide access.
 
 All three resources are `helm.sh/hook` resources at weight -20 so
 they exist before the Job (weight 0) starts, and delete after the
@@ -33,6 +33,9 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["get", "create", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets"]
+    verbs: ["get", "list", "watch", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

@@ -760,11 +760,20 @@ tlsBundle:
   # pre-upgrade Helm hook Job. Generates a self-signed CA root,
   # proxy server cert + client cert, and per-service workload certs
   # (one pair per name in `bundleServices`, with SPIFFE URI SANs).
-  # The Job is idempotent while the target Secret carries the current
-  # governed bundle-layout label; layout changes re-mint the full bundle.
+  # Ordinary upgrades validate and preserve an existing stable bundle exactly.
+  # A fresh generation is staged only through the explicit rotation policy.
   # Production deployments should leave this off
   # and supply the bundle from a managed PKI instead.
   autoMint: false
+  rotation:
+    # reconcile initializes an absent Secret or preserves/migrates a valid
+    # existing one. rotate requires a new generation plus membership/expiry.
+    operation: reconcile
+    generation: bootstrap-v1
+    reason: none
+    expiryWindowSeconds: 2592000
+    overlapSeconds: 900
+    rolloutTimeoutSeconds: 300
   # Nonroot, shell-capable image used only to copy the exact per-pod Secret
   # items into an owner-bound memory volume and chmod private keys 0600 before
   # the application starts. It receives no Kubernetes API credential.

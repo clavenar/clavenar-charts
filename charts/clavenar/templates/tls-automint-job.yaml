@@ -1,17 +1,9 @@
 {{/*
-Pre-install + pre-upgrade hook Job that mints the clavenar TLS bundle.
-Two stages share an emptyDir at /work:
-  - initContainer `mint`  — openssl-only image, generates CA + per-
-    service certs into /work.
-  - main container `apply` — kubectl-only image, no-op if the target
-    Secret already carries the current governed bundle-layout label;
-    otherwise writes the complete bundle.
-Splitting keeps the bundle stable across same-layout upgrades and lets
-both containers run under the chart-wide
-nonroot podSecurityContext — neither needs root.
-
-Hook weight 0 (default) lands after the RBAC + script ConfigMap
-(weight -20 / -15) and before the Vault bootstrap Job (post-install).
+The pre-install/pre-upgrade transaction has three least-tool stages:
+snapshot (kubectl + jq), mint/validate (openssl), then apply/rollout
+(kubectl). Both shared emptyDirs are memory-backed so superseded signers never
+land in a persistent volume. An ordinary reconcile validates and preserves the
+existing Secret; only operation=rotate can stage a new generation.
 */}}
 {{- if .Values.tlsBundle.autoMint }}
 apiVersion: batch/v1
@@ -43,11 +35,26 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       initContainers:
+        - name: snapshot
+          image: "{{ .Values.tlsBundle.applyImage.repository }}:{{ .Values.tlsBundle.applyImage.tag }}"
+          imagePullPolicy: {{ .Values.tlsBundle.applyImage.pullPolicy }}
+          command: ["/bin/sh", "/script/snapshot.sh"]
+          env:
+            - name: TLS_SECRET_NAME
+              value: {{ .Values.tlsBundle.secretName | quote }}
+            - name: POD_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: EXPECTED_SAN_SCHEME
+              value: {{ include "clavenar.tlsSanScheme" . | quote }}
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits:   { cpu: 250m, memory: 128Mi }
+          volumeMounts:
+            - { name: script, mountPath: /script, readOnly: true }
+            - { name: state, mountPath: /state }
         - name: mint
           image: "{{ .Values.tlsBundle.mintImage.repository }}:{{ .Values.tlsBundle.mintImage.tag }}"
           imagePullPolicy: {{ .Values.tlsBundle.mintImage.pullPolicy }}
-          # alpine/openssl has ENTRYPOINT ["openssl"]; override so we
-          # run our shell script instead of passing it to openssl.
           command: ["/bin/sh", "/script/mint.sh"]
           env:
             - name: SPIFFE_TRUST_DOMAIN
@@ -56,15 +63,21 @@ spec:
               value: {{ include "clavenar.bundleServices" . | quote }}
             - name: RELEASE_NAME
               value: {{ .Release.Name | quote }}
+            - name: TLS_ROTATION_OPERATION
+              value: {{ .Values.tlsBundle.rotation.operation | quote }}
+            - name: TLS_ROTATION_GENERATION
+              value: {{ .Values.tlsBundle.rotation.generation | quote }}
+            - name: TLS_ROTATION_REASON
+              value: {{ .Values.tlsBundle.rotation.reason | quote }}
+            - name: EXPIRY_WINDOW_SECONDS
+              value: {{ .Values.tlsBundle.rotation.expiryWindowSeconds | quote }}
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits:   { cpu: 250m, memory: 128Mi }
           volumeMounts:
-            - name: script
-              mountPath: /script
-              readOnly: true
-            - name: work
-              mountPath: /work
+            - { name: script, mountPath: /script, readOnly: true }
+            - { name: state, mountPath: /state }
+            - { name: work, mountPath: /work }
       containers:
         - name: apply
           image: "{{ .Values.tlsBundle.applyImage.repository }}:{{ .Values.tlsBundle.applyImage.tag }}"
@@ -75,23 +88,40 @@ spec:
               value: {{ .Values.tlsBundle.secretName | quote }}
             - name: POD_NAMESPACE
               value: {{ .Release.Namespace | quote }}
+            - name: EXPECTED_SAN_SCHEME
+              value: {{ include "clavenar.tlsSanScheme" . | quote }}
             - name: BUNDLE_SERVICES
               value: {{ include "clavenar.bundleServices" . | quote }}
+            - name: RELEASE_NAME
+              value: {{ .Release.Name | quote }}
+            - name: TLS_ROTATION_OPERATION
+              value: {{ .Values.tlsBundle.rotation.operation | quote }}
+            - name: TLS_ROTATION_GENERATION
+              value: {{ .Values.tlsBundle.rotation.generation | quote }}
+            - name: TLS_ROTATION_REASON
+              value: {{ .Values.tlsBundle.rotation.reason | quote }}
+            - name: OVERLAP_SECONDS
+              value: {{ .Values.tlsBundle.rotation.overlapSeconds | quote }}
+            - name: ROLLOUT_TIMEOUT_SECONDS
+              value: {{ .Values.tlsBundle.rotation.rolloutTimeoutSeconds | quote }}
+            - name: ROLLOUT_DEPLOYMENTS
+              value: {{ include "clavenar.tlsRolloutDeployments" . | quote }}
+            - name: ROLLOUT_STATEFULSETS
+              value: {{ include "clavenar.tlsRolloutStatefulSets" . | quote }}
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits:   { cpu: 250m, memory: 128Mi }
           volumeMounts:
-            - name: script
-              mountPath: /script
-              readOnly: true
-            - name: work
-              mountPath: /work
-              readOnly: true
+            - { name: script, mountPath: /script, readOnly: true }
+            - { name: state, mountPath: /state, readOnly: true }
+            - { name: work, mountPath: /work, readOnly: true }
       volumes:
         - name: script
           configMap:
             name: {{ .Release.Name }}-tls-automint
             defaultMode: 0755
+        - name: state
+          emptyDir: { medium: Memory }
         - name: work
-          emptyDir: {}
+          emptyDir: { medium: Memory }
 {{- end }}

@@ -1037,16 +1037,19 @@ class ListenerMatrixTest(unittest.TestCase):
             if doc.get("kind") == "ConfigMap"
             and doc.get("metadata", {}).get("name") == "smoke-tls-automint"
         )
-        self.assertIn(
-            'EXPECTED_SAN_SCHEME="release-prefixed-v3-assurance"',
-            automint["data"]["apply.sh"],
-        )
         job = next(
             doc for doc in self.rendered["bundled"]
             if doc.get("kind") == "Job"
             and doc.get("metadata", {}).get("name") == "smoke-tls-automint"
         )
         mint = job["spec"]["template"]["spec"]["initContainers"][0]
+        self.assertEqual("snapshot", mint["name"])
+        expected_scheme = next(
+            entry["value"] for entry in mint["env"]
+            if entry["name"] == "EXPECTED_SAN_SCHEME"
+        )
+        self.assertEqual("release-prefixed-v3-assurance", expected_scheme)
+        mint = job["spec"]["template"]["spec"]["initContainers"][1]
         bundle_services = next(
             entry["value"] for entry in mint["env"]
             if entry["name"] == "BUNDLE_SERVICES"

@@ -69,6 +69,12 @@ Secret first and advance the identifier in the controlled release.
 NATS and Vault are not bundled by default. Operators can bring their own or
 enable the evaluation-only subcharts.
 
+Evaluation auto-mint upgrades preserve a validated TLS Secret byte-for-byte.
+Trust replacement requires an explicit generation-bound Helm rotation, uses a
+bounded two-public-root rollout with readiness gates and rollback, retains only
+the retired public CA as history, and rejects implicit or malformed changes.
+See the chart README for the rotation values and operator sequence.
+
 Sequence diagrams for the six primary flows — `helm install` render +
 apply, pod boot under `tlsBundle.secretName`, cross-service backend URL
 wiring under TLS, Prometheus scrape + Grafana sidecar discovery, the

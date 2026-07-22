@@ -125,6 +125,29 @@ Job's env. */}}
 {{ join " " $services }}
 {{- end -}}
 
+{{/* Stable identity-layout marker. Change only for an incompatible SAN or
+Secret data shape; rotation generation is deliberately independent. */}}
+{{- define "clavenar.tlsSanScheme" -}}
+release-prefixed-v3-assurance
+{{- end -}}
+
+{{/* Enabled TLS consumers coordinated by the explicit rotation hook. */}}
+{{- define "clavenar.tlsRolloutDeployments" -}}
+{{- $deployments := list -}}
+{{- if .Values.tlsBundle.secretName -}}
+{{- range $name, $cfg := .Values.services -}}
+{{- if $cfg.enabled -}}
+{{- $deployments = append $deployments ($name | kebabcase) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{ join " " $deployments }}
+{{- end -}}
+
+{{- define "clavenar.tlsRolloutStatefulSets" -}}
+{{- if and .Values.tlsBundle.secretName .Values.nats.bundled.enabled -}}nats{{- end -}}
+{{- end -}}
+
 {{/*
 Reject authentication material that would be rendered literally through
 services.<name>.extraEnv. HIL's session and decision variables are chart-owned

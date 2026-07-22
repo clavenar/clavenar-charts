@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Tiny stateful kubectl double for the TLS rotation shell-contract tests."""
+
+import base64
+import json
+import os
+from pathlib import Path
+import sys
+
+
+state_path = Path(os.environ["MOCK_KUBE_STATE"])
+events_path = Path(os.environ["MOCK_KUBE_EVENTS"])
+state = json.loads(state_path.read_text()) if state_path.exists() else {"secrets": {}}
+args = sys.argv[1:]
+if args[:1] == ["-n"]:
+    args = args[2:]
+
+
+def save():
+    state_path.write_text(json.dumps(state, sort_keys=True))
+
+
+def event():
+    with events_path.open("a") as stream:
+        stream.write(json.dumps(args) + "\n")
+
+
+def secret(name):
+    return state.setdefault("secrets", {}).get(name)
+
+
+event()
+command = args[0]
+
+if command == "get":
+    kind, name = args[1:3]
+    if kind == "secret":
+        value = secret(name)
+        if value is None:
+            raise SystemExit(1)
+        if "json" in args:
+            print(json.dumps(value))
+        raise SystemExit(0)
+    controllers = set(filter(None, os.environ.get("MOCK_CONTROLLERS", "").split()))
+    if name not in controllers:
+        raise SystemExit(1)
+    if "json" in args:
+        print("{}")
+    raise SystemExit(0)
+
+if command == "create" and args[1:3] == ["secret", "generic"]:
+    name = args[3]
+    data = {}
+    for argument in args[4:]:
+        if argument.startswith("--from-file="):
+            key, path = argument.removeprefix("--from-file=").split("=", 1)
+            data[key] = base64.b64encode(Path(path).read_bytes()).decode()
+    value = {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {"name": name, "labels": {}, "annotations": {}},
+        "type": "Opaque",
+        "data": data,
+    }
+    if "--dry-run=client" in args:
+        print(json.dumps(value))
+        raise SystemExit(0)
+    if "-history-" in name and os.environ.get("MOCK_FAIL_HISTORY") == "1":
+        raise SystemExit(1)
+    if secret(name) is not None:
+        raise SystemExit(1)
+    state["secrets"][name] = value
+    save()
+    raise SystemExit(0)
+
+if command == "create" and args[1:3] == ["-f", "-"]:
+    value = json.load(sys.stdin)
+    name = value["metadata"]["name"]
+    if "-history-" in name and os.environ.get("MOCK_FAIL_HISTORY") == "1":
+        raise SystemExit(1)
+    if secret(name) is not None:
+        raise SystemExit(1)
+    state.setdefault("secrets", {})[name] = value
+    save()
+    raise SystemExit(0)
+
+if command == "apply":
+    value = json.load(sys.stdin)
+    state.setdefault("secrets", {})[value["metadata"]["name"]] = value
+    save()
+    raise SystemExit(0)
+
+if command in {"label", "annotate"}:
+    resource_index = args.index("secret")
+    name = args[resource_index + 1]
+    value = secret(name)
+    if value is None:
+        raise SystemExit(1)
+    field = "labels" if command == "label" else "annotations"
+    target = value.setdefault("metadata", {}).setdefault(field, {})
+    for argument in args[resource_index + 2:]:
+        if not argument.startswith("-") and "=" in argument:
+            key, item = argument.split("=", 1)
+            target[key] = item
+    save()
+    raise SystemExit(0)
+
+if command == "patch":
+    patch = args[args.index("-p") + 1]
+    failure = os.environ.get("MOCK_FAIL_ROLLOUT_TOKEN", "")
+    marker = state_path.with_suffix(".failed-once")
+    if failure and failure in patch and not marker.exists():
+        marker.write_text("failed\n")
+        raise SystemExit(1)
+    raise SystemExit(0)
+
+if command == "rollout" and args[1] == "status":
+    raise SystemExit(0)
+
+raise SystemExit(f"unsupported kubectl test invocation: {args}")

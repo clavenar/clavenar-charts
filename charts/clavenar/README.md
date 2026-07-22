@@ -478,6 +478,14 @@ tlsBundle:
   secretName: ""                         # Required for any non-trivial deploy
   mountPath: /certs
   spiffeTrustDomain: clavenar.local      # governed exact-caller trust domain
+  autoMint: false                        # evaluation only
+  rotation:
+    operation: reconcile                 # reconcile or explicit rotate
+    generation: bootstrap-v1             # advance for every rotation
+    reason: none                         # none, membership, or expiry
+    expiryWindowSeconds: 2592000         # expiry rotation gate (30 days)
+    overlapSeconds: 900                  # bounded two-public-root window
+    rolloutTimeoutSeconds: 300           # readiness deadline per controller
 
 networkPolicy:
   enabled: true                          # Baseline ingress isolation; requires a policy-capable CNI
@@ -507,6 +515,44 @@ must be positive; timeout and body values additionally retain the Brain's
 30-second and 1 MiB startup caps. The official chart consequently fixes
 `tlsBundle.spiffeTrustDomain` to `clavenar.local` so auto-minted identities
 cannot drift away from those canonical callers.
+
+### Evaluation auto-mint trust rotation
+
+`tlsBundle.autoMint` is evaluation-only, but its trust lifecycle is explicit.
+On every install or upgrade a snapshot stage reads the exact
+`clavenar.com/san-scheme` label and validates the complete Secret inventory.
+The default `rotation.operation=reconcile` initializes an absent Secret,
+performs a metadata-only migration of a valid legacy Secret, or preserves a
+canonical stable Secret byte-for-byte. A generation change or membership
+change under `reconcile` fails closed instead of silently replacing trust.
+
+To rotate, advance the generation and select exactly one governed reason:
+
+```bash
+helm upgrade my-clavenar charts/clavenar --reuse-values \
+  --set tlsBundle.rotation.operation=rotate \
+  --set-string tlsBundle.rotation.generation=2026-07-rotation-1 \
+  --set tlsBundle.rotation.reason=expiry
+```
+
+`expiry` is admitted only inside `expiryWindowSeconds`. `membership` requires
+an actual additive membership change; removal of a still-live identity is
+rejected. The hook validates a wholly fresh CA and leaf set, publishes old
+leaves with both public roots, rolls every TLS consumer to Ready, publishes new
+leaves under both roots, and only then retires the old live root. The active
+Secret contains one signer at every phase. Superseded private material exists
+only in memory for the hook lifetime; the retained history Secret contains
+only the retired `ca.crt`. A rollout or deadline failure restores the prior
+generation through the same dual-trust ordering.
+
+Helm persists CLI value overrides. After a successful rotation, return the
+operation to the ordinary posture while retaining the new generation:
+
+```bash
+helm upgrade my-clavenar charts/clavenar --reuse-values \
+  --set tlsBundle.rotation.operation=reconcile \
+  --set tlsBundle.rotation.reason=none
+```
 
 The values keys use camelCase (`policyEngine`, `deepReview`) for
 valid Go-template paths; the helper kebab-cases them for k8s object

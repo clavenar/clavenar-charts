@@ -28,6 +28,30 @@
 {{- if ne .Values.tlsBundle.spiffeTrustDomain "clavenar.local" }}
 {{- fail "tlsBundle.spiffeTrustDomain must remain clavenar.local for the canonical exact Brain auxiliary callers" }}
 {{- end }}
+{{- $tlsRotation := .Values.tlsBundle.rotation }}
+{{- if and .Values.tlsBundle.autoMint (empty .Values.tlsBundle.secretName) }}
+{{- fail "tlsBundle.autoMint=true requires a non-empty tlsBundle.secretName" }}
+{{- end }}
+{{- if and (eq $tlsRotation.operation "reconcile") (ne $tlsRotation.reason "none") }}
+{{- fail "tlsBundle.rotation.operation=reconcile requires reason=none" }}
+{{- end }}
+{{- if and (eq $tlsRotation.operation "rotate") (not (has $tlsRotation.reason (list "membership" "expiry"))) }}
+{{- fail "tlsBundle.rotation.operation=rotate requires reason=membership or expiry" }}
+{{- end }}
+{{- if and (eq $tlsRotation.operation "rotate") (not .Values.tlsBundle.autoMint) }}
+{{- fail "tlsBundle.rotation.operation=rotate requires tlsBundle.autoMint=true" }}
+{{- end }}
+{{- if le (int $tlsRotation.overlapSeconds) (int $tlsRotation.rolloutTimeoutSeconds) }}
+{{- fail "tlsBundle.rotation.overlapSeconds must exceed rolloutTimeoutSeconds" }}
+{{- end }}
+{{- if .Values.tlsBundle.autoMint }}
+{{- $bundleServices := include "clavenar.bundleServices" . | splitList " " }}
+{{- range $name, $cfg := .Values.services }}
+{{- if and $cfg.enabled (not (has ($name | kebabcase) $bundleServices)) }}
+{{- fail (printf "tlsBundle.autoMint=true requires enabled service %s in tlsBundle.bundleServices" ($name | kebabcase)) }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- if ne $brain.explainCallerSpiffe "spiffe://clavenar.local/service/policy-engine" }}
 {{- fail "services.brain.explainCallerSpiffe must be the one canonical exact URI spiffe://clavenar.local/service/policy-engine" }}
 {{- end }}

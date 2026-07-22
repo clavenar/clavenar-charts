@@ -64,8 +64,8 @@ vault:
 
 tlsBundle:
   # Pre-install Job mints CA + per-service workload certs into this
-  # Secret. Job is idempotent while its governed bundle-layout label
-  # matches; layout upgrades re-mint so no required identity is absent.
+  # Secret. Ordinary reconcile upgrades validate and preserve stable bytes;
+  # only an explicit advanced rotation generation replaces trust.
   secretName: smoke-tls
   autoMint: true
 

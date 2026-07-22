@@ -266,14 +266,18 @@ Job before any workload pod schedules; under `vault.bundled.enabled` two
 agent credential after the release lands. Hook weights order the
 pre-install set — RBAC `-20` (`tls-automint-rbac.yaml`) → script
 ConfigMap `-15` (`tls-automint-script.yaml`) → Job `0`
-(`tls-automint-job.yaml`) — so the ServiceAccount and `mint.sh`/`apply.sh`
-mount source both exist before the Job starts. The Job splits an
-`openssl` initContainer (`mint`, image `alpine/openssl`) from a `kubectl`
-main container (`apply`, image `alpine/k8s`) over a shared `/work`
-emptyDir; `apply.sh` is a no-op when the target Secret already carries
-`ca.crt` under the expected bundle-layout label and re-mints on layout
-drift so a newly required identity such as `service-assurance` cannot be
-silently absent. The Vault Jobs run
+(`tls-automint-job.yaml`) — so the ServiceAccount and all three governed
+scripts exist before the Job starts. A kubectl `snapshot` initContainer reads
+the exact qualified layout label and complete existing Secret, an openssl
+`mint` initContainer validates or stages a fresh candidate, and the kubectl
+`apply` container performs the transaction. The `/state` and `/work`
+emptyDirs are memory-backed. Ordinary `reconcile` upgrades preserve valid
+Secret bytes exactly; missing, foreign, partial, mismatched, or implicit trust
+changes fail closed. An explicit `rotate` advances a generation through
+old-leaf/dual-root, new-leaf/dual-root, and new-only phases, waiting for every
+TLS consumer to become Ready at each boundary. Failure restores the prior
+generation, while success retains only the old public CA in a history Secret.
+The Vault Jobs run
 post-install at weights `0` (`vault-bootstrap-job.yaml`) then `1`
 (`vault-seed-job.yaml`).
 
@@ -283,6 +287,7 @@ sequenceDiagram
     actor Op as Operator
     participant Helm as helm CLI
     participant API as kube-apiserver
+    participant Snap as Job initContainer<br/>snapshot (alpine/k8s)
     participant Mint as Job initContainer<br/>mint (alpine/openssl)
     participant Apply as Job container<br/>apply (alpine/k8s)
     participant Sec as Secret<br/>clavenar-certs
@@ -297,17 +302,25 @@ sequenceDiagram
     Helm->>API: apply tls-automint script ConfigMap (weight -15)
     Helm->>API: create tls-automint Job (weight 0)
 
+    API->>Snap: GET Secret JSON; validate exact label + key inventory
+    Snap->>Sec: snapshot existing bytes + stable metadata into memory
     API->>Mint: start initContainer mint
-    Mint->>Mint: openssl mints CA root + server + client + per-service certs into /work
+    Mint->>Mint: validate existing bundle and requested policy
+    opt operation=rotate with advanced generation
+        Mint->>Mint: mint and validate wholly fresh CA + leaves
+    end
     Mint-->>API: initContainer exits 0
     API->>Apply: start main container apply
-    Apply->>Sec: GET secret clavenar-certs (jsonpath .data.ca.crt)
-    alt ca.crt present AND san-scheme == release-prefixed-v3-assurance
-        Sec-->>Apply: existing bundle, scheme matches
-        Apply->>Apply: skip apply — CA stays stable across upgrade
-    else absent OR scheme drift
-        Apply->>Sec: kubectl create --dry-run then apply -f - (create-or-replace)
-        Apply->>Sec: label san-scheme=release-prefixed-v3-assurance
+    alt operation=reconcile and canonical Secret present
+        Apply->>Apply: no API write — Secret bytes remain exact
+    else operation=rotate
+        Apply->>Sec: old leaves + old/new public roots
+        Apply->>API: roll TLS consumers; wait Ready within deadline
+        Apply->>Sec: new leaves + old/new public roots
+        Apply->>API: roll TLS consumers; wait Ready within deadline
+        Apply->>Sec: new leaves + new public root only
+        Apply->>API: roll TLS consumers; wait Ready
+        Apply->>Sec: archive retired public ca.crt only
     end
     Apply-->>API: Job succeeded, hook-delete-policy reaps SA/Role/ConfigMap/Job
 

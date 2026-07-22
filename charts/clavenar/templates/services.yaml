@@ -55,13 +55,11 @@ spec:
         # public generation after updating the referenced Secret.
         clavenar.io/auth-rotation-id: {{ required "authSecrets.rotationId is required" $.Values.authSecrets.rotationId | quote }}
         {{- include "clavenar.metricsAnnotations" (dict "ctx" $ "svcCfg" $cfg) | trim | nindent 8 }}
-        {{- if $.Values.tlsBundle.autoMint }}
-        # Roll the pod when the auto-mint script changes — the SAN
-        # scheme or extension shape might have shifted, which triggers
-        # apply.sh to re-mint the Secret. Pods that mounted the old
-        # bundle would otherwise keep using the stale cert/CA until
-        # something else forced a restart.
-        checksum/tls-automint-script: {{ include (print $.Template.BasePath "/tls-automint-script.yaml") $ | sha256sum }}
+        {{- if and $mountsCert $.Values.tlsBundle.autoMint }}
+        # The rotation hook temporarily advances this annotation through
+        # overlap phases and finishes at the rendered generation. Script-only
+        # chart changes do not roll credential consumers.
+        clavenar.io/tls-generation: {{ $.Values.tlsBundle.rotation.generation | quote }}
         {{- end }}
         {{- if $mountsCapability }}
         checksum/workload-capability-bundle: {{ $.Files.Get "files/workload-capability-bundle.json" | sha256sum }}
