@@ -742,8 +742,7 @@ helm template my-clavenar . \
   --set vault.tokenSecretName=clavenar-vault \
   --set vault.identityTokenKey=identity-token \
   --set vault.proxyTokenKey=proxy-token \
-  --set networkPolicy.enabled=true \
-  --set services.brain.replicas=3
+  --set networkPolicy.enabled=true
 
 # Validate Service ports/types and exact NetworkPolicy caller rules:
 helm template smoke . > /tmp/clavenar.yaml

@@ -39,8 +39,6 @@ jobs:
         run: |
           helm template smoke . \
             -f ../../tests/values-all-on.yaml \
-            --set services.brain.replicas=3 \
-            --set services.policyEngine.replicas=2 \
             > /tmp/all-on.yaml
 
       - name: helm template — postgres ledger mode
