@@ -59,6 +59,48 @@ groups:
             retention cap and drops events. Check ledger logs + the
             SQLite WAL state.
 
+      - alert: ForensicStageMissing
+        expr: clavenar_forensic_missing_stages > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: forensic-delivery
+        annotations:
+          summary: "Required forensic terminal stage is missing"
+          description: |
+            A reconciliation-contract intent is more than five minutes old
+            without its required terminal stage (family={{ $labels.family }},
+            stage={{ $labels.stage }}). Inspect the owner outbox and retained
+            reconciliation state. Never replay the governed effect to repair
+            evidence.
+
+      - alert: ForensicReconciliationUncertain
+        expr: increase(clavenar_forensic_reconciliation_total{outcome="uncertain"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: forensic-delivery
+        annotations:
+          summary: "Governed effect outcome became uncertain"
+          description: |
+            At least one interrupted governed effect lacked authoritative
+            evidence of success or failure. Preserve the durable uncertainty,
+            investigate the bound operation, and do not automatically repeat
+            the effect.
+
+      - alert: ForensicTerminalDeliveryFailure
+        expr: increase(clavenar_forensic_outbox_terminal_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: forensic-delivery
+        annotations:
+          summary: "Forensic delivery entered a terminal failure state"
+          description: |
+            A forensic outbox row exhausted its delivery policy. Preserve the
+            row and its immutable bytes, restore broker/storage health, and
+            re-drive delivery without repeating the governed effect.
+
       - alert: HilDown
         expr: up{job="hil"} == 0
         for: 2m
@@ -260,6 +302,23 @@ groups:
             Ledger PVC is filling up. Cold-tier export to Parquet is
             the long-term mitigation; in the short term, free space
             by running the vacuum cursor.
+
+      - alert: ForensicOutboxStalled
+        expr: |
+          clavenar_forensic_outbox_oldest_age_seconds > 300
+          and on (job, instance)
+          sum by (job, instance) (clavenar_forensic_outbox_depth{state=~"ready|retry"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: forensic-delivery
+        annotations:
+          summary: "Forensic outbox has not drained within five minutes"
+          description: |
+            The oldest undelivered forensic row has exceeded the reconciliation
+            grace while ready or retry rows remain. Inspect retry counters,
+            NATS JetStream health, and the Ledger consumer before backlog age
+            approaches retention limits.
 
       - alert: VerifySlow
         expr: |

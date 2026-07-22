@@ -4,6 +4,52 @@ rule_files:
 evaluation_interval: 1m
 
 tests:
+  - name: forensic delivery alerts use bounded owner labels
+    interval: 1m
+    input_series:
+      - series: 'clavenar_forensic_missing_stages{job="identity",instance="identity-1",family="identity",stage="credential.released"}'
+        values: '1+0x8'
+      - series: 'clavenar_forensic_outbox_oldest_age_seconds{job="hil",instance="hil-1"}'
+        values: '360+0x8'
+      - series: 'clavenar_forensic_outbox_depth{job="hil",instance="hil-1",state="ready"}'
+        values: '2+0x8'
+      - series: 'clavenar_forensic_outbox_depth{job="hil",instance="hil-1",state="retry"}'
+        values: '0+0x8'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ForensicStageMissing
+        exp_alerts:
+          - exp_labels:
+              component: forensic-delivery
+              family: identity
+              instance: identity-1
+              job: identity
+              severity: critical
+              stage: credential.released
+            exp_annotations:
+              summary: Required forensic terminal stage is missing
+              description: |
+                A reconciliation-contract intent is more than five minutes old
+                without its required terminal stage (family=identity,
+                stage=credential.released). Inspect the owner outbox and retained
+                reconciliation state. Never replay the governed effect to repair
+                evidence.
+      - eval_time: 6m
+        alertname: ForensicOutboxStalled
+        exp_alerts:
+          - exp_labels:
+              component: forensic-delivery
+              instance: hil-1
+              job: hil
+              severity: warning
+            exp_annotations:
+              summary: Forensic outbox has not drained within five minutes
+              description: |
+                The oldest undelivered forensic row has exceeded the reconciliation
+                grace while ready or retry rows remain. Inspect retry counters,
+                NATS JetStream health, and the Ledger consumer before backlog age
+                approaches retention limits.
+
   - name: console operator Service exposure matches the rendered Service name
     interval: 1m
     input_series:
