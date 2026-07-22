@@ -681,6 +681,16 @@
         "secretName": { "type": "string" },
         "mountPath": { "type": "string" },
         "autoMint": { "type": "boolean" },
+        "projectorImage": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string", "minLength": 1 },
+            "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+          },
+          "required": ["repository", "tag", "pullPolicy"],
+          "additionalProperties": false
+        },
         "spiffeTrustDomain": { "const": "clavenar.local" }
       }
     },

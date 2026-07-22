@@ -21,6 +21,8 @@ inside the range is the iterated value.
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
 {{- $mountsVaultToken := and (not (empty $vaultTokenSecret)) (has $name (list "proxy" "identity")) }}
 {{- $vaultTokenKey := ternary $.Values.vault.proxyTokenKey $.Values.vault.identityTokenKey (eq $name "proxy") }}
+{{- $mountsCert := $.Values.tlsBundle.secretName }}
+{{- $mountsOperatorTrust := $operatorMtls }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
@@ -77,6 +79,31 @@ spec:
       {{- with $.Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if $mountsCert }}
+      initContainers:
+        - name: workload-tls-projector
+          image: "{{ $.Values.tlsBundle.projectorImage.repository }}:{{ $.Values.tlsBundle.projectorImage.tag }}"
+          imagePullPolicy: {{ $.Values.tlsBundle.projectorImage.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eu
+              umask 077
+              cp /tls-source/* /projected/
+              chmod 0444 /projected/*.crt
+              chmod 0600 /projected/*.key
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: certs-source
+              mountPath: /tls-source
+              readOnly: true
+            - name: certs
+              mountPath: /projected
       {{- end }}
       containers:
         - name: {{ $name | kebabcase }}
@@ -219,8 +246,6 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- $mountsCert := $.Values.tlsBundle.secretName }}
-          {{- $mountsOperatorTrust := $operatorMtls }}
           {{- if or $persist.enabled $mountsCert $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
@@ -278,21 +303,19 @@ spec:
             claimName: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-data
         {{- end }}
         {{- if $mountsCert }}
-        - name: certs
+        - name: certs-source
           secret:
             secretName: {{ $.Values.tlsBundle.secretName }}
-            # 0644 on the key files — clavenar services run as nonroot
-            # UID 65532, and `gen_certs.sh` chmods to the same mode on
-            # the host. k8s Secret mounts default to 0644 anyway, but
-            # pinning is explicit so a re-mode by a downstream patch
-            # doesn't lock out the pod at next boot.
-            defaultMode: 0644
-            # Per-pod projection: each backend mounts only ca.crt +
-            # its own service-<name>.{crt,key}, so a compromised pod
-            # cannot read another service's private key. Proxy +
-            # identity additionally mount server.{crt,key} (proxy's
-            # agent-facing mTLS server cert) and client.{crt,key}
-            # (legacy starter-agent client cert).
+            # The source is exact-key projected and group-readable only by the
+            # pod fsGroup. A nonroot init container copies it into a private
+            # memory-backed directory owned by runtime UID 65532, setting
+            # certificates 0444 and every private key 0600. The application
+            # container mounts only that owner-bound result.
+            defaultMode: 0440
+            # Per-pod source projection: each backend receives ca.crt + its
+            # own service-<name>.{crt,key}. Proxy additionally receives only
+            # its agent-facing server identity; Identity alone receives the
+            # CA signer key. Generic and peer private keys remain absent.
             #
             # `items:` is build with the helper to keep the projection
             # consistent with the per-service naming. A missing key
@@ -310,19 +333,6 @@ spec:
                 path: server.crt
               - key: server.key
                 path: server.key
-              - key: client.crt
-                path: client.crt
-              - key: client.key
-                path: client.key
-              {{- end }}
-              {{- if eq $name "assurance" }}
-              # The assurance runner reaches proxy/NATS as the generic
-              # synthetic agent while service-assurance terminates its
-              # exact-console control listener.
-              - key: client.crt
-                path: client.crt
-              - key: client.key
-                path: client.key
               {{- end }}
               {{- if eq $name "identity" }}
               # Identity roots the trust chain and reads ca.key to mint
@@ -333,6 +343,10 @@ spec:
               - key: ca.key
                 path: ca.key
               {{- end }}
+        - name: certs
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Mi
         {{- end }}
         {{- if $mountsOperatorTrust }}
         # Dedicated public operator trust. The Secret is projected by

@@ -837,19 +837,32 @@ def validate_console_contract(
     volume_by_name = {volume.get("name"): volume for volume in pod_spec.get("volumes", []) or []}
     mount_by_name = {mount.get("name"): mount for mount in container.get("volumeMounts", []) or []}
     if tls_secret:
-        cert_secret = (volume_by_name.get("certs") or {}).get("secret", {})
+        cert_secret = (volume_by_name.get("certs-source") or {}).get("secret", {})
         cert_items = {(item.get("key"), item.get("path")) for item in cert_secret.get("items", [])}
         expected_cert_items = {
             ("ca.crt", "ca.crt"),
             ("service-console.crt", "service-console.crt"),
             ("service-console.key", "service-console.key"),
         }
-        if cert_secret.get("secretName") != tls_secret or cert_items != expected_cert_items:
+        if (
+            cert_secret.get("secretName") != tls_secret
+            or cert_secret.get("defaultMode") != 0o440
+            or cert_items != expected_cert_items
+        ):
             errors.append("console workload Secret must project only public CA + service-console cert/key")
+        cert_destination = (volume_by_name.get("certs") or {}).get("emptyDir", {})
+        if cert_destination != {"medium": "Memory", "sizeLimit": "1Mi"}:
+            errors.append("console workload TLS destination must be a bounded memory volume")
+        projectors = [
+            item for item in pod_spec.get("initContainers", [])
+            if item.get("name") == "workload-tls-projector"
+        ]
+        if len(projectors) != 1 or "chmod 0600 /projected/*.key" not in "\n".join(projectors[0].get("args", [])):
+            errors.append("console workload TLS projector must owner-bind private keys at mode 0600")
         cert_mount = mount_by_name.get("certs") or {}
         if cert_mount.get("mountPath") != value_at(values, "tlsBundle.mountPath") or not cert_mount.get("readOnly"):
             errors.append("console workload Secret mount path/readOnly contract drifted")
-    elif "certs" in volume_by_name or "certs" in mount_by_name:
+    elif "certs" in volume_by_name or "certs-source" in volume_by_name or "certs" in mount_by_name:
         errors.append("console mounts workload TLS material while tlsBundle.secretName is empty")
 
     if operator_enabled:
@@ -1151,7 +1164,7 @@ def validate_assurance_contract(values, docs, release, errors):
     }
     tls_secret = value_at(values, "tlsBundle.secretName")
     if tls_secret:
-        cert_secret = (volume_by_name.get("certs") or {}).get("secret", {})
+        cert_secret = (volume_by_name.get("certs-source") or {}).get("secret", {})
         cert_items = {
             (item.get("key"), item.get("path"))
             for item in cert_secret.get("items", [])
@@ -1160,21 +1173,32 @@ def validate_assurance_contract(values, docs, release, errors):
             ("ca.crt", "ca.crt"),
             ("service-assurance.crt", "service-assurance.crt"),
             ("service-assurance.key", "service-assurance.key"),
-            ("client.crt", "client.crt"),
-            ("client.key", "client.key"),
         }
-        if cert_secret.get("secretName") != tls_secret or cert_items != expected_cert_items:
+        if (
+            cert_secret.get("secretName") != tls_secret
+            or cert_secret.get("defaultMode") != 0o440
+            or cert_items != expected_cert_items
+        ):
             errors.append(
-                "assurance workload Secret must project only public CA, "
-                "service-assurance cert/key, and generic attack client cert/key"
+                "assurance workload Secret must project only public CA and "
+                "service-assurance cert/key"
             )
+        cert_destination = (volume_by_name.get("certs") or {}).get("emptyDir", {})
+        if cert_destination != {"medium": "Memory", "sizeLimit": "1Mi"}:
+            errors.append("assurance workload TLS destination must be a bounded memory volume")
+        projectors = [
+            item for item in pod_spec.get("initContainers", [])
+            if item.get("name") == "workload-tls-projector"
+        ]
+        if len(projectors) != 1 or "chmod 0600 /projected/*.key" not in "\n".join(projectors[0].get("args", [])):
+            errors.append("assurance workload TLS projector must owner-bind private keys at mode 0600")
         cert_mount = mount_by_name.get("certs") or {}
         if (
             cert_mount.get("mountPath") != value_at(values, "tlsBundle.mountPath")
             or not cert_mount.get("readOnly")
         ):
             errors.append("assurance workload Secret mount path/readOnly contract drifted")
-    elif "certs" in volume_by_name or "certs" in mount_by_name:
+    elif "certs" in volume_by_name or "certs-source" in volume_by_name or "certs" in mount_by_name:
         errors.append("assurance mounts workload TLS material while tlsBundle.secretName is empty")
 
 

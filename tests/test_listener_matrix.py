@@ -922,7 +922,7 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertEqual(
             {("ca.crt", "ca.crt"), ("service-console.crt", "service-console.crt"),
              ("service-console.key", "service-console.key")},
-            {(item["key"], item["path"]) for item in volumes["certs"]["secret"]["items"]},
+            {(item["key"], item["path"]) for item in volumes["certs-source"]["secret"]["items"]},
         )
         self.assertEqual(
             {("ca.crt", "ca.crt"), ("operators.json", "operators.json")},
@@ -1021,15 +1021,13 @@ class ListenerMatrixTest(unittest.TestCase):
         bundled_pod = resource("bundled", "Deployment")["spec"]["template"]["spec"]
         certs = next(
             volume for volume in bundled_pod["volumes"]
-            if volume["name"] == "certs"
+            if volume["name"] == "certs-source"
         )["secret"]
         self.assertEqual(
             {
                 ("ca.crt", "ca.crt"),
                 ("service-assurance.crt", "service-assurance.crt"),
                 ("service-assurance.key", "service-assurance.key"),
-                ("client.crt", "client.crt"),
-                ("client.key", "client.key"),
             },
             {(item["key"], item["path"]) for item in certs["items"]},
         )
@@ -1624,7 +1622,7 @@ class ListenerMatrixTest(unittest.TestCase):
             if doc.get("kind") == "Deployment" and doc["metadata"]["name"] == "smoke-console"
         )
         certs = next(volume for volume in deployment["spec"]["template"]["spec"]["volumes"]
-                     if volume["name"] == "certs")
+                     if volume["name"] == "certs-source")
         certs["secret"]["items"].append({"key": "service-proxy.key", "path": "service-proxy.key"})
         mutations.append(("bundled", "another workload private key projection", bundled))
 
@@ -1698,7 +1696,7 @@ class ListenerMatrixTest(unittest.TestCase):
             and doc["metadata"]["name"] == "smoke-assurance"
         )["spec"]["template"]["spec"]
         certs = next(
-            volume for volume in pod["volumes"] if volume["name"] == "certs"
+            volume for volume in pod["volumes"] if volume["name"] == "certs-source"
         )["secret"]["items"]
         certs.remove(next(item for item in certs if item["key"] == "service-assurance.key"))
         mutations.append(("missing server key", values_tls, projection))
@@ -1707,6 +1705,55 @@ class ListenerMatrixTest(unittest.TestCase):
             with self.subTest(name=name):
                 errors = CHECKER.validate(self.matrix, values, docs, "smoke")
                 self.assertTrue(errors)
+
+    def test_all_workload_tls_keys_are_exact_and_owner_only(self):
+        deployments = [
+            doc for doc in self.rendered["all-on"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name", "").startswith("smoke-")
+        ]
+        governed = {
+            "proxy", "brain", "policy-engine", "ledger", "hil", "identity",
+            "deep-review", "console", "assurance",
+        }
+        seen = set()
+        for deployment in deployments:
+            service = deployment["metadata"]["name"].removeprefix("smoke-")
+            if service not in governed:
+                continue
+            seen.add(service)
+            pod = deployment["spec"]["template"]["spec"]
+            volumes = {item["name"]: item for item in pod["volumes"]}
+            source = volumes["certs-source"]["secret"]
+            expected = {
+                ("ca.crt", "ca.crt"),
+                (f"service-{service}.crt", f"service-{service}.crt"),
+                (f"service-{service}.key", f"service-{service}.key"),
+            }
+            if service == "identity":
+                expected.add(("ca.key", "ca.key"))
+            if service == "proxy":
+                expected.update({("server.crt", "server.crt"), ("server.key", "server.key")})
+            self.assertEqual(
+                expected,
+                {(item["key"], item["path"]) for item in source["items"]},
+            )
+            self.assertEqual(0o440, source["defaultMode"])
+            self.assertEqual(
+                {"medium": "Memory", "sizeLimit": "1Mi"},
+                volumes["certs"]["emptyDir"],
+            )
+            projector = next(
+                item for item in pod["initContainers"]
+                if item["name"] == "workload-tls-projector"
+            )
+            self.assertIn("chmod 0600 /projected/*.key", "\n".join(projector["args"]))
+            self.assertTrue(projector["securityContext"]["readOnlyRootFilesystem"])
+            self.assertEqual(["ALL"], projector["securityContext"]["capabilities"]["drop"])
+            app = pod["containers"][0]
+            cert_mount = next(item for item in app["volumeMounts"] if item["name"] == "certs")
+            self.assertTrue(cert_mount["readOnly"])
+        self.assertEqual(governed, seen)
 
     def test_values_schema_carries_fixed_listener_contracts(self):
         schema = json.loads((ROOT / "charts/clavenar/values.schema.json").read_text())

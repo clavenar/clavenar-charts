@@ -765,6 +765,13 @@ tlsBundle:
   # Production deployments should leave this off
   # and supply the bundle from a managed PKI instead.
   autoMint: false
+  # Nonroot, shell-capable image used only to copy the exact per-pod Secret
+  # items into an owner-bound memory volume and chmod private keys 0600 before
+  # the application starts. It receives no Kubernetes API credential.
+  projectorImage:
+    repository: alpine/openssl
+    tag: "3.3.2"
+    pullPolicy: IfNotPresent
   # Workload names that get a per-service cert. The 9 default
   # clavenar services live here; "nats" is auto-appended by
   # `clavenar.bundleServices` when `nats.bundled.enabled`.

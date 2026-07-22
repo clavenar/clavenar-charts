@@ -77,6 +77,7 @@ sequenceDiagram
     participant API as kube-apiserver
     participant Sec as Secret<br/>clavenar-certs
     participant CM as ConfigMap<br/>clavenar-config
+    participant Init as workload-tls-projector
     participant Pod as brain Pod
     participant Brain as clavenar-brain bin
 
@@ -84,7 +85,9 @@ sequenceDiagram
     API-->>Kube: ca.crt + service-brain.crt + service-brain.key
     Kube->>API: GET configmap clavenar-config
     API-->>Kube: NATS_URL, CLAVENAR_GRACEFUL_DRAIN_SECS, optional VAULT_ADDR
-    Kube->>Pod: mount /certs (defaultMode 0644), inject env, start container
+    Kube->>Init: mount exact Secret items mode 0440
+    Init->>Pod: copy to memory volume; key mode 0600, cert mode 0444
+    Kube->>Pod: mount owner-bound /certs read-only, inject env, start container
 
     Note over Pod: chart-injected envs:<br/>CLAVENAR_BRAIN_TLS_DIR=/certs<br/>CLAVENAR_BRAIN_ALLOWED_CALLERS=proxy-only inspect prefix<br/>EXPLAIN_CALLER=exact policy-engine<br/>NARRATE_CALLER=exact console<br/>strict body/rate/spend/timeout controls<br/>CLAVENAR_BRAIN_HEALTH_ADDR=0.0.0.0:9081
 

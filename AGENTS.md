@@ -101,9 +101,12 @@ upstream-stub 9000 · exec 9001.
   proxy + identity panic at boot. When set, backend services flip their app port
   to rustls; Ledger, Policy Engine, HIL, and Identity then require the packaged
   digest-bound generated route capabilities. Health/`/metrics` move to a
-  plain-HTTP health port (so kubelet + Prometheus need no client cert). Per-pod projection:
-  each pod sees only `ca.crt` + its own `service-<name>.{crt,key}` — no pod reads
-  another's private key. Don't collapse that isolation.
+  plain-HTTP health port (so kubelet + Prometheus need no client cert). The
+  exact-key Secret source is copied by a nonroot init container into an
+  owner-bound memory volume: private keys are mode 0600 and certificates 0444.
+  Each pod sees only `ca.crt` + its own `service-<name>.{crt,key}`; Identity
+  alone adds `ca.key`, and Proxy alone adds `server.{crt,key}`. Generic and peer
+  private keys stay absent. Don't collapse that isolation.
 - **Brain provider operations never use diagnostics.** The chart renders
   strict exact callers and body/rate/spend/timeout controls for
   `/explain-pattern` and `/narrate-decision`; `:9081` is only `/`, `/health`,
