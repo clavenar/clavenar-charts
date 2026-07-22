@@ -54,7 +54,11 @@ def permissions(contract: dict, service: str) -> tuple[set[str], set[str]]:
             subscribe.add(subject_name)
         if stream and service == subject["streamManager"]:
             publish.update(
-                {f"$JS.API.STREAM.INFO.{stream}", f"$JS.API.STREAM.CREATE.{stream}"}
+                {
+                    f"$JS.API.STREAM.INFO.{stream}",
+                    f"$JS.API.STREAM.CREATE.{stream}",
+                    f"$JS.API.STREAM.UPDATE.{stream}",
+                }
             )
         for consumer in subject["durableConsumers"]:
             if service == consumer["service"]:
