@@ -44,6 +44,20 @@
         }
       }
     },
+    "workloadIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "size", "storageClass", "accessMode"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "size": { "type": "string", "minLength": 1 },
+        "storageClass": { "type": "string" },
+        "accessMode": {
+          "type": "string",
+          "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
+        }
+      }
+    },
     "services": {
       "type": "object",
       "properties": {

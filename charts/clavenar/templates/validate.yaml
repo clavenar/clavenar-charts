@@ -118,6 +118,9 @@
 {{- if empty .Values.tlsBundle.secretName }}
 {{- fail "deploymentProfile=production requires an externally managed tlsBundle.secretName" }}
 {{- end }}
+{{- if not .Values.workloadIdentity.enabled }}
+{{- fail "deploymentProfile=production requires workloadIdentity.enabled=true for exact-current SVID persistence" }}
+{{- end }}
 {{- if empty .Values.attestationTrustAnchors.secretName }}
 {{- fail "deploymentProfile=production requires attestationTrustAnchors.secretName with public cluster verifier keys" }}
 {{- end }}

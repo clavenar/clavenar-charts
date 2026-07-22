@@ -22,7 +22,7 @@
   {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy" "policyEngine" "console")) -}}
 {{- else if eq $name "identity" -}}
   {{- if $ctx.Values.tlsBundle.secretName -}}
-    {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "callers" (list "proxy" "console" "simulator")) -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "callers" (list "proxy" "brain" "policyEngine" "ledger" "hil" "identity" "console" "simulator")) -}}
   {{- else -}}
     {{- $rules = append $rules (dict "port" (int $cfg.port) "callers" (list "proxy" "console" "simulator")) -}}
   {{- end -}}

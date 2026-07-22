@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.4.0",
+  "contractVersion": "1.5.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:21c9934f38d4f2134c4000e4c729179c309dbc58d279e5bb239faddb72a2a431",
-  "matrixSha256": "sha256:68d06233122e853c3902cc75083eb4e1fa53ba86ea109dff323c4eee3b460af0",
+  "listenerMatrixSha256": "sha256:768ecb6570816cc8716329e7e91224183596f5fe73fc14044817953180e3dea0",
+  "matrixSha256": "sha256:541c8b3f6ff4f14f08114be00950ef3fa95d98d441ff185950e83a93138afbd3",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -665,6 +665,15 @@
           "family": "identity-workload-svid",
           "method": "POST",
           "pathTemplate": "/workload-svid"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.svid.workload.recover",
+          "family": "identity-workload-svid-recovery",
+          "method": "POST",
+          "pathTemplate": "/workloads/{service}/svid-recovery"
         }
       ]
     },

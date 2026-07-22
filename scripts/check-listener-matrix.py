@@ -131,7 +131,10 @@ def expected_services(matrix, values, release, namespace="default"):
             spec["selector"] = service_selector
         if item.get("headless"):
             spec["clusterIP"] = "None"
-        if item.get("publishNotReadyAddresses"):
+        if item.get("publishNotReadyAddresses") or (
+            item.get("publishNotReadyAddressesWhen")
+            and condition_enabled(item["publishNotReadyAddressesWhen"], values)
+        ):
             spec["publishNotReadyAddresses"] = True
         if item.get("externalName"):
             spec["externalName"] = item["externalName"].format(
@@ -410,8 +413,8 @@ def validate_workload_capability_contract(values, docs, release, errors):
         or bundle.get("feature") != "WP-02.9"
         or len(identities) != 11
         or set(services) != {"ledger", "policy-engine", "hil", "identity"}
-        or len(families) != 58
-        or route_count != 123
+        or len(families) != 59
+        or route_count != 124
     ):
         errors.append("generated workload capability inventory is not canonical")
         return

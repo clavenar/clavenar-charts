@@ -267,6 +267,10 @@ podSecurityContext:
   runAsUser: 65532
   runAsGroup: 65532
   fsGroup: 65532
+  # Preserve the helper's owner-only 0700 subdirectory after its first mount;
+  # repeated recursive fsGroup permission changes would broaden it and make
+  # the service fail closed on restart.
+  fsGroupChangePolicy: OnRootMismatch
   seccompProfile:
     type: RuntimeDefault
 
@@ -729,6 +733,17 @@ persistence:
     size: 1Gi
     storageClass: ""
     accessMode: ReadWriteOnce
+
+# Persistent caller-held workload SVID/key state. When workload TLS is
+# enabled, each managed service receives its own PVC and owner-only 0700
+# subdirectory at /var/lib/clavenar-workload-identity. Normal upgrades and pod
+# rescheduling therefore renew with the exact current generation; bootstrap is
+# never restored merely because a pod restarted.
+workloadIdentity:
+  enabled: true
+  size: 64Mi
+  storageClass: ""
+  accessMode: ReadWriteOnce
 
 # Cert bundle mount. Single k8s Secret carries the clavenar CA + per-service
 # workload certs (B7 v1.x+2). Generate with

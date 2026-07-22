@@ -396,6 +396,27 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $tlsOn := not (empty $tls) -}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- $policyScheme := ternary "https" "http" $tlsOn -}}
+{{- $managedWorkload := and $tlsOn .ctx.Values.workloadIdentity.enabled (has $name (list "proxy" "brain" "policyEngine" "ledger" "hil" "identity" "console")) -}}
+{{ if $managedWorkload }}
+{{ $prefix := get (dict "proxy" "PROXY" "brain" "BRAIN" "policyEngine" "POLICY" "ledger" "LEDGER" "hil" "HIL" "identity" "IDENTITY" "console" "CONSOLE") $name -}}
+{{- $expected := get (dict
+      "proxy" "spiffe://clavenar.local/service/brain,spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/hil,spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/ledger"
+      "brain" "spiffe://clavenar.local/service/identity"
+      "policyEngine" "spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/brain"
+      "ledger" "spiffe://clavenar.local/service/identity"
+      "hil" "spiffe://clavenar.local/service/identity"
+      "identity" "spiffe://clavenar.local/service/identity"
+      "console" "spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/ledger,spiffe://clavenar.local/service/hil,spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/simulator,spiffe://clavenar.local/service/assurance,spiffe://clavenar.local/service/brain") $name -}}
+# Managed workload identity: durable caller-held key, exact-current renewal,
+# and strict peer SPIFFE verification. The Identity Service publishes not-ready
+# endpoints so its first self-enrollment cannot deadlock on readiness.
+- name: {{ printf "CLAVENAR_%s_WORKLOAD_REFRESH_URL" $prefix }}
+  value: "https://{{ $rel }}-identity:8186/workload-svid"
+- name: {{ printf "CLAVENAR_%s_WORKLOAD_STATE_DIR" $prefix }}
+  value: "/var/lib/clavenar-workload-identity"
+- name: {{ printf "CLAVENAR_%s_EXPECTED_PEER_SPIFFE" $prefix }}
+  value: {{ $expected | quote }}
+{{ end }}{{ "\n" -}}
 {{- if has $name (list "proxy" "identity") }}
 # Attestation provider posture is chart-owned. Evaluation may explicitly use
 # the deterministic Proxy mock; production selects only Identity's real
@@ -509,8 +530,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # there is no plaintext health-listener fallback.
 - name: CLAVENAR_POLICY_ENGINE_BRAIN_URL
   value: "https://{{ $rel }}-brain:8081"
+{{- if not $tlsOn }}
 - name: CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE
   value: "spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/brain"
+{{- end }}
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 4). Bundle mounted → engine binds
 # rustls + SPIFFE-URI allowlist on the application port; /health +

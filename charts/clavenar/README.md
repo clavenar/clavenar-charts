@@ -337,6 +337,18 @@ apply walkthrough.
   private key. Generate the bundle with
   `clavenar-proxy/scripts/gen_certs.sh --env prod` then
   `kubectl create secret generic clavenar-tls --from-file=clavenar-proxy/certs/`.
+- **Persistent workload identity** — with TLS enabled,
+  `workloadIdentity.enabled=true` gives each managed HTTP service a dedicated
+  PVC and process-owned `0700` state directory. The caller generates and keeps
+  its private key, replays crash-safe pending requests, and renews only from its
+  exact current SVID. Identity publishes its enrollment endpoint before its
+  own readiness succeeds to avoid a self-enrollment deadlock. An expired SVID
+  fails readiness and new TLS handshakes; bootstrap is not restored
+  automatically. Recovery requires an authorized Identity recovery request,
+  removal of only the stopped workload's persisted current/pending records,
+  and restart. Size and storage class are configured by the values below.
+  Managed Deployments are limited to one replica because each exact-current
+  identity requires a distinct store; shared state is rejected at render time.
 - **Generated route capabilities** — the chart packages the canonical
   `workload-capability-bundle.json` byte-for-byte in an immutable ConfigMap.
   Ledger, Policy Engine, HIL, and Identity mount the same file and receive its
@@ -473,6 +485,12 @@ persistence:
   ledger:   { enabled: true, size: 5Gi, ... }
   hil:      { enabled: true, size: 1Gi, ... }
   identity: { enabled: true, size: 1Gi, ... }
+
+workloadIdentity:
+  enabled: true                         # required by the production profile
+  size: 64Mi                            # one private-key/certificate state pair per PVC
+  storageClass: ""                      # cluster default when empty
+  accessMode: ReadWriteOnce             # one writer per workload Deployment
 
 tlsBundle:
   secretName: ""                         # Required for any non-trivial deploy
