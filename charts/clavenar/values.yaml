@@ -758,6 +758,17 @@ persistence:
     size: 1Gi
     storageClass: ""
     accessMode: ReadWriteOnce
+  # The Policy database contains tenant-qualified active versions, immutable
+  # version history, mutation audit metadata, and its forensic outbox. It is
+  # governance state, not a cache, and is retained across upgrades/rollbacks.
+  policyEngine:
+    enabled: true
+    size: 1Gi
+    storageClass: ""
+    accessMode: ReadWriteOnce
+    # Set to a pre-provisioned claim to make storage lifecycle operator-owned.
+    # When non-empty, the chart mounts it and does not emit its own PVC.
+    existingClaim: ""
 
 # Persistent caller-held workload SVID/key state. When workload TLS is
 # enabled, each managed service receives its own PVC and owner-only 0700

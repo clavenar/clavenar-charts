@@ -15,7 +15,7 @@ description: |
   the clavenar services in a single `helm install`. Images are pulled
   from ghcr.io/clavenar by default.
 type: application
-version: 0.20.0
+version: 0.21.0
 # Frozen last legacy semantic image set. The direct image publisher is disabled;
 # WP-14.5 will replace tag fallback with signed stack-BOM digest inputs.
 appVersion: "0.1.12"

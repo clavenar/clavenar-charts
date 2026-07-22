@@ -66,6 +66,30 @@
         }
       }
     },
+    "persistence": {
+      "type": "object",
+      "properties": {
+        "policyEngine": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "size", "storageClass", "accessMode", "existingClaim"],
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "size": { "type": "string", "minLength": 1 },
+            "storageClass": { "type": "string" },
+            "accessMode": {
+              "type": "string",
+              "enum": ["ReadWriteOnce", "ReadOnlyMany", "ReadWriteMany", "ReadWriteOncePod"]
+            },
+            "existingClaim": {
+              "type": "string",
+              "maxLength": 253,
+              "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+            }
+          }
+        }
+      }
+    },
     "workloadIdentity": {
       "type": "object",
       "additionalProperties": false,
@@ -153,6 +177,7 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
+                        "CLAVENAR_POLICY_DB",
                         "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE",
                         "CLAVENAR_WORKLOAD_CAPABILITY_BUNDLE_SHA256",
                         "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256",

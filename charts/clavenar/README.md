@@ -297,9 +297,12 @@ apply walkthrough.
 - **terminationGracePeriodSeconds** set to `drainCapSecs + 5` so
   the in-process watchdog (env `CLAVENAR_GRACEFUL_DRAIN_SECS`) fires
   before kubelet's SIGKILL.
-- **PVCs** for ledger / hil / identity (the SQLite-backed services),
-  mounted at `/var/lib/clavenar`, which matches the
-  `CLAVENAR_*_DB=/var/lib/clavenar/*.db` defaults.
+- **PVCs** for proxy / policy-engine / ledger / hil / identity (the
+  SQLite-backed services). Policy governance state is retained at the explicit
+  `/var/lib/clavenar-policy-engine/policies.db` path; its generated PVC carries
+  Helm's keep policy, and `persistence.policyEngine.existingClaim` supports
+  operator-owned backup and recovery. The other stores mount at
+  `/var/lib/clavenar`.
 - **Shared ConfigMap** carries `NATS_URL`, `CLAVENAR_GRACEFUL_DRAIN_SECS`,
   and (when set) `VAULT_ADDR`. Only declared NATS clients receive `NATS_URL`;
   each also receives its exact `_INBOX.clavenar.<service>` prefix.
@@ -418,9 +421,9 @@ apply walkthrough.
   select console peers by trust class. Operator TLS must terminate inside
   clavenar-console, so use end-to-end TLS passthrough or an SSH tunnel;
   forwarded client-certificate headers are not supported.
-- **No HPA.** Add one against the proxy / brain / policy-engine
-  Deployments if you need it. Ledger / hil / identity stay pinned
-  to `replicas: 1` while SQLite-backed.
+- **No HPA.** Add one against stateless services if you need it. Proxy,
+  policy-engine, ledger, hil, and identity stay pinned to `replicas: 1` while
+  their SQLite persistence is enabled.
 - **No image build pipeline.** Default `imageRegistry` is
   `ghcr.io/clavenar`, expecting images named `clavenar-proxy`,
   `clavenar-brain`, etc., tagged with `appVersion`.
@@ -499,6 +502,7 @@ services:
 
 persistence:
   proxy:   { enabled: true, size: 1Gi, ... } # durable server-execution receipts/outbox
+  policyEngine: { enabled: true, size: 1Gi, existingClaim: "", ... }
   ledger:   { enabled: true, size: 5Gi, ... }
   hil:      { enabled: true, size: 1Gi, ... }
   identity: { enabled: true, size: 1Gi, ... }

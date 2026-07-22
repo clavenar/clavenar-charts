@@ -1,7 +1,8 @@
 {{/*
 Emit a Deployment + Service per enabled service, plus a PVC when
-.Values.persistence.<service>.enabled. PVCs mount at /var/lib/clavenar,
-which matches the CLAVENAR_*_DB defaults, including Proxy server execution.
+.Values.persistence.<service>.enabled. Policy governance state mounts at its
+explicit /var/lib/clavenar-policy-engine path; other service PVCs mount at
+/var/lib/clavenar, matching their CLAVENAR_*_DB defaults.
 
 `$` is the root context — passed explicitly to helpers because `.`
 inside the range is the iterated value.
@@ -277,7 +278,7 @@ spec:
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
-              mountPath: /var/lib/clavenar
+              mountPath: {{ ternary "/var/lib/clavenar-policy-engine" "/var/lib/clavenar" (eq $name "policyEngine") }}
             {{- end }}
             {{- if $mountsCert }}
             - name: certs
@@ -332,7 +333,7 @@ spec:
         {{- if $persist.enabled }}
         - name: data
           persistentVolumeClaim:
-            claimName: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-data
+            claimName: {{ default (printf "%s-data" (include "clavenar.serviceFullname" (dict "ctx" $ "service" $name))) $persist.existingClaim }}
         {{- end }}
         {{- if $mountsCert }}
         - name: certs-source
@@ -507,7 +508,7 @@ spec:
     {{- end }}
   selector:
     {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 4 }}
-{{- if $persist.enabled }}
+{{- if and $persist.enabled (empty $persist.existingClaim) }}
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -515,6 +516,10 @@ metadata:
   name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-data
   labels:
     {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+  {{- if eq $name "policyEngine" }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
 spec:
   accessModes:
     - {{ $persist.accessMode | default "ReadWriteOnce" }}

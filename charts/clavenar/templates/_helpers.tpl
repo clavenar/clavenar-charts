@@ -234,6 +234,7 @@ per environment variable.
         "CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE"
         "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY")
       "policyEngine" (list
+        "CLAVENAR_POLICY_DB"
         "CLAVENAR_POLICY_ENGINE_BRAIN_URL"
         "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE"
         "CLAVENAR_POLICY_TLS_DIR"
@@ -530,6 +531,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "policyEngine" }}
+# Policy governance state is always written to the exact retained mount. The
+# path remains explicit when persistence is disabled for a disposable render.
+- name: CLAVENAR_POLICY_DB
+  value: "/var/lib/clavenar-policy-engine/policies.db"
 # Policy mining explanations use only Brain's workload-mTLS application
 # listener. The workload client additionally pins the exact Brain SPIFFE URI;
 # there is no plaintext health-listener fallback.
