@@ -17,14 +17,14 @@ nats:
         enabled: true
         pvc:
           size: 5Gi
-    # mTLS on :4222. Reuses the auto-mint smoke-tls Secret — the Job
+    # mTLS certificate-to-user mapping on :4222. Reuses the auto-mint
+    # smoke-tls Secret — the Job
     # appends "nats" to BUNDLE_SERVICES (see clavenar.bundleServices in
     # _helpers.tpl) so service-nats.{crt,key} land alongside ca.crt
-    # inside the same Secret. `merge.verify: true` is the only way to
-    # require client certs on the upstream chart; the chart's typed
-    # tls block doesn't expose `verify` directly (chart README: "note:
-    # `tls.verify` still must be set in the appropriate nats config
-    # `tls` blocks to require mTLS").
+    # inside the same Secret. `merge.verify_and_map: true` both requires a
+    # CA-valid client certificate and maps its DNS SAN to one exact user in
+    # the generated authorization contract. Identity-blind `verify` is not
+    # sufficient and is rejected by the parent chart.
     nats:
       tls:
         enabled: true
@@ -32,7 +32,7 @@ nats:
         cert: service-nats.crt
         key: service-nats.key
         merge:
-          verify: true
+          verify_and_map: true
   # Mounts ca.crt from smoke-tls into every nats config tls block (the
   # generated nats.conf picks it up as `ca_file:`). Without this, the
   # NATS server has nothing to validate client certs against and mTLS

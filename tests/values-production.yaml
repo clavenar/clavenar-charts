@@ -17,6 +17,15 @@ vault:
   identityTokenKey: identity-token
   proxyTokenKey: proxy-token
 
+# The chart does not configure an external broker. These fields are the
+# operator-owned declaration that the endpoint below enforces the public v1
+# authorization contract and durable JetStream storage.
+nats:
+  external:
+    operator: platform-security
+    authorizationContract: clavenar.nats-authorization/v1
+    jetstreamPersistence: true
+
 tlsBundle:
   secretName: clavenar-workload-tls
   autoMint: false

@@ -339,4 +339,42 @@
 {{- fail "nats.service.patch must not set /spec/type to an externally reachable Service type" }}
 {{- end }}
 {{- end }}
+{{- if empty .Values.tlsBundle.secretName }}
+{{- fail "nats.bundled.enabled=true requires tlsBundle.secretName for exact certificate-mapped authorization" }}
+{{- end }}
+{{- if not .Values.nats.config.nats.tls.enabled }}
+{{- fail "nats.bundled.enabled=true requires nats.config.nats.tls.enabled=true" }}
+{{- end }}
+{{- if ne .Values.nats.config.nats.tls.secretName .Values.tlsBundle.secretName }}
+{{- fail "bundled NATS TLS must use the exact tlsBundle.secretName" }}
+{{- end }}
+{{- if or (ne .Values.nats.config.nats.tls.cert "service-nats.crt") (ne .Values.nats.config.nats.tls.key "service-nats.key") }}
+{{- fail "bundled NATS TLS must project service-nats.crt and service-nats.key" }}
+{{- end }}
+{{- if not (dig "verify_and_map" false .Values.nats.config.nats.tls.merge) }}
+{{- fail "bundled NATS TLS must enable verify_and_map for exact certificate-to-user mapping" }}
+{{- end }}
+{{- if dig "verify" false .Values.nats.config.nats.tls.merge }}
+{{- fail "bundled NATS TLS must not use identity-blind verify" }}
+{{- end }}
+{{- if or (not .Values.nats.tlsCA.enabled) (ne .Values.nats.tlsCA.secretName .Values.tlsBundle.secretName) (ne .Values.nats.tlsCA.key "ca.crt") }}
+{{- fail "bundled NATS must validate clients against ca.crt from the exact tlsBundle.secretName" }}
+{{- end }}
+{{- if or (not .Values.nats.config.jetstream.enabled) (not .Values.nats.config.jetstream.fileStore.enabled) (not .Values.nats.config.jetstream.fileStore.pvc.enabled) }}
+{{- fail "bundled NATS requires JetStream on an enabled persistent file-store PVC" }}
+{{- end }}
+{{- $authorizationDigest := sha256sum (toRawJson .Values.nats.config.merge.authorization) }}
+{{- if ne $authorizationDigest "15a5a0efebd0bc4c636524579d482ff30ee4f5b708ad70f19bbf3f1d7cfb8528" }}
+{{- fail "bundled NATS authorization must equal clavenar.nats-authorization/v1; operator overrides are forbidden" }}
+{{- end }}
+{{- else if eq $deploymentProfile "production" }}
+{{- if empty .Values.nats.external.operator }}
+{{- fail "external NATS in production requires nats.external.operator naming the owner" }}
+{{- end }}
+{{- if ne .Values.nats.external.authorizationContract "clavenar.nats-authorization/v1" }}
+{{- fail "external NATS in production requires an operator declaration for clavenar.nats-authorization/v1" }}
+{{- end }}
+{{- if not .Values.nats.external.jetstreamPersistence }}
+{{- fail "external NATS in production requires an operator declaration of durable JetStream persistence" }}
+{{- end }}
 {{- end }}

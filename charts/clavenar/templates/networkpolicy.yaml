@@ -175,7 +175,7 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        {{- range $caller := list "proxy" "brain" "policy-engine" "ledger" "hil" "identity" "deep-review" "assurance" }}
+        {{- range $caller := list "proxy" "policy-engine" "ledger" "hil" "identity" "deep-review" "assurance" }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: {{ $.Chart.Name }}

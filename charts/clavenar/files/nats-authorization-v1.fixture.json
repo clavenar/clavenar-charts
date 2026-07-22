@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.nats-authorization/v1",
+  "denyUnknownIdentity": true,
+  "denyUnknownSubject": true,
+  "certificateMapping": {
+    "selector": "dns-san",
+    "requireSingleMappedUser": true,
+    "requirePairedSpiffeUri": true,
+    "allowCertificateSubjectFallback": false,
+    "allowSharedCredential": false
+  },
+  "profiles": {
+    "prod": {
+      "hostPublication": false,
+      "brokerNetwork": "broker",
+      "brokerNetworkInternal": true,
+      "jetstreamStore": "/data/jetstream",
+      "persistentVolumeRequired": true
+    },
+    "dev": {
+      "hostPublication": "127.0.0.1:14222",
+      "brokerNetwork": "broker",
+      "brokerNetworkInternal": true,
+      "jetstreamStore": "/data/jetstream",
+      "persistentVolumeRequired": true
+    }
+  },
+  "subjects": [
+    {
+      "subject": "clavenar.forensic",
+      "stream": "clavenar-forensic",
+      "streamManager": "ledger",
+      "publishers": ["assurance", "deep-review", "demo-mint", "hil", "identity", "ledger", "policy-engine", "proxy"],
+      "subscribers": ["deep-review"],
+      "durableConsumers": [{"service": "ledger", "name": "ledger"}]
+    },
+    {
+      "subject": "clavenar.forensic.identity",
+      "stream": null,
+      "streamManager": null,
+      "publishers": ["identity"],
+      "subscribers": [],
+      "durableConsumers": []
+    },
+    {
+      "subject": "clavenar.containment.request",
+      "stream": "clavenar-containment",
+      "streamManager": "identity",
+      "publishers": ["deep-review", "proxy"],
+      "subscribers": [],
+      "durableConsumers": [{"service": "identity", "name": "identity-containment"}]
+    }
+  ],
+  "kvBuckets": [
+    {"bucket": "clavenar_actor_token_replay", "manager": "identity", "readers": ["identity"], "writers": ["identity"]},
+    {"bucket": "clavenar_decoys", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
+    {"bucket": "clavenar_grant_usage", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["proxy"]},
+    {"bucket": "clavenar_history", "manager": "proxy", "readers": ["proxy"], "writers": ["proxy"]},
+    {"bucket": "clavenar_revocation", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
+    {"bucket": "clavenar_upstreams", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
+    {"bucket": "clavenar_velocity", "manager": "policy-engine", "readers": ["policy-engine"], "writers": ["policy-engine"]}
+  ],
+  "clients": [
+    {"service": "assurance", "dnsSan": "assurance", "spiffeId": "spiffe://clavenar.local/service/assurance", "inboxPrefix": "_INBOX.clavenar.assurance"},
+    {"service": "deep-review", "dnsSan": "deep-review", "spiffeId": "spiffe://clavenar.local/service/deep-review", "inboxPrefix": "_INBOX.clavenar.deep-review"},
+    {"service": "demo-mint", "dnsSan": "demo-mint", "spiffeId": "spiffe://clavenar.local/service/demo-mint", "inboxPrefix": "_INBOX.clavenar.demo-mint"},
+    {"service": "hil", "dnsSan": "hil", "spiffeId": "spiffe://clavenar.local/service/hil", "inboxPrefix": "_INBOX.clavenar.hil"},
+    {"service": "identity", "dnsSan": "identity", "spiffeId": "spiffe://clavenar.local/service/identity", "inboxPrefix": "_INBOX.clavenar.identity"},
+    {"service": "ledger", "dnsSan": "ledger", "spiffeId": "spiffe://clavenar.local/service/ledger", "inboxPrefix": "_INBOX.clavenar.ledger"},
+    {"service": "policy-engine", "dnsSan": "policy-engine", "spiffeId": "spiffe://clavenar.local/service/policy-engine", "inboxPrefix": "_INBOX.clavenar.policy-engine"},
+    {"service": "proxy", "dnsSan": "proxy", "spiffeId": "spiffe://clavenar.local/service/proxy", "inboxPrefix": "_INBOX.clavenar.proxy"}
+  ],
+  "forbiddenSubjects": [">", "$SYS.>", "$JS.API.>", "$KV.>", "_INBOX.>"]
+}

@@ -67,7 +67,12 @@ keys and rolls every consumer. External-secret operators update the complete
 Secret first and advance the identifier in the controlled release.
 
 NATS and Vault are not bundled by default. Operators can bring their own or
-enable the evaluation-only subcharts.
+enable the evaluation-only subcharts. Bundled NATS uses durable file-backed
+JetStream, exact certificate-to-user `verify_and_map` authorization generated
+from the public `clavenar.nats-authorization/v1` fixture, and a NetworkPolicy
+admitting only declared clients. Production external-broker mode renders only
+when the operator explicitly declares ownership of that same authorization
+contract and durable JetStream storage.
 
 Evaluation auto-mint upgrades preserve a validated TLS Secret byte-for-byte.
 Trust replacement requires an explicit generation-bound Helm rotation, uses a

@@ -44,6 +44,28 @@
         }
       }
     },
+    "nats": {
+      "type": "object",
+      "properties": {
+        "external": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["operator", "authorizationContract", "jetstreamPersistence"],
+          "properties": {
+            "operator": {
+              "type": "string",
+              "maxLength": 128,
+              "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+            },
+            "authorizationContract": {
+              "type": "string",
+              "enum": ["", "clavenar.nats-authorization/v1"]
+            },
+            "jetstreamPersistence": { "type": "boolean" }
+          }
+        }
+      }
+    },
     "workloadIdentity": {
       "type": "object",
       "additionalProperties": false,

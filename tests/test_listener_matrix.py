@@ -208,19 +208,17 @@ class ListenerMatrixTest(unittest.TestCase):
                 values = CHECKER.effective_values(ROOT / "charts/clavenar", overlays)
                 self.assertEqual([], CHECKER.validate(self.matrix, values, self.rendered[name], "smoke"))
 
-        output = subprocess.run(
+        incomplete = subprocess.run(
             [
                 "helm", "template", "smoke", str(ROOT / "charts/clavenar"),
                 "--set", "nats.bundled.enabled=true",
             ],
-            check=True,
+            check=False,
             text=True,
             capture_output=True,
-        ).stdout
-        docs = [d for d in yaml.safe_load_all(output) if isinstance(d, dict)]
-        values = CHECKER.effective_values(ROOT / "charts/clavenar", [])
-        values["nats"]["bundled"]["enabled"] = True
-        self.assertEqual([], CHECKER.validate(self.matrix, values, docs, "smoke"))
+        )
+        self.assertNotEqual(0, incomplete.returncode)
+        self.assertIn("requires tlsBundle.secretName", incomplete.stderr)
 
     def test_rendered_service_environment_names_are_unique(self):
         service_names = {

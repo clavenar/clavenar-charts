@@ -193,6 +193,7 @@ per environment variable.
 {{- $service := .service -}}
 {{- $common := list
       "NATS_URL"
+      "NATS_INBOX_PREFIX"
       "CLAVENAR_GRACEFUL_DRAIN_SECS" -}}
 {{- $byService := dict
       "proxy" (list
@@ -362,11 +363,15 @@ per environment variable.
 then per-service extraEnv. Pass `service` so the back-end-URL helper
 knows the component. */}}
 {{- define "clavenar.commonEnv" -}}
+{{- if has .service (list "proxy" "policyEngine" "ledger" "hil" "identity" "deepReview" "assurance") }}
 - name: NATS_URL
   valueFrom:
     configMapKeyRef:
       name: {{ include "clavenar.fullname" .ctx }}-config
       key: NATS_URL
+- name: NATS_INBOX_PREFIX
+  value: "_INBOX.clavenar.{{ .service | kebabcase }}"
+{{- end }}
 - name: CLAVENAR_GRACEFUL_DRAIN_SECS
   valueFrom:
     configMapKeyRef:
@@ -718,14 +723,14 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_ASSURANCE_PUBLISH_TIMEOUT_SECS
   value: {{ .ctx.Values.services.assurance.publishTimeoutSecs | quote }}
 {{- if $tlsOn }}
-# Proxy attacks + NATS use the generic agent identity. The receive-side
-# control listener uses service-assurance and authorizes only console.
+# NATS and the receive-side control listener use Assurance's one exact
+# workload identity. Generic agent credentials never reach the broker.
 - name: CLAVENAR_ASSURANCE_CERT_DIR
   value: {{ $mount | quote }}
 - name: NATS_TLS_CERT_PATH
-  value: "{{ $mount }}/client.crt"
+  value: "{{ $mount }}/service-assurance.crt"
 - name: NATS_TLS_KEY_PATH
-  value: "{{ $mount }}/client.key"
+  value: "{{ $mount }}/service-assurance.key"
 - name: NATS_TLS_CA_PATH
   value: "{{ $mount }}/ca.crt"
 {{- end }}

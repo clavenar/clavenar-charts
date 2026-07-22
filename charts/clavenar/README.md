@@ -53,6 +53,9 @@ helm template my-clavenar . -f ../../tests/values-production.yaml | less
 helm install my-clavenar . --namespace clavenar --create-namespace \
   --set deploymentProfile=production \
   --set nats.url=nats://my-nats:4222 \
+  --set nats.external.operator=platform-security \
+  --set nats.external.authorizationContract=clavenar.nats-authorization/v1 \
+  --set nats.external.jetstreamPersistence=true \
   --set vault.addr=https://vault.internal:8200 \
   --set vault.tokenSecretName=clavenar-vault-token \
   --set vault.identityTokenKey=identity-token \
@@ -84,6 +87,8 @@ boundaries are present together:
 - `vault.addr` and `vault.tokenSecretName` select the external signed-registry
   authority, while distinct `identityTokenKey` and `proxyTokenKey` values
   select its least-privilege credentials; bundled dev-mode Vault is refused;
+- external NATS names the responsible operator, declares exact enforcement of
+  `clavenar.nats-authorization/v1`, and declares durable JetStream storage;
 - Proxy and Identity receive the chart-owned `production` runtime posture and
   `identity-k8s-key-bound` provider. Evaluation explicitly selects the Proxy
   mock and never inherits it into production;
@@ -106,8 +111,8 @@ recovery, and runtime behavior in the target cluster.
 
 | Concern | Bundled (`*.bundled.enabled=true`) | BYO (default) |
 |---|---|---|
-| NATS deployment | Subchart `nats-io/nats` installed by the release | External, operator-managed |
-| JetStream persistence | 5Gi PVC (configure under `nats.config.jetstream.fileStore.pvc.size`) | Whatever your external NATS does |
+| NATS deployment | Subchart `nats-io/nats` installed by the release with exact certificate-to-user authorization | External, operator-managed; production requires an explicit owner and v1 authorization declaration |
+| JetStream persistence | 10Gi PVC by default (configure under `nats.config.jetstream.fileStore.pvc.size`) | Operator must explicitly declare durable JetStream storage in production |
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
@@ -233,6 +238,17 @@ history, discard policy, deletion policy, and replica count before accepting a
 redemption. Missing, partitioned, full, or mismatched replay storage fails
 closed; there is no local replay fallback.
 
+Bundled NATS maps the verified workload certificate DNS SAN to one exact user
+with `verify_and_map`. The grants are generated from
+`files/nats-authorization-v1.fixture.json` and limit application subjects,
+stream/consumer APIs, KV namespaces, and `_INBOX.clavenar.<service>.>` reply
+traffic. Unknown or peer identities and undeclared subjects deny by default;
+there is no shared token, password, CN fallback, or CA-wide role. Its ingress
+NetworkPolicy admits only Proxy, Policy Engine, Ledger, HIL, Identity, Deep
+Review, and Assurance. Brain and unrelated pods receive neither NATS
+configuration nor broker ingress. Run `python3 scripts/check-nats-authorization.py`
+whenever the fixture, values, or network policy changes.
+
 The complete render fixture is
 [`tests/values-existing-auth-secret.yaml`](../../tests/values-existing-auth-secret.yaml).
 
@@ -285,7 +301,8 @@ apply walkthrough.
   mounted at `/var/lib/clavenar`, which matches the
   `CLAVENAR_*_DB=/var/lib/clavenar/*.db` defaults.
 - **Shared ConfigMap** carries `NATS_URL`, `CLAVENAR_GRACEFUL_DRAIN_SECS`,
-  and (when set) `VAULT_ADDR`.
+  and (when set) `VAULT_ADDR`. Only declared NATS clients receive `NATS_URL`;
+  each also receives its exact `_INBOX.clavenar.<service>` prefix.
 - **Vault tokens** (when `vault.tokenSecretName` is set) are projected as
   mode-0440 files. Identity and Proxy receive only their distinct configured
   Secret key through `VAULT_TOKEN_FILE`; tokens never enter workload env.
