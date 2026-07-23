@@ -54,6 +54,7 @@ class CryptographicVerificationChartTests(unittest.TestCase):
         self.assertEqual(
             env["CLAVENAR_LEDGER_CRYPTOGRAPHIC_VERIFICATION_REQUIRED"], "true"
         )
+        self.assertEqual(env["CLAVENAR_LEDGER_REGULATORY_SIGNING_REQUIRED"], "true")
         self.assertEqual(env["CLAVENAR_LEDGER_TSA_REQUIRED"], "true")
         self.assertEqual(
             env["CLAVENAR_LEDGER_TSA_CA_FILE"],

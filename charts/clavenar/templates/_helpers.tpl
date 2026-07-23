@@ -253,6 +253,7 @@ per environment variable.
         "CLAVENAR_LEDGER_MTLS_ADDR"
         "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"
         "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"
+        "CLAVENAR_LEDGER_REGULATORY_SIGNING_REQUIRED"
         "CLAVENAR_LEDGER_CRYPTOGRAPHIC_VERIFICATION_REQUIRED"
         "CLAVENAR_LEDGER_TSA_REQUIRED"
         "CLAVENAR_LEDGER_TSA_CA_FILE"
@@ -650,6 +651,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # bounded-fresh historical key lineage from Identity. Timestamp proofs are
 # independently verified against the pinned chart trust projection.
 - name: CLAVENAR_LEDGER_CRYPTOGRAPHIC_VERIFICATION_REQUIRED
+  value: "true"
+- name: CLAVENAR_LEDGER_REGULATORY_SIGNING_REQUIRED
   value: "true"
 - name: CLAVENAR_LEDGER_TSA_REQUIRED
   value: {{ ternary "true" "false" .ctx.Values.ledgerCryptographicVerification.tsaRequired | quote }}

@@ -13,8 +13,11 @@ deploymentProfile: evaluation
 # when workload TLS is configured: Ledger fetches the complete bounded-fresh
 # signing-key lineage from Identity over exact workload mTLS and re-verifies
 # stored timestamp responses against the pinned public trust files packaged by
-# this chart. Evaluation records TSA evidence without making it a hard
-# availability dependency; production validation requires tsaRequired=true.
+# this chart. The same workload-TLS block requires regulatory-bundle signing:
+# every export binds a fresh complete verification result and independently
+# verifies Identity's response before emission. Evaluation records TSA evidence
+# without making it a hard availability dependency; production validation
+# requires tsaRequired=true.
 ledgerCryptographicVerification:
   enabled: true
   tsaRequired: false

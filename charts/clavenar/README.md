@@ -461,7 +461,7 @@ The top-level shape is:
 deploymentProfile: evaluation             # evaluation | production
 
 ledgerCryptographicVerification:
-  enabled: true                            # requires workload TLS to activate
+  enabled: true                            # workload TLS also requires signed regulatory bundles
   tsaRequired: false                       # production requires true
   tsaUrl: https://freetsa.org/tsr          # RFC 3161 submission endpoint
   anchorIntervalSeconds: 3600
