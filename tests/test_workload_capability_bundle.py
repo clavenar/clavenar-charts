@@ -34,7 +34,7 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
         self.assertEqual(11, len(bundle["workloadIdentities"]))
         self.assertEqual(set(TARGETS), set(bundle["services"]))
         self.assertEqual(
-            59,
+            60,
             len(
                 {
                     route["family"]

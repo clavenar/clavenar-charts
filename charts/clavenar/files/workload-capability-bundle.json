@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.5.0",
+  "contractVersion": "1.6.0",
   "feature": "WP-02.9",
   "listenerMatrixSha256": "sha256:515c4918a19c2e7f417b4ea87e34ec187129badcbc5ec7be75ff9d7276c627c8",
-  "matrixSha256": "sha256:bccdbc557490ff72c04cec49fd23e3e0aa6acea82905d07459e3b19d8ae62c05",
+  "matrixSha256": "sha256:7e6fea60504149417db2ae7d07393d3f3d1438b0f59cb9a35f67f262ae535a7b",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -858,10 +858,11 @@
         {
           "allowedCallerIds": [
             "service-console",
-            "service-deep-review"
+            "service-deep-review",
+            "service-proxy"
           ],
-          "capability": "ledger.analysis.read",
-          "family": "ledger-analysis-read",
+          "capability": "ledger.spend.read",
+          "family": "ledger-spend-read",
           "method": "GET",
           "pathTemplate": "/finops/spend"
         },
