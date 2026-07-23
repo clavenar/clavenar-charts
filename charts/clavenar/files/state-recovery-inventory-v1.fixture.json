@@ -1,0 +1,929 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.state-recovery-inventory/v1",
+  "approval": {
+    "status": "approved",
+    "scope": "requirements-and-inventory-only",
+    "doesNotAssert": [
+      "scheduled-backup",
+      "isolated-restore",
+      "disaster-recovery",
+      "upgrade-safety"
+    ]
+  },
+  "topologies": [
+    {
+      "id": "compose-single-host",
+      "writerMode": "sqlite-single-writer",
+      "brokerBoundary": "single-node-retained",
+      "vaultBoundary": "single-node-retained",
+      "wholeStackHaClaim": false
+    },
+    {
+      "id": "helm-single-writer",
+      "writerMode": "sqlite-single-writer-recreate",
+      "brokerBoundary": "operator-supplied-or-bundled",
+      "vaultBoundary": "operator-supplied-or-bundled",
+      "wholeStackHaClaim": false
+    }
+  ],
+  "profiles": {
+    "objectives": [
+      {
+        "id": "immutable-release",
+        "rpoSeconds": 0,
+        "rtoSeconds": 1800,
+        "lossResponse": "refuse unsigned or digest-mismatched redeployment"
+      },
+      {
+        "id": "zero-loss-critical",
+        "rpoSeconds": 0,
+        "rtoSeconds": 3600,
+        "lossResponse": "hold dependent authority closed until exact recovery"
+      },
+      {
+        "id": "critical-five-minute",
+        "rpoSeconds": 300,
+        "rtoSeconds": 3600,
+        "lossResponse": "hold writes and dependent readiness closed"
+      },
+      {
+        "id": "critical-hour",
+        "rpoSeconds": 3600,
+        "rtoSeconds": 14400,
+        "lossResponse": "keep affected optional or administrative surface unavailable"
+      },
+      {
+        "id": "reconstructible-hour",
+        "rpoSeconds": 3600,
+        "rtoSeconds": 7200,
+        "lossResponse": "open explicit one-use recovery and reissue without restoring private keys"
+      },
+      {
+        "id": "observability-day",
+        "rpoSeconds": 86400,
+        "rtoSeconds": 86400,
+        "lossResponse": "restore alerting first and record the bounded telemetry gap"
+      }
+    ],
+    "consistency": [
+      {
+        "id": "signed-redeployment",
+        "mechanism": "signed-redeployment",
+        "boundary": "one verified immutable release and configuration generation",
+        "quiesce": "none; verify digest and signature before use"
+      },
+      {
+        "id": "atomic-restricted-copy",
+        "mechanism": "atomic-restricted-copy",
+        "boundary": "one complete owner-restricted file generation",
+        "quiesce": "stop the writer or use its atomic projection boundary"
+      },
+      {
+        "id": "identity-reissue",
+        "mechanism": "identity-reissue",
+        "boundary": "one exact current credential generation",
+        "quiesce": "stop the workload before opening signed one-use recovery"
+      },
+      {
+        "id": "sqlite-online-backup",
+        "mechanism": "sqlite-online-backup",
+        "boundary": "one SQLite backup API or validated transactionally consistent snapshot",
+        "quiesce": "online backup preferred; otherwise stop the sole writer"
+      },
+      {
+        "id": "sqlite-or-postgres-snapshot",
+        "mechanism": "sqlite-or-postgres-snapshot",
+        "boundary": "one validated SQLite backup or native PostgreSQL consistent snapshot",
+        "quiesce": "coordinate the selected backend and reject mixed checkpoints"
+      },
+      {
+        "id": "jetstream-snapshot",
+        "mechanism": "jetstream-snapshot",
+        "boundary": "one broker snapshot containing stream, consumer, KV, and replay state",
+        "quiesce": "pause publishers or bind the snapshot to an acknowledged sequence barrier"
+      },
+      {
+        "id": "vault-snapshot",
+        "mechanism": "vault-snapshot",
+        "boundary": "one sealed Vault storage snapshot plus separately held recovery material",
+        "quiesce": "use the supported storage snapshot barrier"
+      },
+      {
+        "id": "caddy-data-snapshot",
+        "mechanism": "caddy-data-snapshot",
+        "boundary": "one Caddy data and configuration generation",
+        "quiesce": "stop Caddy or use an atomic filesystem snapshot"
+      },
+      {
+        "id": "observability-snapshot",
+        "mechanism": "observability-snapshot",
+        "boundary": "one aligned metrics, dashboard, alert, and routing generation",
+        "quiesce": "snapshot retained stores after configuration is committed"
+      }
+    ],
+    "lifecycle": [
+      {
+        "id": "release-history",
+        "minimumRetentionSeconds": 220752000,
+        "maximumRetentionSeconds": 315360000,
+        "deletionTrigger": "superseded release is outside the ten-year verification window",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "contains no tenant payload; preserve signed provenance"
+      },
+      {
+        "id": "forensic-evidence",
+        "minimumRetentionSeconds": 15811200,
+        "maximumRetentionSeconds": 220752000,
+        "deletionTrigger": "approved evidence retention expires and no hold applies",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "retain immutable tombstone and commitments while removing separately purgeable payload material"
+      },
+      {
+        "id": "authority-history",
+        "minimumRetentionSeconds": 15811200,
+        "maximumRetentionSeconds": 220752000,
+        "deletionTrigger": "authority is retired and its evidence-verification window expires",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "decommission tenant authority and retain only required signed lifecycle evidence"
+      },
+      {
+        "id": "hil-sensitive",
+        "minimumRetentionSeconds": 0,
+        "maximumRetentionSeconds": 2592000,
+        "deletionTrigger": "decision reaches terminal state and the thirty-day review window expires",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "erase raw and modified payloads; retain only minimized held audit metadata when legally required"
+      },
+      {
+        "id": "secret-generation",
+        "minimumRetentionSeconds": 0,
+        "maximumRetentionSeconds": 2592000,
+        "deletionTrigger": "replacement is active and the bounded overlap or rollback window expires",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "destroy tenant-scoped secret generations after dependent evidence no longer requires them"
+      },
+      {
+        "id": "key-history",
+        "minimumRetentionSeconds": 15811200,
+        "maximumRetentionSeconds": 220752000,
+        "deletionTrigger": "no retained evidence can reference the retired key generation",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "destroy tenant private material while retaining public verification lineage required by held evidence"
+      },
+      {
+        "id": "current-credential",
+        "minimumRetentionSeconds": 0,
+        "maximumRetentionSeconds": 4500,
+        "deletionTrigger": "credential expires or replacement overlap completes",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "destroy private key immediately; retained public lifecycle evidence follows authority-history"
+      },
+      {
+        "id": "acme-state",
+        "minimumRetentionSeconds": 0,
+        "maximumRetentionSeconds": 31536000,
+        "deletionTrigger": "account and certificates are superseded and no rollback requires them",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "not tenant payload; remove retired account material after certificate replacement"
+      },
+      {
+        "id": "observability-window",
+        "minimumRetentionSeconds": 2592000,
+        "maximumRetentionSeconds": 7776000,
+        "deletionTrigger": "the ninety-day operational investigation window expires",
+        "legalHold": "extend-until-authorized-release",
+        "tenantErasure": "delete tenant-bearing labels or exemplars unless a documented hold applies"
+      }
+    ],
+    "encryption": [
+      {
+        "id": "signed-public",
+        "inTransit": "TLS plus signature and digest verification",
+        "atRestRequired": true,
+        "atRestControl": "encrypted platform storage with signed immutable provenance",
+        "keyCustodian": "Release",
+        "separateRecoveryCustody": false
+      },
+      {
+        "id": "restricted-state",
+        "inTransit": "mTLS or authenticated TLS",
+        "atRestRequired": true,
+        "atRestControl": "volume and offsite-object encryption with managed keys",
+        "keyCustodian": "Platform Security",
+        "separateRecoveryCustody": false
+      },
+      {
+        "id": "security-key-material",
+        "inTransit": "mTLS or approved offline transfer",
+        "atRestRequired": true,
+        "atRestControl": "envelope or hardware-backed encryption outside application storage",
+        "keyCustodian": "Security",
+        "separateRecoveryCustody": true
+      },
+      {
+        "id": "public-trust",
+        "inTransit": "TLS with digest verification",
+        "atRestRequired": true,
+        "atRestControl": "encrypted platform storage with integrity metadata",
+        "keyCustodian": "Security",
+        "separateRecoveryCustody": false
+      },
+      {
+        "id": "observability-state",
+        "inTransit": "authenticated TLS",
+        "atRestRequired": true,
+        "atRestControl": "encrypted metrics and configuration storage",
+        "keyCustodian": "SRE",
+        "separateRecoveryCustody": false
+      }
+    ]
+  },
+  "states": [
+    {
+      "id": "release-configuration",
+      "purpose": "exact source, stack BOM, contracts, service configuration, and version inputs",
+      "owner": "Release",
+      "authority": "configuration",
+      "criticality": "tier-0",
+      "confidentiality": "internal",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:release-configuration", "persistence": "signed-source"},
+        {"topology": "helm-single-writer", "resource": "helm-config:state-recovery-inventory", "persistence": "signed-source"}
+      ],
+      "objectiveProfile": "immutable-release",
+      "consistencyProfile": "signed-redeployment",
+      "lifecycleProfile": "release-history",
+      "encryptionProfile": "signed-public",
+      "protection": {
+        "disposition": "signed-redeployable",
+        "offsiteRequired": true,
+        "backupStatus": "available-signed-source",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 10,
+        "dependsOn": [],
+        "integrityVerification": "verify the signed stack BOM, source SHAs, contract digests, and configuration receipts",
+        "functionalVerification": "render both official topologies without unknown or mutable artifacts"
+      },
+      "sources": [
+        "clavenar-e2e/STACK_BOM_POLICY.json",
+        "clavenar-e2e/prod/docker-compose.yml",
+        "clavenar-charts/charts/clavenar/values.yaml"
+      ]
+    },
+    {
+      "id": "vault-recovery-material",
+      "purpose": "sealed recovery shares or managed recovery authority kept outside Vault storage",
+      "owner": "Security",
+      "authority": "recovery",
+      "criticality": "tier-0",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:vault-recovery", "persistence": "external"},
+        {"topology": "helm-single-writer", "resource": "helm-external:vault-recovery", "persistence": "external"}
+      ],
+      "objectiveProfile": "zero-loss-critical",
+      "consistencyProfile": "atomic-restricted-copy",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "separate-custody-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 20,
+        "dependsOn": ["release-configuration"],
+        "integrityVerification": "verify restricted-file inventory, custody quorum, and recovery-set digest without exposing shares",
+        "functionalVerification": "unseal only the isolated recovery Vault under dual control"
+      },
+      "sources": [
+        "clavenar-e2e/scripts/vault-custodian.sh"
+      ]
+    },
+    {
+      "id": "vault-key-metadata",
+      "purpose": "Vault storage, Transit keys, auth configuration, and custody audit metadata",
+      "owner": "Security",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:vault-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-external:vault-data", "persistence": "external"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "vault-snapshot",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 30,
+        "dependsOn": ["release-configuration", "vault-recovery-material"],
+        "integrityVerification": "verify the supported Vault snapshot and retained Transit key inventory",
+        "functionalVerification": "unseal and verify active plus historical signing operations in isolation"
+      },
+      "sources": [
+        "clavenar-e2e/config/vault/vault.hcl",
+        "clavenar-e2e/scripts/vault-custodian.sh"
+      ]
+    },
+    {
+      "id": "application-secrets",
+      "purpose": "bootstrap, HIL, session, OIDC, Vault-token, cache, and demo secret generations",
+      "owner": "Platform Security",
+      "authority": "credential",
+      "criticality": "tier-0",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:operator-secrets", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-volume:simulator-secrets", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-secret-class:application", "persistence": "external"},
+        {"topology": "compose-single-host", "resource": "compose-bind-class:application-secrets", "persistence": "external"},
+        {"topology": "helm-single-writer", "resource": "helm-secret-class:application", "persistence": "external"}
+      ],
+      "objectiveProfile": "zero-loss-critical",
+      "consistencyProfile": "atomic-restricted-copy",
+      "lifecycleProfile": "secret-generation",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "separate-custody-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 40,
+        "dependsOn": ["release-configuration"],
+        "integrityVerification": "verify names, modes, generation metadata, and non-default digests without logging values",
+        "functionalVerification": "bootstrap isolated services and prove old generations remain rejected"
+      },
+      "sources": [
+        "clavenar-e2e/scripts/provision-auth-secrets.sh",
+        "clavenar-charts/charts/clavenar/templates/shared-tokens-secret.yaml"
+      ]
+    },
+    {
+      "id": "attestation-authority",
+      "purpose": "runtime attestation private authority, public anchors, and bootstrap approval",
+      "owner": "Security",
+      "authority": "credential",
+      "criticality": "tier-0",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:attestation-authority", "persistence": "external"},
+        {"topology": "helm-single-writer", "resource": "helm-secret-class:attestation", "persistence": "external"}
+      ],
+      "objectiveProfile": "zero-loss-critical",
+      "consistencyProfile": "atomic-restricted-copy",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "separate-custody-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 40,
+        "dependsOn": ["release-configuration"],
+        "integrityVerification": "verify approval and public-anchor digests plus restricted private-key custody",
+        "functionalVerification": "accept the approved measurement and reject a substituted key or measurement"
+      },
+      "sources": [
+        "clavenar-e2e/contracts/attestation-verifier-v1.fixture.json",
+        "clavenar-charts/charts/clavenar/templates/attestation-verifier-contract.yaml"
+      ]
+    },
+    {
+      "id": "operator-private-custody",
+      "purpose": "offline operator signer and client-held private identity material",
+      "owner": "Security",
+      "authority": "credential",
+      "criticality": "tier-0",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "all", "resource": "external-custody:operator-private", "persistence": "external"}
+      ],
+      "objectiveProfile": "zero-loss-critical",
+      "consistencyProfile": "atomic-restricted-copy",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "separate-custody-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 40,
+        "dependsOn": ["release-configuration"],
+        "integrityVerification": "verify offline and client custody inventories without transferring private keys to deployment hosts",
+        "functionalVerification": "sign and authenticate one isolated operator probe through the published trust registry"
+      },
+      "sources": [
+        "clavenar-e2e/scripts/operator-pki.sh",
+        "clavenar-e2e/scripts/operator-client.sh"
+      ]
+    },
+    {
+      "id": "workload-pki-authority",
+      "purpose": "workload CA, current service certificates, and per-workload bootstrap private keys",
+      "owner": "Security",
+      "authority": "credential",
+      "criticality": "tier-0",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:workload-pki", "persistence": "external"},
+        {"topology": "helm-single-writer", "resource": "helm-secret-class:workload-pki", "persistence": "external"}
+      ],
+      "objectiveProfile": "zero-loss-critical",
+      "consistencyProfile": "atomic-restricted-copy",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "separate-custody-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 40,
+        "dependsOn": ["release-configuration", "vault-key-metadata"],
+        "integrityVerification": "verify CA lineage, exact service membership, certificate purpose, modes, and private-key isolation",
+        "functionalVerification": "complete exact-SPIFFE handshakes and reject sibling private-key substitution"
+      },
+      "sources": [
+        "clavenar-e2e/scripts/project-workload-tls.sh",
+        "clavenar-charts/charts/clavenar/templates/tls-automint-job.yaml"
+      ]
+    },
+    {
+      "id": "operator-public-trust",
+      "purpose": "operator public CA and exact role-bearing registry consumed by deployment hosts",
+      "owner": "Security",
+      "authority": "trust",
+      "criticality": "tier-1",
+      "confidentiality": "public",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:operator-public-trust", "persistence": "external"},
+        {"topology": "helm-single-writer", "resource": "helm-secret-class:operator-public-trust", "persistence": "external"}
+      ],
+      "objectiveProfile": "critical-hour",
+      "consistencyProfile": "signed-redeployment",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "public-trust",
+      "protection": {
+        "disposition": "signed-redeployable",
+        "offsiteRequired": true,
+        "backupStatus": "available-signed-source",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 50,
+        "dependsOn": ["operator-private-custody", "release-configuration"],
+        "integrityVerification": "verify canonical CA, exact registry schema, fingerprints, status, expiry, and signature",
+        "functionalVerification": "authorize the expected role and reject revoked, unknown, or mismatched leaves"
+      },
+      "sources": [
+        "clavenar-e2e/scripts/operator-trust.sh"
+      ]
+    },
+    {
+      "id": "workload-trust-history",
+      "purpose": "public workload CA history and exact trust-rotation metadata",
+      "owner": "Security",
+      "authority": "trust",
+      "criticality": "tier-0",
+      "confidentiality": "public",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:workload-trust-history", "persistence": "external"},
+        {"topology": "helm-single-writer", "resource": "helm-external:workload-trust-history", "persistence": "external"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "atomic-restricted-copy",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "public-trust",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 50,
+        "dependsOn": ["release-configuration", "workload-pki-authority"],
+        "integrityVerification": "verify immutable CA digest directories and rotation metadata",
+        "functionalVerification": "verify retained evidence against current and historical trust without restoring retired private keys"
+      },
+      "sources": [
+        "clavenar-e2e/scripts/rotate-compose-trust.sh",
+        "clavenar-e2e/scripts/check-compose-trust-rotation.py"
+      ]
+    },
+    {
+      "id": "tsa-trust",
+      "purpose": "pinned timestamp authority certificate and trust anchors",
+      "owner": "Security",
+      "authority": "trust",
+      "criticality": "tier-0",
+      "confidentiality": "public",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:tsa-trust", "persistence": "signed-source"},
+        {"topology": "helm-single-writer", "resource": "helm-config:tsa-trust", "persistence": "signed-source"}
+      ],
+      "objectiveProfile": "immutable-release",
+      "consistencyProfile": "signed-redeployment",
+      "lifecycleProfile": "key-history",
+      "encryptionProfile": "public-trust",
+      "protection": {
+        "disposition": "signed-redeployable",
+        "offsiteRequired": true,
+        "backupStatus": "available-signed-source",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 50,
+        "dependsOn": ["release-configuration"],
+        "integrityVerification": "verify exact certificate and CA digests from the signed release",
+        "functionalVerification": "validate a retained RFC 3161 response and reject an untrusted signer"
+      },
+      "sources": [
+        "clavenar-e2e/trust/tsa/freetsa-ca.pem",
+        "clavenar-charts/charts/clavenar/templates/tsa-trust.yaml"
+      ]
+    },
+    {
+      "id": "broker-jetstream",
+      "purpose": "JetStream streams, consumers, KV controls, replay reservations, and acknowledged positions",
+      "owner": "Platform",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:nats-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-external:nats-data", "persistence": "external"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "jetstream-snapshot",
+      "lifecycleProfile": "forensic-evidence",
+      "encryptionProfile": "restricted-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 60,
+        "dependsOn": ["application-secrets", "release-configuration", "workload-pki-authority"],
+        "integrityVerification": "verify stream sequences, durable consumers, KV revisions, replica settings, and authorization",
+        "functionalVerification": "publish, acknowledge, replay, and enforce one mandatory control without duplicate logical stages"
+      },
+      "sources": [
+        "clavenar-e2e/prod/nats-server.conf",
+        "clavenar-e2e/prod/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "identity-authority",
+      "purpose": "agents, tenants, grants, SVIDs, signing lineage, lifecycle, control authority, and outboxes",
+      "owner": "Identity",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:identity-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-pvc:identity-data", "persistence": "retained"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "sqlite-online-backup",
+      "lifecycleProfile": "authority-history",
+      "encryptionProfile": "restricted-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 70,
+        "dependsOn": ["attestation-authority", "broker-jetstream", "vault-key-metadata", "workload-pki-authority"],
+        "integrityVerification": "run SQLite integrity and schema checks plus exact historical signing-lineage verification",
+        "functionalVerification": "read retained authority and issue one bounded test credential without resetting lifecycle state"
+      },
+      "sources": [
+        "clavenar-identity/src/db.rs",
+        "clavenar-identity/src/forensic_outbox.rs"
+      ]
+    },
+    {
+      "id": "policy-governance",
+      "purpose": "tenant policy bodies, immutable versions, activation, rollback, audit metadata, and outbox",
+      "owner": "Policy",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:policy-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-pvc:policy-engine-data", "persistence": "retained"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "sqlite-online-backup",
+      "lifecycleProfile": "authority-history",
+      "encryptionProfile": "restricted-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 70,
+        "dependsOn": ["broker-jetstream", "release-configuration", "workload-pki-authority"],
+        "integrityVerification": "run SQLite integrity and schema checks and verify immutable version ancestry",
+        "functionalVerification": "evaluate the retained active tenant version and prove rollback history remains intact"
+      },
+      "sources": [
+        "clavenar-policy-engine/src/storage.rs",
+        "clavenar-e2e/scripts/check-policy-state-recovery.py"
+      ]
+    },
+    {
+      "id": "ledger-evidence",
+      "purpose": "immutable forensic chain, signatures, sidecars, checkpoints, compliance evidence, and outbox ingest identity",
+      "owner": "Ledger and Compliance",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:ledger-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-pvc:ledger-data", "persistence": "retained"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "sqlite-or-postgres-snapshot",
+      "lifecycleProfile": "forensic-evidence",
+      "encryptionProfile": "restricted-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 80,
+        "dependsOn": ["broker-jetstream", "identity-authority", "tsa-trust", "vault-key-metadata", "workload-trust-history"],
+        "integrityVerification": "verify backend integrity, every chain row, sidecar digest, historical key, and timestamp proof",
+        "functionalVerification": "independently verify one signed regulatory bundle bound to the exact restored chain head"
+      },
+      "sources": [
+        "clavenar-ledger/src/storage.rs",
+        "clavenar-ledger/src/handler/export.rs"
+      ]
+    },
+    {
+      "id": "hil-decisions",
+      "purpose": "pending requests, WebAuthn ceremonies, human decisions, typed modifications, enrollment, and outbox",
+      "owner": "HIL and Privacy",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:hil-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-pvc:hil-data", "persistence": "retained"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "sqlite-online-backup",
+      "lifecycleProfile": "hil-sensitive",
+      "encryptionProfile": "restricted-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 80,
+        "dependsOn": ["application-secrets", "broker-jetstream", "identity-authority", "workload-pki-authority"],
+        "integrityVerification": "run SQLite integrity and schema checks and verify pending-to-terminal invariants",
+        "functionalVerification": "retain a mutated pending and terminal decision without replaying or widening authority"
+      },
+      "sources": [
+        "clavenar-hil/src/schema.rs",
+        "clavenar-hil/src/persistence.rs"
+      ]
+    },
+    {
+      "id": "proxy-execution",
+      "purpose": "durable execution intent, actual result, exact replay, reconciliation, and forensic outbox",
+      "owner": "Proxy",
+      "authority": "authoritative",
+      "criticality": "tier-0",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:proxy-execution-data", "persistence": "retained"},
+        {"topology": "helm-single-writer", "resource": "helm-pvc:proxy-data", "persistence": "retained"}
+      ],
+      "objectiveProfile": "critical-five-minute",
+      "consistencyProfile": "sqlite-online-backup",
+      "lifecycleProfile": "forensic-evidence",
+      "encryptionProfile": "restricted-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 90,
+        "dependsOn": ["broker-jetstream", "hil-decisions", "identity-authority", "policy-governance"],
+        "integrityVerification": "run SQLite integrity and schema checks and verify intent, result, and idempotency digests",
+        "functionalVerification": "return the retained exact result and reject payload substitution without a new upstream effect"
+      },
+      "sources": [
+        "clavenar-proxy/src/execution.rs",
+        "clavenar-proxy/src/handler/forensic.rs"
+      ]
+    },
+    {
+      "id": "workload-current-identities",
+      "purpose": "caller-held exact-current workload SVID and private-key generations",
+      "owner": "Platform Security",
+      "authority": "credential",
+      "criticality": "tier-1",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-bind-class:workload-current-identities", "persistence": "reconstructible"},
+        {"topology": "helm-single-writer", "resource": "helm-pvc-class:workload-current-identities", "persistence": "reconstructible"}
+      ],
+      "objectiveProfile": "reconstructible-hour",
+      "consistencyProfile": "identity-reissue",
+      "lifecycleProfile": "current-credential",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "reconstructible-no-private-key-backup",
+        "offsiteRequired": false,
+        "backupStatus": "not-applicable-reconstructible",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 90,
+        "dependsOn": ["identity-authority", "workload-pki-authority"],
+        "integrityVerification": "reject copied or expired private identities and verify exact generation metadata",
+        "functionalVerification": "open signed one-use recovery and reissue a caller-held key without automatic bootstrap fallback"
+      },
+      "sources": [
+        "clavenar-workload-identity/src/state.rs",
+        "clavenar-identity/src/workload_recovery.rs"
+      ]
+    },
+    {
+      "id": "simulator-agent-identities",
+      "purpose": "demo agent caller-held SVID and private-key records",
+      "owner": "Demo Platform",
+      "authority": "credential",
+      "criticality": "tier-2",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:simulator-agent-identities", "persistence": "reconstructible"}
+      ],
+      "objectiveProfile": "reconstructible-hour",
+      "consistencyProfile": "identity-reissue",
+      "lifecycleProfile": "current-credential",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "reconstructible-no-private-key-backup",
+        "offsiteRequired": false,
+        "backupStatus": "not-applicable-reconstructible",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 100,
+        "dependsOn": ["attestation-authority", "identity-authority", "workload-current-identities"],
+        "integrityVerification": "verify exact active roster, owner-only modes, current CA, and unexpired SVIDs",
+        "functionalVerification": "consume signed one-use recovery and reissue the complete demo roster"
+      },
+      "sources": [
+        "clavenar-simulator/src/minter.rs",
+        "clavenar-e2e/scripts/rotate-simulator-agent-trust.sh"
+      ]
+    },
+    {
+      "id": "caddy-acme-state",
+      "purpose": "Caddy ACME account, certificates, runtime configuration, and version overlays",
+      "owner": "Platform",
+      "authority": "configuration",
+      "criticality": "tier-1",
+      "confidentiality": "secret",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:caddy-data", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-volume:caddy-config", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-bind-class:caddy-runtime", "persistence": "signed-source"}
+      ],
+      "objectiveProfile": "critical-hour",
+      "consistencyProfile": "caddy-data-snapshot",
+      "lifecycleProfile": "acme-state",
+      "encryptionProfile": "security-key-material",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 100,
+        "dependsOn": ["release-configuration", "workload-pki-authority"],
+        "integrityVerification": "verify Caddy storage structure, certificate validity, configuration digest, and release overlays",
+        "functionalVerification": "serve the exact release over valid HTTPS without exposing private control surfaces"
+      },
+      "sources": [
+        "clavenar-e2e/prod/Caddyfile",
+        "clavenar-e2e/prod/docker-compose.yml"
+      ]
+    },
+    {
+      "id": "observability-state",
+      "purpose": "Prometheus, Grafana, Alertmanager, dashboards, rules, routing configuration, and retained operational evidence",
+      "owner": "SRE",
+      "authority": "observability",
+      "criticality": "tier-1",
+      "confidentiality": "restricted",
+      "locations": [
+        {"topology": "compose-single-host", "resource": "compose-volume:alertmanager-data", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-volume:grafana-data", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-volume:prometheus-data", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-bind-class:observability", "persistence": "signed-source"},
+        {"topology": "helm-single-writer", "resource": "helm-external:observability", "persistence": "external"}
+      ],
+      "objectiveProfile": "observability-day",
+      "consistencyProfile": "observability-snapshot",
+      "lifecycleProfile": "observability-window",
+      "encryptionProfile": "observability-state",
+      "protection": {
+        "disposition": "backup-required",
+        "offsiteRequired": true,
+        "backupStatus": "pending-wp-10.5",
+        "restoreProofStatus": "pending-wp-10.6",
+        "drStatus": "pending-wp-10.7",
+        "upgradeSafetyStatus": "pending-wp-10.11"
+      },
+      "restore": {
+        "order": 110,
+        "dependsOn": ["broker-jetstream", "hil-decisions", "identity-authority", "ledger-evidence", "policy-governance", "proxy-execution", "release-configuration"],
+        "integrityVerification": "validate metrics storage, dashboard JSON, alert rules, routes, and configuration digests",
+        "functionalVerification": "scrape required services and retain a synthetic alert through acknowledgement and resolution"
+      },
+      "sources": [
+        "clavenar-e2e/prod/prometheus.yml",
+        "clavenar-e2e/prod/alerts.yaml",
+        "clavenar-charts/charts/clavenar/templates/alerts-configmap.yaml"
+      ]
+    }
+  ]
+}

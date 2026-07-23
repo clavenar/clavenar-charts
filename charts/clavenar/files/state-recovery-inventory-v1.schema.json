@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/state-recovery-inventory-v1.schema.json",
+  "title": "Clavenar state and recovery inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "approval",
+    "topologies",
+    "profiles",
+    "states"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.state-recovery-inventory/v1"},
+    "approval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "scope", "doesNotAssert"],
+      "properties": {
+        "status": {"const": "approved"},
+        "scope": {"const": "requirements-and-inventory-only"},
+        "doesNotAssert": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "string",
+            "enum": [
+              "scheduled-backup",
+              "isolated-restore",
+              "disaster-recovery",
+              "upgrade-safety"
+            ]
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "topologies": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/topology"}
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objectives", "consistency", "lifecycle", "encryption"],
+      "properties": {
+        "objectives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/objective"}
+        },
+        "consistency": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/consistency"}
+        },
+        "lifecycle": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/lifecycle"}
+        },
+        "encryption": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/encryption"}
+        }
+      }
+    },
+    "states": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/state"}
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,63}$"
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "writerMode",
+        "brokerBoundary",
+        "vaultBoundary",
+        "wholeStackHaClaim"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "writerMode": {
+          "type": "string",
+          "enum": ["sqlite-single-writer", "sqlite-single-writer-recreate"]
+        },
+        "brokerBoundary": {
+          "type": "string",
+          "enum": ["single-node-retained", "operator-supplied-or-bundled"]
+        },
+        "vaultBoundary": {
+          "type": "string",
+          "enum": ["single-node-retained", "operator-supplied-or-bundled"]
+        },
+        "wholeStackHaClaim": {"const": false}
+      }
+    },
+    "objective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "rpoSeconds", "rtoSeconds", "lossResponse"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "rpoSeconds": {"type": "integer", "minimum": 0, "maximum": 86400},
+        "rtoSeconds": {"type": "integer", "minimum": 1, "maximum": 604800},
+        "lossResponse": {"type": "string", "minLength": 1}
+      }
+    },
+    "consistency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "mechanism", "boundary", "quiesce"],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "mechanism": {
+          "type": "string",
+          "enum": [
+            "atomic-restricted-copy",
+            "caddy-data-snapshot",
+            "identity-reissue",
+            "jetstream-snapshot",
+            "observability-snapshot",
+            "signed-redeployment",
+            "sqlite-online-backup",
+            "sqlite-or-postgres-snapshot",
+            "vault-snapshot"
+          ]
+        },
+        "boundary": {"type": "string", "minLength": 1},
+        "quiesce": {"type": "string", "minLength": 1}
+      }
+    },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "minimumRetentionSeconds",
+        "maximumRetentionSeconds",
+        "deletionTrigger",
+        "legalHold",
+        "tenantErasure"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "minimumRetentionSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 315360000
+        },
+        "maximumRetentionSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 315360000
+        },
+        "deletionTrigger": {"type": "string", "minLength": 1},
+        "legalHold": {"const": "extend-until-authorized-release"},
+        "tenantErasure": {"type": "string", "minLength": 1}
+      }
+    },
+    "encryption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "inTransit",
+        "atRestRequired",
+        "atRestControl",
+        "keyCustodian",
+        "separateRecoveryCustody"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "inTransit": {"type": "string", "minLength": 1},
+        "atRestRequired": {"const": true},
+        "atRestControl": {"type": "string", "minLength": 1},
+        "keyCustodian": {"type": "string", "minLength": 1},
+        "separateRecoveryCustody": {"type": "boolean"}
+      }
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["topology", "resource", "persistence"],
+      "properties": {
+        "topology": {
+          "type": "string",
+          "enum": ["all", "compose-single-host", "helm-single-writer"]
+        },
+        "resource": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]*:[a-z0-9*._:-]+$"
+        },
+        "persistence": {
+          "type": "string",
+          "enum": ["external", "reconstructible", "retained", "signed-source"]
+        }
+      }
+    },
+    "protection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "disposition",
+        "offsiteRequired",
+        "backupStatus",
+        "restoreProofStatus",
+        "drStatus",
+        "upgradeSafetyStatus"
+      ],
+      "properties": {
+        "disposition": {
+          "type": "string",
+          "enum": [
+            "backup-required",
+            "reconstructible-no-private-key-backup",
+            "separate-custody-required",
+            "signed-redeployable"
+          ]
+        },
+        "offsiteRequired": {"type": "boolean"},
+        "backupStatus": {
+          "type": "string",
+          "enum": [
+            "available-signed-source",
+            "not-applicable-reconstructible",
+            "pending-wp-10.5"
+          ]
+        },
+        "restoreProofStatus": {
+          "type": "string",
+          "enum": ["pending-wp-10.6"]
+        },
+        "drStatus": {
+          "type": "string",
+          "enum": ["pending-wp-10.7"]
+        },
+        "upgradeSafetyStatus": {
+          "type": "string",
+          "enum": ["pending-wp-10.11"]
+        }
+      }
+    },
+    "restore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "dependsOn",
+        "integrityVerification",
+        "functionalVerification"
+      ],
+      "properties": {
+        "order": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "dependsOn": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/id"},
+          "uniqueItems": true
+        },
+        "integrityVerification": {"type": "string", "minLength": 1},
+        "functionalVerification": {"type": "string", "minLength": 1}
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "purpose",
+        "owner",
+        "authority",
+        "criticality",
+        "confidentiality",
+        "locations",
+        "objectiveProfile",
+        "consistencyProfile",
+        "lifecycleProfile",
+        "encryptionProfile",
+        "protection",
+        "restore",
+        "sources"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "purpose": {"type": "string", "minLength": 1},
+        "owner": {"type": "string", "minLength": 1},
+        "authority": {
+          "type": "string",
+          "enum": [
+            "authoritative",
+            "configuration",
+            "credential",
+            "observability",
+            "recovery",
+            "trust"
+          ]
+        },
+        "criticality": {
+          "type": "string",
+          "enum": ["tier-0", "tier-1", "tier-2"]
+        },
+        "confidentiality": {
+          "type": "string",
+          "enum": ["internal", "public", "restricted", "secret"]
+        },
+        "locations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/location"}
+        },
+        "objectiveProfile": {"$ref": "#/$defs/id"},
+        "consistencyProfile": {"$ref": "#/$defs/id"},
+        "lifecycleProfile": {"$ref": "#/$defs/id"},
+        "encryptionProfile": {"$ref": "#/$defs/id"},
+        "protection": {"$ref": "#/$defs/protection"},
+        "restore": {"$ref": "#/$defs/restore"},
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "pattern": "^clavenar-[a-z0-9-]+/.+"
+          },
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

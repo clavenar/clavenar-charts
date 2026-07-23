@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-state-recovery-inventory
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "state-recovery-inventory") | nindent 4 }}
+immutable: true
+data:
+  state-recovery-inventory-v1.schema.json: |
+{{ .Files.Get "files/state-recovery-inventory-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  state-recovery-inventory-v1.fixture.json: |
+{{ .Files.Get "files/state-recovery-inventory-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
