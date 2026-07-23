@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/distributed-control-resilience-v1.schema.json",
+  "title": "Clavenar distributed control resilience policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contract", "inventory", "snapshotAuthorization", "advisoryControls", "mandatoryControls"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.distributed-control-resilience/v1"},
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "sha256"],
+      "properties": {
+        "contract": {"const": "clavenar.distributed-control-state/v1"},
+        "sha256": {"const": "528f9b88821e0589020491b78278961924a4692a854f2b9f59c8838725b7d9a9"}
+      }
+    },
+    "snapshotAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mode", "environment", "presentValueBehavior"],
+      "properties": {
+        "mode": {"const": "disabled"},
+        "environment": {"const": "CLAVENAR_CONTROL_STATE_SNAPSHOT_PATH"},
+        "presentValueBehavior": {"const": "reject-startup"}
+      }
+    },
+    "advisoryControls": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "degradedBehavior", "authorizationEffect"],
+          "properties": {
+            "id": {"const": "decoy-advertisement"},
+            "degradedBehavior": {"const": "omit-advertisement"},
+            "authorizationEffect": {"const": "none"}
+          }
+        }
+      ],
+      "items": false,
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "mandatoryControls": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {"$ref": "#/$defs/mandatoryControl"}
+    }
+  },
+  "$defs": {
+    "mandatoryControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "initialSync", "outageMode", "requiredConditions", "maximumCacheAgeSeconds", "postHilRecheck", "recovery", "snapshotMode"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["agent-suspension", "decoy-invocation", "force-hil-containment", "grant-max-uses", "grant-revocation", "tenant-spend-quota"]
+        },
+        "initialSync": {"type": "string", "enum": ["process-readiness", "per-applicable-key"]},
+        "outageMode": {"const": "fail-closed"},
+        "requiredConditions": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "string",
+            "enum": ["complete-authority-pair", "initial-store-open", "initial-sync-complete", "live-cas", "nats-connected", "watch-active", "within-cache-bound"]
+          },
+          "uniqueItems": true
+        },
+        "maximumCacheAgeSeconds": {"type": ["integer", "null"], "minimum": 1, "maximum": 900},
+        "postHilRecheck": {"type": "boolean"},
+        "recovery": {"type": "string", "enum": ["complete-authority-refetch", "complete-authority-resync", "retained-monotonic-cas"]},
+        "snapshotMode": {"const": "disabled"}
+      }
+    }
+  }
+}

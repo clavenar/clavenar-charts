@@ -198,6 +198,9 @@ per environment variable.
 {{- $byService := dict
       "proxy" (list
         "CLAVENAR_CONTROL_STATE_REPLICAS"
+        "CLAVENAR_PROXY_QUOTA_GATE_ENABLED"
+        "CLAVENAR_PROXY_QUOTA_CACHE_TTL_SECS"
+        "CLAVENAR_CONTROL_STATE_SNAPSHOT_PATH"
         "CLAVENAR_RUNTIME_ENVIRONMENT"
         "CLAVENAR_ATTESTATION_PROVIDER"
         "CLAVENAR_PROXY_HEALTH_ADDR"
@@ -453,6 +456,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if eq $name "proxy" }}
 - name: CLAVENAR_PROXY_HEALTH_ADDR
   value: "0.0.0.0:8080"
+- name: CLAVENAR_PROXY_QUOTA_GATE_ENABLED
+  value: "true"
+- name: CLAVENAR_PROXY_QUOTA_CACHE_TTL_SECS
+  value: "300"
 - name: CLAVENAR_BRAIN_URL
   value: "{{ $brainScheme }}://{{ $rel }}-brain:8081/inspect"
 - name: CLAVENAR_POLICY_URL

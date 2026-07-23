@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.distributed-control-resilience/v1",
+  "inventory": {
+    "contract": "clavenar.distributed-control-state/v1",
+    "sha256": "528f9b88821e0589020491b78278961924a4692a854f2b9f59c8838725b7d9a9"
+  },
+  "snapshotAuthorization": {
+    "mode": "disabled",
+    "environment": "CLAVENAR_CONTROL_STATE_SNAPSHOT_PATH",
+    "presentValueBehavior": "reject-startup"
+  },
+  "advisoryControls": [
+    {
+      "id": "decoy-advertisement",
+      "degradedBehavior": "omit-advertisement",
+      "authorizationEffect": "none"
+    }
+  ],
+  "mandatoryControls": [
+    {
+      "id": "agent-suspension",
+      "initialSync": "process-readiness",
+      "outageMode": "fail-closed",
+      "requiredConditions": ["initial-sync-complete", "nats-connected", "watch-active"],
+      "maximumCacheAgeSeconds": null,
+      "postHilRecheck": true,
+      "recovery": "complete-authority-resync",
+      "snapshotMode": "disabled"
+    },
+    {
+      "id": "decoy-invocation",
+      "initialSync": "process-readiness",
+      "outageMode": "fail-closed",
+      "requiredConditions": ["initial-sync-complete", "nats-connected", "watch-active"],
+      "maximumCacheAgeSeconds": null,
+      "postHilRecheck": false,
+      "recovery": "complete-authority-resync",
+      "snapshotMode": "disabled"
+    },
+    {
+      "id": "force-hil-containment",
+      "initialSync": "process-readiness",
+      "outageMode": "fail-closed",
+      "requiredConditions": ["initial-sync-complete", "nats-connected", "watch-active"],
+      "maximumCacheAgeSeconds": null,
+      "postHilRecheck": true,
+      "recovery": "complete-authority-resync",
+      "snapshotMode": "disabled"
+    },
+    {
+      "id": "grant-max-uses",
+      "initialSync": "process-readiness",
+      "outageMode": "fail-closed",
+      "requiredConditions": ["initial-store-open", "live-cas", "nats-connected"],
+      "maximumCacheAgeSeconds": null,
+      "postHilRecheck": false,
+      "recovery": "retained-monotonic-cas",
+      "snapshotMode": "disabled"
+    },
+    {
+      "id": "grant-revocation",
+      "initialSync": "process-readiness",
+      "outageMode": "fail-closed",
+      "requiredConditions": ["initial-sync-complete", "nats-connected", "watch-active"],
+      "maximumCacheAgeSeconds": null,
+      "postHilRecheck": true,
+      "recovery": "complete-authority-resync",
+      "snapshotMode": "disabled"
+    },
+    {
+      "id": "tenant-spend-quota",
+      "initialSync": "per-applicable-key",
+      "outageMode": "fail-closed",
+      "requiredConditions": ["complete-authority-pair", "within-cache-bound"],
+      "maximumCacheAgeSeconds": 300,
+      "postHilRecheck": true,
+      "recovery": "complete-authority-refetch",
+      "snapshotMode": "disabled"
+    }
+  ]
+}

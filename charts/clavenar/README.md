@@ -245,6 +245,13 @@ the exact JetStream replica count shared by Identity and Proxy. The chart emits
 shadowing. Revocation, force-HIL, decoy, and grant-use projections remain
 file-backed; configured tenant budgets and monthly spend remain retained in
 Identity and Ledger rather than being replaced by Proxy's bounded cache.
+The same immutable ConfigMap packages
+`clavenar.distributed-control-resilience/v1` and mounts all four exact
+inventory/resilience files into Proxy. Proxy readiness waits for both mandatory
+KV mirrors and the retained grant-use store; the chart always enables the
+fail-closed quota gate with a 300-second maximum complete-pair age. These
+chart-owned variables, and the reserved snapshot path, cannot be shadowed
+through `extraEnv`. No snapshot authorizes work in this contract version.
 
 Bundled NATS maps the verified workload certificate DNS SAN to one exact user
 with `verify_and_map`. The grants are generated from

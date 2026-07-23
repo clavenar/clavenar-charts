@@ -148,6 +148,9 @@
                       "enum": [
                         "NATS_URL",
                         "CLAVENAR_CONTROL_STATE_REPLICAS",
+                        "CLAVENAR_PROXY_QUOTA_GATE_ENABLED",
+                        "CLAVENAR_PROXY_QUOTA_CACHE_TTL_SECS",
+                        "CLAVENAR_CONTROL_STATE_SNAPSHOT_PATH",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_RUNTIME_ENVIRONMENT",
                         "CLAVENAR_ATTESTATION_PROVIDER",

@@ -17,6 +17,7 @@ inside the range is the iterated value.
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
 {{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
+{{- $mountsControlState := eq $name "proxy" }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
@@ -72,6 +73,10 @@ spec:
         {{- if $mountsAttestationContract }}
         checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}
         checksum/attestation-verifier-fixture: {{ $.Files.Get "files/attestation-verifier-v1.fixture.json" | sha256sum }}
+        {{- end }}
+        {{- if $mountsControlState }}
+        checksum/distributed-control-state: {{ $.Files.Get "files/distributed-control-state-v1.fixture.json" | sha256sum }}
+        checksum/distributed-control-resilience: {{ $.Files.Get "files/distributed-control-resilience-v1.fixture.json" | sha256sum }}
         {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" $ }}
@@ -274,7 +279,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -306,6 +311,11 @@ spec:
               mountPath: /etc/clavenar/attestation
               readOnly: true
             {{- end }}
+            {{- if $mountsControlState }}
+            - name: distributed-control-state
+              mountPath: /etc/clavenar/control-state
+              readOnly: true
+            {{- end }}
             {{- if $mountsAttestationTrust }}
             - name: attestation-trust-anchors
               mountPath: /etc/clavenar/attestation/k8s-trust-anchors.json
@@ -328,7 +338,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -417,6 +427,20 @@ spec:
                 path: attestation-verifier-v1.schema.json
               - key: attestation-verifier-v1.fixture.json
                 path: attestation-verifier-v1.fixture.json
+        {{- end }}
+        {{- if $mountsControlState }}
+        - name: distributed-control-state
+          configMap:
+            name: {{ include "clavenar.fullname" $ }}-distributed-control-state
+            items:
+              - key: distributed-control-state-v1.schema.json
+                path: distributed-control-state-v1.schema.json
+              - key: distributed-control-state-v1.fixture.json
+                path: distributed-control-state-v1.fixture.json
+              - key: distributed-control-resilience-v1.schema.json
+                path: distributed-control-resilience-v1.schema.json
+              - key: distributed-control-resilience-v1.fixture.json
+                path: distributed-control-resilience-v1.fixture.json
         {{- end }}
         {{- if $mountsAttestationTrust }}
         - name: attestation-trust-anchors

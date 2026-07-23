@@ -45,6 +45,22 @@ groups:
             Agents are likely seeing connection refused — the proxy is
             the only agent-facing surface.
 
+      - alert: ProxyMandatoryControlDegraded
+        expr: |
+          max(clavenar_proxy_revocation_cache_degraded) == 1
+          or
+          max(clavenar_proxy_decoy_cache_degraded) == 1
+        for: 1m
+        labels:
+          severity: critical
+          component: proxy
+        annotations:
+          summary: "Proxy mandatory control projection is unavailable"
+          description: |
+            Revocation, force-HIL, grant-revocation, or decoy-invocation state
+            has not completed exact synchronization. Proxy readiness and
+            applicable requests remain fail closed until a complete resync.
+
       - alert: LedgerDown
         expr: up{job="ledger"} == 0
         for: 2m
