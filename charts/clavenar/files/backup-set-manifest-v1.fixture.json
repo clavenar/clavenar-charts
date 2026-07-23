@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.backup-set-manifest/v1",
+  "backupId": "backup-20260723T120000Z-0123456789ab",
+  "release": "1.182.0",
+  "topology": "compose-single-host",
+  "inventory": {
+    "contract": "clavenar.state-recovery-inventory/v1",
+    "sha256": "49c36d8f0db7ff86a9b5b2d0cfbe4f22016624fadb746f633de6e6de866e6f31"
+  },
+  "planSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+  "startedAt": "2026-07-23T12:00:00Z",
+  "finishedAt": "2026-07-23T12:02:00Z",
+  "schedule": {
+    "intervalSeconds": 300,
+    "maximumAgeSeconds": 420,
+    "persistent": true,
+    "overlapPolicy": "exclusive-nonblocking"
+  },
+  "coverage": {
+    "capturedStateIds": [
+      "application-secrets",
+      "attestation-authority",
+      "broker-jetstream",
+      "caddy-acme-state",
+      "hil-decisions",
+      "identity-authority",
+      "ledger-evidence",
+      "observability-state",
+      "policy-governance",
+      "proxy-execution",
+      "vault-key-metadata",
+      "vault-recovery-material",
+      "workload-pki-authority",
+      "workload-trust-history"
+    ],
+    "externalCustodyStateIds": [
+      "operator-private-custody"
+    ],
+    "reconstructibleStateIds": [
+      "simulator-agent-identities",
+      "workload-current-identities"
+    ],
+    "signedSourceStateIds": [
+      "operator-public-trust",
+      "release-configuration",
+      "tsa-trust"
+    ]
+  },
+  "captures": [
+    {
+      "id": "sqlite-authoritative-state",
+      "stateIds": [
+        "hil-decisions",
+        "identity-authority",
+        "ledger-evidence",
+        "policy-governance",
+        "proxy-execution"
+      ],
+      "method": "sqlite-online-backup",
+      "files": 5,
+      "plaintextBytes": 5242880,
+      "contentSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "verification": "sqlite-quick-check"
+    },
+    {
+      "id": "broker-jetstream",
+      "stateIds": ["broker-jetstream"],
+      "method": "stopped-writer-snapshot",
+      "files": 12,
+      "plaintextBytes": 1048576,
+      "contentSha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "verification": "state-native-and-archive"
+    },
+    {
+      "id": "vault-storage",
+      "stateIds": ["vault-key-metadata"],
+      "method": "stopped-writer-snapshot",
+      "files": 8,
+      "plaintextBytes": 1048576,
+      "contentSha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "verification": "state-native-and-archive"
+    },
+    {
+      "id": "restricted-authority",
+      "stateIds": [
+        "application-secrets",
+        "attestation-authority",
+        "vault-recovery-material",
+        "workload-pki-authority"
+      ],
+      "method": "atomic-restricted-copy",
+      "files": 24,
+      "plaintextBytes": 65536,
+      "contentSha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "verification": "exact-file-inventory"
+    },
+    {
+      "id": "workload-trust-history",
+      "stateIds": ["workload-trust-history"],
+      "method": "immutable-file-snapshot",
+      "files": 4,
+      "plaintextBytes": 4096,
+      "contentSha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "verification": "exact-file-inventory"
+    },
+    {
+      "id": "caddy-acme-state",
+      "stateIds": ["caddy-acme-state"],
+      "method": "stopped-writer-snapshot",
+      "files": 6,
+      "plaintextBytes": 32768,
+      "contentSha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "verification": "archive-round-trip"
+    },
+    {
+      "id": "observability-state",
+      "stateIds": ["observability-state"],
+      "method": "stopped-writer-snapshot",
+      "files": 20,
+      "plaintextBytes": 2097152,
+      "contentSha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "verification": "archive-round-trip"
+    }
+  ],
+  "encryption": {
+    "format": "restic-repository",
+    "repositoryVersion": 2,
+    "keyId": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+    "separateRecoveryCustody": true,
+    "authenticated": true,
+    "plaintextUploaded": false,
+    "verified": true
+  },
+  "offsite": {
+    "kind": "oci-content-addressed",
+    "reference": "ghcr.io/clavenar/clavenar-prod-backups@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "objectDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "objectVersion": "backup-20260723T120000Z-0123456789ab",
+    "previousObject": null,
+    "repositorySnapshotId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "encryptedDeltaSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "verifiedAt": "2026-07-23T12:02:00Z",
+    "verification": "independent-full-read",
+    "objectExists": true
+  },
+  "metrics": {
+    "ageSeconds": 0,
+    "durationSeconds": 120.0,
+    "plaintextBytes": 9523200,
+    "encryptedDeltaBytes": 4194304,
+    "uploadedBytes": 4194304,
+    "captureFailures": 0,
+    "uploadFailures": 0,
+    "verificationFailures": 0
+  },
+  "doesNotAssert": [
+    "isolated-restore",
+    "disaster-recovery",
+    "upgrade-safety"
+  ],
+  "result": "pass"
+}

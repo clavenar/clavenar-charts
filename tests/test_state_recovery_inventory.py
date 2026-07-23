@@ -120,7 +120,6 @@ class StateRecoveryInventoryChartTests(unittest.TestCase):
         )
         self.assertEqual(
             {
-                "scheduled-backup",
                 "isolated-restore",
                 "disaster-recovery",
                 "upgrade-safety",

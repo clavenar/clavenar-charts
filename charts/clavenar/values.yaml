@@ -791,6 +791,22 @@ persistence:
     # When non-empty, the chart mounts it and does not emit its own PVC.
     existingClaim: ""
 
+# Operator-owned scheduled backup contract. The chart deliberately does not
+# embed provider credentials or pretend a generic CronJob can take
+# application-consistent snapshots of arbitrary CSI, external NATS, and
+# external Vault backends. Enabling this boundary requires an external backup
+# operator to consume the immutable plan, use the referenced Secret, and
+# publish a sanitized clavenar.backup-set-manifest/v1 receipt.
+scheduledBackup:
+  enabled: false
+  operator: ""
+  schedule: "*/5 * * * *"
+  maximumAgeSeconds: 420
+  repositorySecretName: ""
+  receiptSecretName: ""
+  encryptionFormat: restic-repository-v2
+  offsiteClass: content-addressed-or-versioned
+
 # Persistent caller-held workload SVID/key state. When workload TLS is
 # enabled, each managed service receives its own PVC and owner-only 0700
 # subdirectory at /var/lib/clavenar-workload-identity. Normal upgrades and pod

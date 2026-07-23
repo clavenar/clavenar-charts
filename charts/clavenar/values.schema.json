@@ -8,6 +8,53 @@
       "type": "string",
       "enum": ["evaluation", "production"]
     },
+    "scheduledBackup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "operator",
+        "schedule",
+        "maximumAgeSeconds",
+        "repositorySecretName",
+        "receiptSecretName",
+        "encryptionFormat",
+        "offsiteClass"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "operator": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "schedule": {
+          "type": "string",
+          "const": "*/5 * * * *"
+        },
+        "maximumAgeSeconds": {
+          "type": "integer",
+          "minimum": 300,
+          "maximum": 420
+        },
+        "repositorySecretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        },
+        "receiptSecretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        },
+        "encryptionFormat": {
+          "const": "restic-repository-v2"
+        },
+        "offsiteClass": {
+          "const": "content-addressed-or-versioned"
+        }
+      }
+    },
     "ledgerCryptographicVerification": {
       "type": "object",
       "additionalProperties": false,

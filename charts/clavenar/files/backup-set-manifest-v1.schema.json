@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/backup-set-manifest-v1.schema.json",
+  "title": "Clavenar scheduled backup-set receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "backupId",
+    "release",
+    "topology",
+    "inventory",
+    "planSha256",
+    "startedAt",
+    "finishedAt",
+    "schedule",
+    "coverage",
+    "captures",
+    "encryption",
+    "offsite",
+    "metrics",
+    "doesNotAssert",
+    "result"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.backup-set-manifest/v1"},
+    "backupId": {
+      "type": "string",
+      "pattern": "^backup-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{12}$"
+    },
+    "release": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "topology": {"const": "compose-single-host"},
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract", "sha256"],
+      "properties": {
+        "contract": {"const": "clavenar.state-recovery-inventory/v1"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "planSha256": {"$ref": "#/$defs/sha256"},
+    "startedAt": {"type": "string", "format": "date-time"},
+    "finishedAt": {"type": "string", "format": "date-time"},
+    "schedule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intervalSeconds",
+        "maximumAgeSeconds",
+        "persistent",
+        "overlapPolicy"
+      ],
+      "properties": {
+        "intervalSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "maximumAgeSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 172800
+        },
+        "persistent": {"const": true},
+        "overlapPolicy": {"const": "exclusive-nonblocking"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capturedStateIds",
+        "externalCustodyStateIds",
+        "reconstructibleStateIds",
+        "signedSourceStateIds"
+      ],
+      "properties": {
+        "capturedStateIds": {"$ref": "#/$defs/stateIds"},
+        "externalCustodyStateIds": {"$ref": "#/$defs/stateIds"},
+        "reconstructibleStateIds": {"$ref": "#/$defs/stateIds"},
+        "signedSourceStateIds": {"$ref": "#/$defs/stateIds"}
+      }
+    },
+    "captures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/capture"}
+    },
+    "encryption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "repositoryVersion",
+        "keyId",
+        "separateRecoveryCustody",
+        "authenticated",
+        "plaintextUploaded",
+        "verified"
+      ],
+      "properties": {
+        "format": {"const": "restic-repository"},
+        "repositoryVersion": {"const": 2},
+        "keyId": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "separateRecoveryCustody": {"const": true},
+        "authenticated": {"const": true},
+        "plaintextUploaded": {"const": false},
+        "verified": {"const": true}
+      }
+    },
+    "offsite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reference",
+        "objectDigest",
+        "objectVersion",
+        "previousObject",
+        "repositorySnapshotId",
+        "encryptedDeltaSha256",
+        "verifiedAt",
+        "verification",
+        "objectExists"
+      ],
+      "properties": {
+        "kind": {"enum": ["oci-content-addressed", "s3-versioned"]},
+        "reference": {
+          "type": "string",
+          "pattern": "^.+@sha256:[a-f0-9]{64}$"
+        },
+        "objectDigest": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "objectVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "previousObject": {
+          "type": ["string", "null"],
+          "pattern": "^.+@sha256:[a-f0-9]{64}$"
+        },
+        "repositorySnapshotId": {"$ref": "#/$defs/sha256"},
+        "encryptedDeltaSha256": {"$ref": "#/$defs/sha256"},
+        "verifiedAt": {"type": "string", "format": "date-time"},
+        "verification": {
+          "enum": ["descriptor-and-manifest", "independent-full-read"]
+        },
+        "objectExists": {"const": true}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ageSeconds",
+        "durationSeconds",
+        "plaintextBytes",
+        "encryptedDeltaBytes",
+        "uploadedBytes",
+        "captureFailures",
+        "uploadFailures",
+        "verificationFailures"
+      ],
+      "properties": {
+        "ageSeconds": {"type": "integer", "minimum": 0},
+        "durationSeconds": {"type": "number", "minimum": 0},
+        "plaintextBytes": {"type": "integer", "minimum": 1},
+        "encryptedDeltaBytes": {"type": "integer", "minimum": 1},
+        "uploadedBytes": {"type": "integer", "minimum": 0},
+        "captureFailures": {"const": 0},
+        "uploadFailures": {"const": 0},
+        "verificationFailures": {"const": 0}
+      }
+    },
+    "doesNotAssert": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "isolated-restore",
+          "disaster-recovery",
+          "upgrade-safety"
+        ]
+      }
+    },
+    "result": {"const": "pass"}
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "stateIds": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "stateIds",
+        "method",
+        "files",
+        "plaintextBytes",
+        "contentSha256",
+        "verification"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "stateIds": {"$ref": "#/$defs/stateIds"},
+        "method": {
+          "enum": [
+            "sqlite-online-backup",
+            "stopped-writer-snapshot",
+            "atomic-restricted-copy",
+            "immutable-file-snapshot"
+          ]
+        },
+        "files": {"type": "integer", "minimum": 1},
+        "plaintextBytes": {"type": "integer", "minimum": 1},
+        "contentSha256": {"$ref": "#/$defs/sha256"},
+        "verification": {
+          "enum": [
+            "sqlite-quick-check",
+            "exact-file-inventory",
+            "archive-round-trip",
+            "state-native-and-archive"
+          ]
+        }
+      }
+    }
+  }
+}

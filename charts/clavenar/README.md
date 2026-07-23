@@ -126,7 +126,43 @@ recovery, and runtime behavior in the target cluster.
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
 | State durability | Vault loses state on pod restart (re-bootstrapped) | Whatever your external Vault does |
+| Scheduled backup | Disabled; no backup claim | Required operator-owned five-minute application-consistent capture with external repository credentials and sanitized receipt |
 | Deployment profile | `evaluation` | Explicit `production` fail-closed render gate |
+
+### Scheduled encrypted backup contract
+
+The chart packages the exact public
+`clavenar.backup-set-manifest/v1` schema and fixture in the immutable
+`<release>-scheduled-backup` ConfigMap. Its generated Helm plan partitions all
+20 state classes into captured, separate-custody, reconstructible, and
+signed-source sets. Current workload and simulator private identities are
+excluded and must be reissued.
+
+Helm does not embed an object-store credential or pretend one generic CronJob
+can snapshot arbitrary CSI, external NATS, and external Vault backends
+consistently. Production requires `scheduledBackup.enabled=true`, a named
+operator, the exact five-minute schedule, a credential Secret owned outside
+this chart, and a different Secret containing the sanitized live receipt:
+
+```yaml
+scheduledBackup:
+  enabled: true
+  operator: platform-backup-controller
+  schedule: "*/5 * * * *"
+  maximumAgeSeconds: 420
+  repositorySecretName: clavenar-backup-repository
+  receiptSecretName: clavenar-backup-receipt
+  encryptionFormat: restic-repository-v2
+  offsiteClass: content-addressed-or-versioned
+```
+
+The operator must use SQLite online backup plus `quick_check`, a native or
+bounded stopped-writer snapshot for broker/Vault state, exact restricted-file
+allowlists, authenticated encryption before upload, a digest-qualified or
+versioned offsite object, and remote verification. The receipt Secret contains
+only the sanitized manifest, never repository credentials or protected state.
+This boundary does not assert isolated restoration, disaster recovery, or
+upgrade rollback.
 
 ### Authentication Secrets
 

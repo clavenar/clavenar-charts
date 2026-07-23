@@ -21,14 +21,14 @@
       "required": ["status", "scope", "doesNotAssert"],
       "properties": {
         "status": {"const": "approved"},
-        "scope": {"const": "requirements-and-inventory-only"},
+        "scope": {"const": "inventory-and-scheduled-backup"},
         "doesNotAssert": {
           "type": "array",
-          "minItems": 4,
+          "minItems": 3,
+          "maxItems": 3,
           "items": {
             "type": "string",
             "enum": [
-              "scheduled-backup",
               "isolated-restore",
               "disaster-recovery",
               "upgrade-safety"
@@ -237,7 +237,8 @@
           "enum": [
             "available-signed-source",
             "not-applicable-reconstructible",
-            "pending-wp-10.5"
+            "scheduled-backup-available",
+            "separate-custody-available"
           ]
         },
         "restoreProofStatus": {

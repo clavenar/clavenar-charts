@@ -1,0 +1,92 @@
+{{- $backup := .Values.scheduledBackup -}}
+{{- if and (eq .Values.deploymentProfile "production") (not $backup.enabled) -}}
+{{- fail "production requires scheduledBackup.enabled=true and an external application-consistent backup operator" -}}
+{{- end -}}
+{{- if $backup.enabled -}}
+{{- if not $backup.operator -}}
+{{- fail "scheduledBackup.operator is required when scheduled backup is enabled" -}}
+{{- end -}}
+{{- if not $backup.repositorySecretName -}}
+{{- fail "scheduledBackup.repositorySecretName is required; provider credentials must remain in an external Secret" -}}
+{{- end -}}
+{{- if not $backup.receiptSecretName -}}
+{{- fail "scheduledBackup.receiptSecretName is required for the sanitized live receipt" -}}
+{{- end -}}
+{{- if eq $backup.repositorySecretName $backup.receiptSecretName -}}
+{{- fail "scheduled backup repository credentials and sanitized receipt must use different Secrets" -}}
+{{- end -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-scheduled-backup
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "scheduled-backup") | nindent 4 }}
+  annotations:
+    clavenar.com/backup-contract: clavenar.backup-set-manifest/v1
+    clavenar.com/backup-operator: {{ $backup.operator | default "disabled" | quote }}
+immutable: true
+data:
+  backup-set-manifest-v1.schema.json: |
+{{ .Files.Get "files/backup-set-manifest-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  backup-set-manifest-v1.fixture.json: |
+{{ .Files.Get "files/backup-set-manifest-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
+  helm-scheduled-backup-plan.json: |
+    {
+      "schemaVersion": 1,
+      "contract": "clavenar.helm-scheduled-backup-plan/v1",
+      "enabled": {{ $backup.enabled }},
+      "operator": {{ $backup.operator | quote }},
+      "schedule": {{ $backup.schedule | quote }},
+      "maximumAgeSeconds": {{ $backup.maximumAgeSeconds }},
+      "encryptionFormat": {{ $backup.encryptionFormat | quote }},
+      "offsiteClass": {{ $backup.offsiteClass | quote }},
+      "repositoryCredential": {
+        "source": "external-secret",
+        "name": {{ $backup.repositorySecretName | quote }}
+      },
+      "receipt": {
+        "contract": "clavenar.backup-set-manifest/v1",
+        "source": "external-secret",
+        "name": {{ $backup.receiptSecretName | quote }}
+      },
+      "coverage": {
+        "capturedStateIds": [
+          "application-secrets",
+          "attestation-authority",
+          "broker-jetstream",
+          "caddy-acme-state",
+          "hil-decisions",
+          "identity-authority",
+          "ledger-evidence",
+          "observability-state",
+          "policy-governance",
+          "proxy-execution",
+          "vault-key-metadata",
+          "vault-recovery-material",
+          "workload-pki-authority",
+          "workload-trust-history"
+        ],
+        "externalCustodyStateIds": ["operator-private-custody"],
+        "reconstructibleStateIds": [
+          "simulator-agent-identities",
+          "workload-current-identities"
+        ],
+        "signedSourceStateIds": [
+          "operator-public-trust",
+          "release-configuration",
+          "tsa-trust"
+        ]
+      },
+      "consistency": {
+        "sqlite": "online-backup-and-quick-check",
+        "brokerAndVault": "operator-native-or-bounded-stopped-writer-snapshot",
+        "restrictedMaterial": "exact-allowlist",
+        "currentWorkloadPrivateKeys": "excluded-and-reissued"
+      },
+      "doesNotAssert": [
+        "isolated-restore",
+        "disaster-recovery",
+        "upgrade-safety"
+      ]
+    }

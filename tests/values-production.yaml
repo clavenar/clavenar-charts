@@ -4,6 +4,16 @@
 # distinct from both the Helm release and Prometheus namespaces.
 deploymentProfile: production
 
+scheduledBackup:
+  enabled: true
+  operator: platform-backup-controller
+  schedule: "*/5 * * * *"
+  maximumAgeSeconds: 420
+  repositorySecretName: clavenar-backup-repository
+  receiptSecretName: clavenar-backup-receipt
+  encryptionFormat: restic-repository-v2
+  offsiteClass: content-addressed-or-versioned
+
 ledgerCryptographicVerification:
   enabled: true
   tsaRequired: true
