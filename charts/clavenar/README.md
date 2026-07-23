@@ -94,6 +94,8 @@ boundaries are present together:
   mock and never inherits it into production;
 - NetworkPolicy is enabled;
 - an existing workload-TLS Secret is selected and auto-mint is disabled;
+- ledger historical-key verification is enabled and RFC 3161 proofs are
+  required against the immutable public TSA trust projection;
 - console operator mTLS uses a distinct public operator-trust Secret;
 - ledger requires the exact `spiffe://clavenar.local/service/website` caller;
 - exactly one positive website workload selector reaches ledger mTLS `:8183`
@@ -457,6 +459,12 @@ The top-level shape is:
 
 ```yaml
 deploymentProfile: evaluation             # evaluation | production
+
+ledgerCryptographicVerification:
+  enabled: true                            # requires workload TLS to activate
+  tsaRequired: false                       # production requires true
+  tsaUrl: https://freetsa.org/tsr          # RFC 3161 submission endpoint
+  anchorIntervalSeconds: 3600
 
 imageRegistry: ghcr.io/clavenar   # global registry override
 imageTag: ""                             # global tag override → falls back to appVersion

@@ -1,0 +1,13 @@
+{{- if and .Values.ledgerCryptographicVerification.enabled (not (empty .Values.tlsBundle.secretName)) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-tsa-trust
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "ledger") | nindent 4 }}
+data:
+  freetsa-ca.pem: |
+{{ .Files.Get "files/tsa/freetsa-ca.pem" | indent 4 }}
+  freetsa-tsa.crt: |
+{{ .Files.Get "files/tsa/freetsa-tsa.crt" | indent 4 }}
+{{- end }}

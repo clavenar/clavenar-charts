@@ -22,6 +22,7 @@ inside the range is the iterated value.
 {{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
 {{- $mountsVaultToken := and (not (empty $vaultTokenSecret)) (has $name (list "proxy" "identity")) }}
+{{- $mountsTsaTrust := and (eq $name "ledger") (not (empty $.Values.tlsBundle.secretName)) $.Values.ledgerCryptographicVerification.enabled }}
 {{- $vaultTokenKey := ternary $.Values.vault.proxyTokenKey $.Values.vault.identityTokenKey (eq $name "proxy") }}
 {{- $mountsCert := $.Values.tlsBundle.secretName }}
 {{- $managedWorkloadIdentity := and (not (empty $.Values.tlsBundle.secretName)) $.Values.workloadIdentity.enabled (has $name (list "proxy" "brain" "policyEngine" "ledger" "hil" "identity" "console")) }}
@@ -77,6 +78,10 @@ spec:
         {{- if $mountsControlState }}
         checksum/distributed-control-state: {{ $.Files.Get "files/distributed-control-state-v1.fixture.json" | sha256sum }}
         checksum/distributed-control-resilience: {{ $.Files.Get "files/distributed-control-resilience-v1.fixture.json" | sha256sum }}
+        {{- end }}
+        {{- if $mountsTsaTrust }}
+        checksum/tsa-ca: {{ $.Files.Get "files/tsa/freetsa-ca.pem" | sha256sum }}
+        checksum/tsa-signer: {{ $.Files.Get "files/tsa/freetsa-tsa.crt" | sha256sum }}
         {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" $ }}
@@ -279,7 +284,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -334,11 +339,16 @@ spec:
               subPath: vault-token
               readOnly: true
             {{- end }}
+            {{- if $mountsTsaTrust }}
+            - name: tsa-trust
+              mountPath: /etc/clavenar/tsa
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -468,6 +478,16 @@ spec:
             items:
               - key: {{ $vaultTokenKey }}
                 path: vault-token
+        {{- end }}
+        {{- if $mountsTsaTrust }}
+        - name: tsa-trust
+          configMap:
+            name: {{ include "clavenar.fullname" $ }}-tsa-trust
+            items:
+              - key: freetsa-ca.pem
+                path: freetsa-ca.pem
+              - key: freetsa-tsa.crt
+                path: freetsa-tsa.crt
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

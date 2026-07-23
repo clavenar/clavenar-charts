@@ -8,6 +8,24 @@
       "type": "string",
       "enum": ["evaluation", "production"]
     },
+    "ledgerCryptographicVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "tsaRequired", "tsaUrl", "anchorIntervalSeconds"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "tsaRequired": { "type": "boolean" },
+        "tsaUrl": {
+          "type": "string",
+          "pattern": "^https://[^\\s]+$"
+        },
+        "anchorIntervalSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        }
+      }
+    },
     "authSecrets": {
       "type": "object",
       "additionalProperties": false,
@@ -399,6 +417,14 @@
                         "CLAVENAR_LEDGER_MTLS_ADDR",
                         "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE",
                         "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY",
+                        "CLAVENAR_LEDGER_CRYPTOGRAPHIC_VERIFICATION_REQUIRED",
+                        "CLAVENAR_LEDGER_TSA_REQUIRED",
+                        "CLAVENAR_LEDGER_TSA_CA_FILE",
+                        "CLAVENAR_LEDGER_TSA_SIGNER_CERT_FILE",
+                        "CLAVENAR_LEDGER_ANCHOR_INTERVAL_SECS",
+                        "CLAVENAR_LEDGER_ANCHOR_TSA_URL",
+                        "CLAVENAR_IDENTITY_URL",
+                        "CLAVENAR_LEDGER_SPIFFE",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH"
@@ -886,6 +912,13 @@
             },
             "required": ["secretName", "autoMint"]
           },
+          "ledgerCryptographicVerification": {
+            "properties": {
+              "enabled": { "const": true },
+              "tsaRequired": { "const": true }
+            },
+            "required": ["enabled", "tsaRequired", "tsaUrl", "anchorIntervalSeconds"]
+          },
           "services": {
             "properties": {
               "ledger": {
@@ -942,7 +975,13 @@
             "required": ["enabled", "ledger"]
           }
         },
-        "required": ["authSecrets", "tlsBundle", "services", "networkPolicy"]
+        "required": [
+          "authSecrets",
+          "tlsBundle",
+          "ledgerCryptographicVerification",
+          "services",
+          "networkPolicy"
+        ]
       }
     },
     {

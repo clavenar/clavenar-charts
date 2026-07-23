@@ -9,6 +9,18 @@
 # workload over its mTLS listener. See tests/values-production.yaml.
 deploymentProfile: evaluation
 
+# Historical signing-key and RFC 3161 verification for Ledger. It activates
+# when workload TLS is configured: Ledger fetches the complete bounded-fresh
+# signing-key lineage from Identity over exact workload mTLS and re-verifies
+# stored timestamp responses against the pinned public trust files packaged by
+# this chart. Evaluation records TSA evidence without making it a hard
+# availability dependency; production validation requires tsaRequired=true.
+ledgerCryptographicVerification:
+  enabled: true
+  tsaRequired: false
+  tsaUrl: https://freetsa.org/tsr
+  anchorIntervalSeconds: 3600
+
 # Tag fallback chain: services.<svc>.image.tag → imageTag → appVersion.
 imageRegistry: ghcr.io/clavenar
 imageTag: ""

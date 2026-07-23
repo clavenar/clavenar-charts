@@ -4,6 +4,10 @@
 # distinct from both the Helm release and Prometheus namespaces.
 deploymentProfile: production
 
+ledgerCryptographicVerification:
+  enabled: true
+  tsaRequired: true
+
 authSecrets:
   existingSecretName: clavenar-runtime-auth
   rotationId: prod-20260715-01

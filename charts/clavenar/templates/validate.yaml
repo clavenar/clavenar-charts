@@ -85,6 +85,7 @@
 {{- $requireTrustedProxy := $ledger.requireTrustedProxy }}
 {{- $trustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
 {{- $canonicalTrustedProxy := "spiffe://clavenar.local/service/website" }}
+{{- $ledgerCrypto := .Values.ledgerCryptographicVerification }}
 {{- if ne (int $ledger.port) 8083 }}
 {{- fail "services.ledger.port is governed and must remain 8083" }}
 {{- end }}
@@ -102,6 +103,12 @@
 {{- end }}
 {{- if and $requireTrustedProxy (empty .Values.tlsBundle.secretName) }}
 {{- fail "services.ledger.requireTrustedProxy=true requires external workload TLS through tlsBundle.secretName" }}
+{{- end }}
+{{- if and $ledgerCrypto.enabled (empty .Values.tlsBundle.secretName) (eq $deploymentProfile "production") }}
+{{- fail "deploymentProfile=production requires workload TLS for ledgerCryptographicVerification.enabled=true" }}
+{{- end }}
+{{- if and $ledgerCrypto.enabled (not .Values.workloadIdentity.enabled) }}
+{{- fail "ledgerCryptographicVerification.enabled=true requires workloadIdentity.enabled=true" }}
 {{- end }}
 {{- if and (not (empty $trustedProxyPeers)) (not $requireTrustedProxy) }}
 {{- fail "networkPolicy.ledger.trustedProxy.allowedPeers requires services.ledger.requireTrustedProxy=true" }}
@@ -160,6 +167,12 @@
 {{- end }}
 {{- if not $ledger.enabled }}
 {{- fail "deploymentProfile=production requires services.ledger.enabled=true" }}
+{{- end }}
+{{- if not $ledgerCrypto.enabled }}
+{{- fail "deploymentProfile=production requires ledgerCryptographicVerification.enabled=true" }}
+{{- end }}
+{{- if not $ledgerCrypto.tsaRequired }}
+{{- fail "deploymentProfile=production requires ledgerCryptographicVerification.tsaRequired=true" }}
 {{- end }}
 {{- if not $requireTrustedProxy }}
 {{- fail "deploymentProfile=production requires services.ledger.requireTrustedProxy=true" }}

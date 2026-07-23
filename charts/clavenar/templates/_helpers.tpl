@@ -253,6 +253,14 @@ per environment variable.
         "CLAVENAR_LEDGER_MTLS_ADDR"
         "CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"
         "CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE"
+        "CLAVENAR_LEDGER_CRYPTOGRAPHIC_VERIFICATION_REQUIRED"
+        "CLAVENAR_LEDGER_TSA_REQUIRED"
+        "CLAVENAR_LEDGER_TSA_CA_FILE"
+        "CLAVENAR_LEDGER_TSA_SIGNER_CERT_FILE"
+        "CLAVENAR_LEDGER_ANCHOR_INTERVAL_SECS"
+        "CLAVENAR_LEDGER_ANCHOR_TSA_URL"
+        "CLAVENAR_IDENTITY_URL"
+        "CLAVENAR_LEDGER_SPIFFE"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH")
@@ -637,6 +645,27 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ $mount | quote }}
 - name: CLAVENAR_LEDGER_MTLS_ADDR
   value: "0.0.0.0:8183"
+{{- if .ctx.Values.ledgerCryptographicVerification.enabled }}
+# The verifier uses Ledger's hot-reloaded caller SVID to fetch the exact
+# bounded-fresh historical key lineage from Identity. Timestamp proofs are
+# independently verified against the pinned chart trust projection.
+- name: CLAVENAR_LEDGER_CRYPTOGRAPHIC_VERIFICATION_REQUIRED
+  value: "true"
+- name: CLAVENAR_LEDGER_TSA_REQUIRED
+  value: {{ ternary "true" "false" .ctx.Values.ledgerCryptographicVerification.tsaRequired | quote }}
+- name: CLAVENAR_LEDGER_TSA_CA_FILE
+  value: "/etc/clavenar/tsa/freetsa-ca.pem"
+- name: CLAVENAR_LEDGER_TSA_SIGNER_CERT_FILE
+  value: "/etc/clavenar/tsa/freetsa-tsa.crt"
+- name: CLAVENAR_LEDGER_ANCHOR_INTERVAL_SECS
+  value: {{ .ctx.Values.ledgerCryptographicVerification.anchorIntervalSeconds | quote }}
+- name: CLAVENAR_LEDGER_ANCHOR_TSA_URL
+  value: {{ .ctx.Values.ledgerCryptographicVerification.tsaUrl | quote }}
+- name: CLAVENAR_IDENTITY_URL
+  value: "https://{{ $rel }}-identity:8186"
+- name: CLAVENAR_LEDGER_SPIFFE
+  value: "spiffe://{{ .ctx.Values.tlsBundle.spiffeTrustDomain }}/service/ledger"
+{{- end }}
 {{- end }}
 {{- end }}
 {{- if eq $name "console" }}
