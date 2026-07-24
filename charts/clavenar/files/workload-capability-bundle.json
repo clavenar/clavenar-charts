@@ -3,7 +3,7 @@
   "contractVersion": "1.7.0",
   "feature": "WP-02.9",
   "listenerMatrixSha256": "sha256:3b61080eb6f711d9b183c1348504360ae990e9dfca7f3fb16f043805a7770332",
-  "matrixSha256": "sha256:e0bc46ab9b5a42cdd032da7be52a5367a7ec0a16a90673be1fa4d81ec3187da0",
+  "matrixSha256": "sha256:51ea1568c261b9035784c1714b8198cdc684f6d32218557cf976049e6efdf613",
   "schemaVersion": 1,
   "services": {
     "hil": {
