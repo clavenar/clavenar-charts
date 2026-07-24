@@ -34,6 +34,9 @@ spec:
     metadata:
       labels:
         {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
+      annotations:
+        checksum/dependency-readiness-schema: {{ .Files.Get "files/dependency-readiness-v1.schema.json" | sha256sum }}
+        checksum/dependency-readiness-fixture: {{ .Files.Get "files/dependency-readiness-v1.fixture.json" | sha256sum }}
     spec:
       terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" . }}
       {{- with .Values.imagePullSecrets }}
@@ -69,7 +72,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /health
+              path: /readyz
               port: {{ .Values.upstreamStub.port }}
             initialDelaySeconds: 2
             periodSeconds: 5

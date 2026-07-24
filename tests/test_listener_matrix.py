@@ -57,7 +57,14 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_BRAIN_URL",
         "CLAVENAR_POLICY_URL",
         "CLAVENAR_HIL_URL",
+        "CLAVENAR_LEDGER_URL",
         "CLAVENAR_IDENTITY_URL",
+        "CLAVENAR_BRAIN_READINESS_URL",
+        "CLAVENAR_POLICY_READINESS_URL",
+        "CLAVENAR_HIL_READINESS_URL",
+        "CLAVENAR_LEDGER_READINESS_URL",
+        "CLAVENAR_IDENTITY_READINESS_URL",
+        "CLAVENAR_UPSTREAM_READINESS_URL",
         "CLAVENAR_PROXY_GRANT_JWKS_URL",
         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS",
         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS",
@@ -137,6 +144,7 @@ GOVERNED_ENV_BY_SERVICE = {
     },
     "assurance": COMMON_GOVERNED_ENV | NATS_TLS_ENV | {
         "CLAVENAR_ASSURANCE_PROXY_URL",
+        "CLAVENAR_ASSURANCE_PROXY_READINESS_URL",
         "CLAVENAR_ASSURANCE_NATS_URL",
         "CLAVENAR_ASSURANCE_ADMIN_PORT",
         "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT",
@@ -164,11 +172,18 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_CONSOLE_RELEASE_VERSION",
         "CLAVENAR_CONSOLE_MUTATION_ORIGINS",
         "CLAVENAR_CONSOLE_BRAIN_URL",
+        "CLAVENAR_CONSOLE_BRAIN_READINESS_URL",
         "CLAVENAR_CONSOLE_LEDGER_URL",
+        "CLAVENAR_CONSOLE_LEDGER_READINESS_URL",
         "CLAVENAR_CONSOLE_HIL_URL",
+        "CLAVENAR_CONSOLE_HIL_READINESS_URL",
         "CLAVENAR_CONSOLE_POLICY_ENGINE_URL",
+        "CLAVENAR_CONSOLE_POLICY_READINESS_URL",
         "CLAVENAR_CONSOLE_IDENTITY_URL",
+        "CLAVENAR_CONSOLE_IDENTITY_READINESS_URL",
         "CLAVENAR_ASSURANCE_URL",
+        "CLAVENAR_CONSOLE_ASSURANCE_READINESS_URL",
+        "CLAVENAR_CONSOLE_SIMULATOR_READINESS_URL",
         "CLAVENAR_CONSOLE_TLS_DIR",
         "CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH",
         "CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH",
@@ -709,6 +724,7 @@ class ListenerMatrixTest(unittest.TestCase):
 
     def test_brain_auxiliary_routes_render_exact_mtls_callers_and_limits(self):
         expected_aux_env = {
+            "CLAVENAR_BRAIN_HEALTH_ADDR": "0.0.0.0:9081",
             "CLAVENAR_BRAIN_REQUIRE_AUX_CONTROLS": "true",
             "CLAVENAR_BRAIN_EXPLAIN_CALLER_SPIFFE": (
                 "spiffe://clavenar.local/service/policy-engine"
@@ -741,7 +757,7 @@ class ListenerMatrixTest(unittest.TestCase):
                     {name: env[name] for name in expected_aux_env},
                 )
                 self.assertEqual(
-                    {"http": 8081, **({"health": 9081} if tls_enabled else {})},
+                    {"http": 8081, "health": 9081},
                     {
                         port["name"]: port["containerPort"]
                         for port in container["ports"]
@@ -756,7 +772,7 @@ class ListenerMatrixTest(unittest.TestCase):
                     self.assertEqual("0.0.0.0:9081", env["CLAVENAR_BRAIN_HEALTH_ADDR"])
                 else:
                     self.assertNotIn("CLAVENAR_BRAIN_ALLOWED_CALLERS", env)
-                    self.assertNotIn("CLAVENAR_BRAIN_HEALTH_ADDR", env)
+                    self.assertEqual("0.0.0.0:9081", env["CLAVENAR_BRAIN_HEALTH_ADDR"])
 
                 policy = next(
                     doc for doc in self.rendered[profile]
@@ -819,9 +835,12 @@ class ListenerMatrixTest(unittest.TestCase):
             {"/", "/health", "/readyz", "/metrics"},
             set(health["ingressPaths"]),
         )
-        self.assertEqual(["kubelet", "prometheus"], health["authorizedCallers"])
-        self.assertEqual(["prometheus"], health["allowedPeers"])
-        self.assertFalse(health["servicePublished"])
+        self.assertEqual(
+            ["proxy", "console", "kubelet", "prometheus"],
+            health["authorizedCallers"],
+        )
+        self.assertEqual(["proxy", "console", "prometheus"], health["allowedPeers"])
+        self.assertTrue(health["servicePublished"])
         self.assertEqual("forbidden", health["hostPublication"])
 
         default_policy = next(
@@ -829,7 +848,10 @@ class ListenerMatrixTest(unittest.TestCase):
             if doc.get("kind") == "NetworkPolicy"
             and doc["metadata"]["name"] == "smoke-brain"
         )
-        self.assertEqual([8081], [rule["ports"][0]["port"] for rule in default_policy["spec"]["ingress"]])
+        self.assertEqual(
+            [8081, 9081],
+            [rule["ports"][0]["port"] for rule in default_policy["spec"]["ingress"]],
+        )
         self.assertEqual(
             {"proxy", "policy-engine", "console"},
             {
@@ -894,13 +916,22 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertNotIn("CLAVENAR_CONSOLE_DEMO_ADDR", default_env)
         self.assertNotIn("CLAVENAR_HIL_DECIDE_TOKEN", default_env)
         self.assertEqual(
-            [{
-                "port": 8085,
-                "targetPort": "demo",
-                "protocol": "TCP",
-                "appProtocol": "http",
-                "name": "demo",
-            }],
+            [
+                {
+                    "port": 8085,
+                    "targetPort": "demo",
+                    "protocol": "TCP",
+                    "appProtocol": "http",
+                    "name": "demo",
+                },
+                {
+                    "port": 9185,
+                    "targetPort": "diagnostics",
+                    "protocol": "TCP",
+                    "appProtocol": "http",
+                    "name": "diagnostics",
+                },
+            ],
             resource("default", "Service")["spec"]["ports"],
         )
         self.assertEqual([], resource("default", "NetworkPolicy")["spec"]["ingress"])
@@ -1021,13 +1052,22 @@ class ListenerMatrixTest(unittest.TestCase):
                     container["readinessProbe"]["httpGet"],
                 )
                 self.assertEqual(
-                    [{
-                        "port": 8088,
-                        "targetPort": "control-mtls",
-                        "protocol": "TCP",
-                        "appProtocol": "https",
-                        "name": "control-mtls",
-                    }],
+                    [
+                        {
+                            "port": 8088,
+                            "targetPort": "control-mtls",
+                            "protocol": "TCP",
+                            "appProtocol": "https",
+                            "name": "control-mtls",
+                        },
+                        {
+                            "port": 9088,
+                            "targetPort": "diagnostics",
+                            "protocol": "TCP",
+                            "appProtocol": "http",
+                            "name": "diagnostics",
+                        },
+                    ],
                     resource(profile, "Service")["spec"]["ports"],
                 )
 

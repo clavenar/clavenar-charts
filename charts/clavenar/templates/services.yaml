@@ -29,6 +29,8 @@ inside the range is the iterated value.
 {{- $mountsOperatorTrust := $operatorMtls }}
 {{- $extraVolumeMounts := default (list) $cfg.extraVolumeMounts }}
 {{- $extraVolumes := default (list) $cfg.extraVolumes }}
+{{- $readinessTargets := include "clavenar.readinessTargets" (dict "ctx" $ "service" $name) | trim }}
+{{- $hasReadinessGate := not (empty $readinessTargets) }}
 {{- include "clavenar.validateAuthExtraEnv" (dict "service" $name "svcCfg" $cfg) }}
 {{- include "clavenar.validateGovernedExtraEnv" (dict "ctx" $ "service" $name "svcCfg" $cfg) }}
 {{- /* SQLite on a shared PVC corrupts under concurrent writers, so a
@@ -61,6 +63,8 @@ spec:
         # Roll every credential consumer only when the operator advances the
         # public generation after updating the referenced Secret.
         clavenar.io/auth-rotation-id: {{ required "authSecrets.rotationId is required" $.Values.authSecrets.rotationId | quote }}
+        checksum/dependency-readiness-schema: {{ $.Files.Get "files/dependency-readiness-v1.schema.json" | sha256sum }}
+        checksum/dependency-readiness-fixture: {{ $.Files.Get "files/dependency-readiness-v1.fixture.json" | sha256sum }}
         {{- include "clavenar.metricsAnnotations" (dict "ctx" $ "svcCfg" $cfg) | trim | nindent 8 }}
         {{- if and $mountsCert $.Values.tlsBundle.autoMint }}
         # The rotation hook temporarily advances this annotation through
@@ -93,8 +97,34 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- if $mountsCert }}
+      {{- if or $mountsCert $hasReadinessGate }}
       initContainers:
+        {{- if $hasReadinessGate }}
+        - name: dependency-readiness-gate
+          image: "{{ $.Values.tlsBundle.projectorImage.repository }}:{{ $.Values.tlsBundle.projectorImage.tag }}"
+          imagePullPolicy: {{ $.Values.tlsBundle.projectorImage.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eu
+              for target in{{ range $target := splitList "\n" $readinessTargets }} {{ $target | quote }}{{ end }}; do
+                attempt=1
+                until wget -q -T 2 -O /dev/null "$target"; do
+                  if [ "$attempt" -ge 30 ]; then
+                    echo "dependency readiness deadline exceeded" >&2
+                    exit 1
+                  fi
+                  attempt=$((attempt + 1))
+                  sleep 2
+                done
+              done
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+        {{- end }}
+        {{- if $mountsCert }}
         - name: workload-tls-projector
           image: "{{ $.Values.tlsBundle.projectorImage.repository }}:{{ $.Values.tlsBundle.projectorImage.tag }}"
           imagePullPolicy: {{ $.Values.tlsBundle.projectorImage.pullPolicy }}
@@ -142,6 +172,7 @@ spec:
             - name: workload-svid-state
               mountPath: /state-root
         {{- end }}
+        {{- end }}
       {{- end }}
       containers:
         - name: {{ $name | kebabcase }}
@@ -177,7 +208,7 @@ spec:
             - name: http
               containerPort: {{ $cfg.port }}
               protocol: TCP
-            {{- if and $cfg.healthPort (ne (int $cfg.healthPort) (int $cfg.port)) (or (eq $name "proxy") $.Values.tlsBundle.secretName) }}
+            {{- if and $cfg.healthPort (ne (int $cfg.healthPort) (int $cfg.port)) }}
             - name: health
               containerPort: {{ $cfg.healthPort }}
               protocol: TCP
@@ -529,17 +560,34 @@ spec:
       appProtocol: http
       name: demo
     {{- end }}
+    - port: {{ $cfg.diagnosticsPort }}
+      targetPort: diagnostics
+      protocol: TCP
+      appProtocol: http
+      name: diagnostics
     {{- else if eq $name "assurance" }}
     - port: {{ $cfg.port }}
       targetPort: control-mtls
       protocol: TCP
       appProtocol: https
       name: control-mtls
+    - port: {{ $cfg.healthPort }}
+      targetPort: diagnostics
+      protocol: TCP
+      appProtocol: http
+      name: diagnostics
     {{- else }}
     - port: {{ $cfg.port }}
       targetPort: http
       protocol: TCP
       name: http
+    {{- if and $cfg.healthPort (ne (int $cfg.healthPort) (int $cfg.port)) }}
+    - port: {{ $cfg.healthPort }}
+      targetPort: health
+      protocol: TCP
+      appProtocol: http
+      name: health
+    {{- end }}
     {{- if and $cfg.mtlsPort $.Values.tlsBundle.secretName }}
     # Dual-port surface: console / proxy / deep-review reach the
     # internal SPIFFE-gated subset here. Kept off when no TLS bundle

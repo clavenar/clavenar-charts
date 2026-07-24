@@ -15,6 +15,7 @@ This is a Helm/YAML chart — no compiled code. The CI matrix
 cd charts/clavenar
 helm dep update .                          # materialize nats + vault subchart tarballs (gitignored)
 helm lint .
+python3 ../../scripts/check_dependency_readiness.py --source-root ../../.. --require-source
 
 # render across the six value sets CI checks, then kubeconform each:
 helm template smoke . > /tmp/default.yaml                                          # default
@@ -55,6 +56,7 @@ charts/clavenar/
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
     services.yaml       # the 9 Deployments + Services
     configmap.yaml workload-capability-bundle.yaml attestation-verifier-contract.yaml
+    dependency-readiness-contract.yaml
     shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
@@ -113,6 +115,12 @@ upstream-stub 9000 · exec 9001.
   `/readyz`, and `/metrics`. Policy-engine and console dial HTTPS `:8081`, and
   `CLAVENAR_BRAIN_ALLOWED_CALLERS` remains the inspect/scan prefix boundary —
   do not add policy-engine merely to make explain work.
+- **Public readiness owns startup ordering.** The byte-identical
+  `dependency-readiness-v1` contract drives distinct `/health` liveness and
+  `/readyz` readiness probes, bounded 2-second/30-attempt init gates, runtime
+  dependency URLs, internal diagnostics Service ports, and exact
+  NetworkPolicy callers. Update the contract mirror and verifier together;
+  never replace readiness with process-only or TCP-only gating.
 - **Bundled-NATS + tlsBundle coupling:** if `tlsBundle.secretName` is set you
   must also enable TLS on the bundled NATS subchart — the `clavenar.natsUrl`
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =

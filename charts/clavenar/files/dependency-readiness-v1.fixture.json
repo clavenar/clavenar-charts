@@ -1,0 +1,275 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.dependency-readiness/v1",
+  "response": {
+    "readyStatus": "ready",
+    "notReadyStatus": "not_ready",
+    "checkValues": ["ok", "fail", "skipped"],
+    "sanitized": true
+  },
+  "limits": {
+    "probeTimeoutMillis": 2000,
+    "responseMaxBytes": 4096,
+    "startupFailureThreshold": 30,
+    "externalProviderProbe": "configuration-only"
+  },
+  "services": [
+    {
+      "id": "nats",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:8222/healthz"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:8222/healthz?js-enabled-only=true"},
+      "checks": ["server", "jetstream"],
+      "startupAfter": [],
+      "failureMode": "command-nonzero",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "vault",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "process", "target": "vault-server"},
+      "readiness": {"type": "command", "target": "vault status -address=http://127.0.0.1:8200"},
+      "checks": ["active", "unsealed"],
+      "startupAfter": [],
+      "failureMode": "command-nonzero",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "vault-custodian",
+      "topologies": ["compose"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "process", "target": "vault-custodian"},
+      "readiness": {"type": "command", "target": "test -f /tmp/vault-custody-ready"},
+      "checks": ["custody", "policies", "transit"],
+      "startupAfter": [
+        {"service": "vault", "topologies": ["compose"]}
+      ],
+      "failureMode": "command-nonzero",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "bootstrap",
+      "topologies": ["compose"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "completion", "target": "exit=0"},
+      "readiness": {"type": "completion", "target": "exit=0"},
+      "checks": ["secrets"],
+      "startupAfter": [
+        {"service": "vault-custodian", "topologies": ["compose"]}
+      ],
+      "failureMode": "completion-nonzero",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "upstream-stub",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9000/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9000/readyz"},
+      "checks": ["router"],
+      "startupAfter": [],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "identity",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:8086/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:8086/readyz"},
+      "checks": ["storage", "nats", "vault", "ca", "oidc", "control_sync", "outbox_worker", "workload_identity", "attestation_k8s_key_bound", "attestation_signed_measurement_registry"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]},
+        {"service": "vault", "topologies": ["compose", "helm"]},
+        {"service": "bootstrap", "topologies": ["compose"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "brain",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9081/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9081/readyz"},
+      "checks": ["providers", "workload_identity"],
+      "startupAfter": [
+        {"service": "identity", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "configuration-only"
+    },
+    {
+      "id": "policy-engine",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9082/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9082/readyz"},
+      "checks": ["storage", "nats", "outbox_worker", "workload_identity"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]},
+        {"service": "identity", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "ledger",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:8083/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:8083/readyz"},
+      "checks": ["storage", "nats", "forensic_consumer", "workload_identity", "identity_signing"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]},
+        {"service": "identity", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "hil",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9084/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9084/readyz"},
+      "checks": ["storage", "nats", "sweeper", "workload_identity"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]},
+        {"service": "identity", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "deep-review",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:8087/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:8087/readyz"},
+      "checks": ["nats", "consumer", "provider"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "configuration-only"
+    },
+    {
+      "id": "proxy",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:8080/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:8080/readyz"},
+      "checks": ["nats", "control_sync", "workload_identity", "brain", "policy_engine", "hil", "ledger", "identity", "upstream"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]},
+        {"service": "vault", "topologies": ["compose", "helm"]},
+        {"service": "brain", "topologies": ["compose", "helm"]},
+        {"service": "policy-engine", "topologies": ["compose", "helm"]},
+        {"service": "hil", "topologies": ["compose", "helm"]},
+        {"service": "ledger", "topologies": ["compose", "helm"]},
+        {"service": "identity", "topologies": ["compose", "helm"]},
+        {"service": "upstream-stub", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "assurance",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9088/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9088/readyz"},
+      "checks": ["nats", "proxy", "scheduler"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose", "helm"]},
+        {"service": "proxy", "topologies": ["compose", "helm"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "console",
+      "topologies": ["compose", "helm"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9185/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9185/readyz"},
+      "checks": ["workload_identity", "operator_trust", "ledger", "hil", "policy_engine", "identity", "brain", "assurance", "simulator"],
+      "startupAfter": [
+        {"service": "brain", "topologies": ["compose", "helm"]},
+        {"service": "policy-engine", "topologies": ["compose", "helm"]},
+        {"service": "ledger", "topologies": ["compose", "helm"]},
+        {"service": "hil", "topologies": ["compose", "helm"]},
+        {"service": "identity", "topologies": ["compose", "helm"]},
+        {"service": "assurance", "topologies": ["compose", "helm"]},
+        {"service": "simulator", "topologies": ["compose"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "demo-mint",
+      "topologies": ["compose"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9200/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9200/readyz"},
+      "checks": ["nats", "secrets", "providers"],
+      "startupAfter": [
+        {"service": "nats", "topologies": ["compose"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "configuration-only"
+    },
+    {
+      "id": "simulator",
+      "topologies": ["compose"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1:9200/health"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1:9200/readyz"},
+      "checks": ["workload_identity", "vault", "identity", "proxy", "hil", "upstream", "workers"],
+      "startupAfter": [
+        {"service": "vault", "topologies": ["compose"]},
+        {"service": "identity", "topologies": ["compose"]},
+        {"service": "proxy", "topologies": ["compose"]},
+        {"service": "hil", "topologies": ["compose"]},
+        {"service": "upstream-stub", "topologies": ["compose"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    },
+    {
+      "id": "website",
+      "topologies": ["compose"],
+      "requiredWhenEnabled": true,
+      "liveness": {"type": "http", "target": "http://127.0.0.1/healthz"},
+      "readiness": {"type": "http", "target": "http://127.0.0.1/readyz"},
+      "checks": ["assets", "version"],
+      "startupAfter": [
+        {"service": "ledger", "topologies": ["compose"]},
+        {"service": "console", "topologies": ["compose"]},
+        {"service": "demo-mint", "topologies": ["compose"]}
+      ],
+      "failureMode": "http-503",
+      "sideEffectFree": true,
+      "providerProbe": "none"
+    }
+  ]
+}

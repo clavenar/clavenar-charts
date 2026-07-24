@@ -12,6 +12,11 @@ jobs:
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
 
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          repository: clavenar/clavenar-specs
+          path: clavenar-specs
+
       - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
           version: v3.16.3
@@ -70,6 +75,7 @@ jobs:
 
       - name: listener matrix + authorization policy checks
         run: |
+          python3 scripts/check_dependency_readiness.py --source-root . --require-source
           python3 scripts/check-nats-authorization.py
           python3 scripts/check-listener-matrix.py --manifest /tmp/default.yaml
           python3 scripts/check-listener-matrix.py --manifest /tmp/all-on.yaml --values tests/values-all-on.yaml

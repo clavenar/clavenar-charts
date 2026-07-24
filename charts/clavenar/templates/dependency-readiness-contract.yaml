@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-dependency-readiness-contract
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "dependency-readiness-contract") | nindent 4 }}
+immutable: true
+data:
+  dependency-readiness-v1.schema.json: |
+{{ .Files.Get "files/dependency-readiness-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  dependency-readiness-v1.fixture.json: |
+{{ .Files.Get "files/dependency-readiness-v1.fixture.json" | trimSuffix "\n" | indent 4 }}

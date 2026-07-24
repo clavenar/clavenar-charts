@@ -209,6 +209,12 @@ per environment variable.
         "CLAVENAR_HIL_URL"
         "CLAVENAR_LEDGER_URL"
         "CLAVENAR_IDENTITY_URL"
+        "CLAVENAR_BRAIN_READINESS_URL"
+        "CLAVENAR_POLICY_READINESS_URL"
+        "CLAVENAR_HIL_READINESS_URL"
+        "CLAVENAR_LEDGER_READINESS_URL"
+        "CLAVENAR_IDENTITY_READINESS_URL"
+        "CLAVENAR_UPSTREAM_READINESS_URL"
         "CLAVENAR_PROXY_GRANT_JWKS_URL"
         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS"
         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS"
@@ -311,6 +317,7 @@ per environment variable.
         "NATS_TLS_CA_PATH")
       "assurance" (list
         "CLAVENAR_ASSURANCE_PROXY_URL"
+        "CLAVENAR_ASSURANCE_PROXY_READINESS_URL"
         "CLAVENAR_ASSURANCE_NATS_URL"
         "CLAVENAR_ASSURANCE_ADMIN_PORT"
         "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT"
@@ -345,6 +352,13 @@ per environment variable.
         "CLAVENAR_CONSOLE_POLICY_ENGINE_URL"
         "CLAVENAR_CONSOLE_IDENTITY_URL"
         "CLAVENAR_ASSURANCE_URL"
+        "CLAVENAR_CONSOLE_LEDGER_READINESS_URL"
+        "CLAVENAR_CONSOLE_HIL_READINESS_URL"
+        "CLAVENAR_CONSOLE_POLICY_READINESS_URL"
+        "CLAVENAR_CONSOLE_IDENTITY_READINESS_URL"
+        "CLAVENAR_CONSOLE_BRAIN_READINESS_URL"
+        "CLAVENAR_CONSOLE_ASSURANCE_READINESS_URL"
+        "CLAVENAR_CONSOLE_SIMULATOR_READINESS_URL"
         "CLAVENAR_CONSOLE_TLS_DIR"
         "CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH"
         "CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH"
@@ -479,6 +493,18 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
 - name: CLAVENAR_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+- name: CLAVENAR_BRAIN_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "brain") | quote }}
+- name: CLAVENAR_POLICY_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "policy-engine") | quote }}
+- name: CLAVENAR_HIL_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "hil") | quote }}
+- name: CLAVENAR_LEDGER_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "ledger") | quote }}
+- name: CLAVENAR_IDENTITY_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "identity") | quote }}
+- name: CLAVENAR_UPSTREAM_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "upstream-stub") | quote }}
 # JWKS is public verification material on identity's plain public listener,
 # even when authority-bearing identity operations move to workload mTLS.
 - name: CLAVENAR_PROXY_GRANT_JWKS_URL
@@ -539,6 +565,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ printf "%d" (int .ctx.Values.services.brain.auxTimeoutMillis) | quote }}
 - name: CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES
   value: {{ printf "%d" (int .ctx.Values.services.brain.auxBodyLimitBytes) | quote }}
+- name: CLAVENAR_BRAIN_HEALTH_ADDR
+  value: "0.0.0.0:9081"
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 3). Bundle mounted → brain binds
 # rustls + generated route capabilities on the application port; /health +
@@ -548,8 +576,6 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ $mount | quote }}
 - name: CLAVENAR_BRAIN_ALLOWED_CALLERS
   value: "spiffe://clavenar.local/service/proxy"
-- name: CLAVENAR_BRAIN_HEALTH_ADDR
-  value: "0.0.0.0:9081"
 {{- end }}
 {{- end }}
 {{- if eq $name "policyEngine" }}
@@ -557,6 +583,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # path remains explicit when persistence is disabled for a disposable render.
 - name: CLAVENAR_POLICY_DB
   value: "/var/lib/clavenar-policy-engine/policies.db"
+- name: CLAVENAR_POLICY_HEALTH_ADDR
+  value: "0.0.0.0:9082"
 # Policy mining explanations use only Brain's workload-mTLS application
 # listener. The workload client additionally pins the exact Brain SPIFFE URI;
 # there is no plaintext health-listener fallback.
@@ -573,11 +601,11 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # adds route-specific generated capabilities for policy management.
 - name: CLAVENAR_POLICY_TLS_DIR
   value: {{ $mount | quote }}
-- name: CLAVENAR_POLICY_HEALTH_ADDR
-  value: "0.0.0.0:9082"
 {{- end }}
 {{- end }}
 {{- if eq $name "hil" }}
+- name: CLAVENAR_HIL_HEALTH_ADDR
+  value: "0.0.0.0:9084"
 {{- if $tlsOn }}
 # mTLS receive (B7 v1.x+2 session 6). Port 8084 becomes rustls when the
 # bundle is mounted. Its application branch additionally enforces the
@@ -587,8 +615,6 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # + Prometheus can use plain HTTP without a client cert.
 - name: CLAVENAR_HIL_TLS_DIR
   value: {{ $mount | quote }}
-- name: CLAVENAR_HIL_HEALTH_ADDR
-  value: "0.0.0.0:9084"
 {{- end }}
 {{- end }}
 {{- if eq $name "identity" }}
@@ -724,6 +750,22 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # listener. Without workload TLS these optional operations fail soft.
 - name: CLAVENAR_CONSOLE_BRAIN_URL
   value: "https://{{ $rel }}-brain:8081"
+- name: CLAVENAR_CONSOLE_LEDGER_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "ledger") | quote }}
+- name: CLAVENAR_CONSOLE_HIL_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "hil") | quote }}
+- name: CLAVENAR_CONSOLE_POLICY_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "policy-engine") | quote }}
+- name: CLAVENAR_CONSOLE_IDENTITY_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "identity") | quote }}
+- name: CLAVENAR_CONSOLE_BRAIN_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "brain") | quote }}
+- name: CLAVENAR_CONSOLE_ASSURANCE_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "assurance") | quote }}
+{{- if .ctx.Values.services.console.simulatorReadinessUrl }}
+- name: CLAVENAR_CONSOLE_SIMULATOR_READINESS_URL
+  value: {{ .ctx.Values.services.console.simulatorReadinessUrl | quote }}
+{{- end }}
 {{- if and $tlsOn .ctx.Values.services.console.operatorMtls.enabled .ctx.Values.services.assurance.enabled }}
 - name: CLAVENAR_ASSURANCE_URL
   value: "https://{{ $rel }}-assurance:8088"
@@ -744,6 +786,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if eq $name "assurance" }}
 - name: CLAVENAR_ASSURANCE_PROXY_URL
   value: "https://{{ $rel }}-proxy:8443/mcp"
+- name: CLAVENAR_ASSURANCE_PROXY_READINESS_URL
+  value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "proxy") | quote }}
 # Assurance namespaces its NATS URL like deep-review does — mirror the
 # helper-computed value into the service-prefixed name.
 - name: CLAVENAR_ASSURANCE_NATS_URL
@@ -830,7 +874,7 @@ endpoint reachable. */}}
 {{- $metrics := default dict $svcCfg.metrics -}}
 {{- if $metrics.enabled -}}
 {{- $port := $svcCfg.port -}}
-{{- if and .ctx.Values.tlsBundle.secretName $svcCfg.healthPort -}}
+{{- if $svcCfg.healthPort -}}
 {{- $port = $svcCfg.healthPort -}}
 {{- end -}}
 {{- if $metrics.port -}}{{- $port = $metrics.port -}}{{- end -}}
@@ -844,6 +888,74 @@ prometheus.io/port: {{ $port | quote }}
 {{- end -}}
 {{- end -}}
 
+{{/*
+Return the in-cluster, plaintext readiness endpoint for one reviewed
+dependency. Application diagnostics remain side-effect-free and are exposed
+only through ClusterIP ports plus exact NetworkPolicy callers. External NATS,
+Vault, and upstream operators must provide the corresponding explicit URL;
+bundled infrastructure derives release-local Service DNS.
+*/}}
+{{- define "clavenar.dependencyReadinessUrl" -}}
+{{- $ctx := .ctx -}}
+{{- $service := .service -}}
+{{- $rel := $ctx.Release.Name -}}
+{{- if eq $service "nats" -}}
+{{- if $ctx.Values.nats.bundled.enabled -}}
+http://{{ $rel }}-nats:8222/healthz?js-enabled-only=true
+{{- else -}}
+{{ required "nats.readinessUrl is required for dependency startup gates" $ctx.Values.nats.readinessUrl }}
+{{- end -}}
+{{- else if eq $service "vault" -}}
+{{- if $ctx.Values.vault.bundled.enabled -}}
+http://{{ $rel }}-vault:8200/v1/sys/health
+{{- else -}}
+{{ required "vault.readinessUrl is required for dependency startup gates" $ctx.Values.vault.readinessUrl }}
+{{- end -}}
+{{- else if eq $service "upstream-stub" -}}
+{{- if $ctx.Values.upstreamStub.enabled -}}
+http://{{ $rel }}-upstream-stub:{{ $ctx.Values.upstreamStub.port }}/readyz
+{{- else -}}
+{{ required "upstreamStub.readinessUrl is required when the bundled upstream is disabled" $ctx.Values.upstreamStub.readinessUrl }}
+{{- end -}}
+{{- else if eq $service "identity" -}}
+http://{{ $rel }}-identity:{{ $ctx.Values.services.identity.port }}/readyz
+{{- else if eq $service "brain" -}}
+http://{{ $rel }}-brain:{{ $ctx.Values.services.brain.healthPort }}/readyz
+{{- else if eq $service "policy-engine" -}}
+http://{{ $rel }}-policy-engine:{{ $ctx.Values.services.policyEngine.healthPort }}/readyz
+{{- else if eq $service "ledger" -}}
+http://{{ $rel }}-ledger:{{ $ctx.Values.services.ledger.port }}/readyz
+{{- else if eq $service "hil" -}}
+http://{{ $rel }}-hil:{{ $ctx.Values.services.hil.healthPort }}/readyz
+{{- else if eq $service "proxy" -}}
+http://{{ $rel }}-proxy:{{ $ctx.Values.services.proxy.healthPort }}/readyz
+{{- else if eq $service "assurance" -}}
+http://{{ $rel }}-assurance:{{ $ctx.Values.services.assurance.healthPort }}/readyz
+{{- else -}}
+{{- fail (printf "unknown readiness dependency %s" $service) -}}
+{{- end -}}
+{{- end -}}
+
+{{/*
+Project the public Helm startup graph. One URL is emitted per line for the
+bounded BusyBox init gate in services.yaml.
+*/}}
+{{- define "clavenar.readinessTargets" -}}
+{{- $dependencies := dict
+      "identity" (list "nats" "vault")
+      "brain" (list "identity")
+      "policyEngine" (list "nats" "identity")
+      "ledger" (list "nats" "identity")
+      "hil" (list "nats" "identity")
+      "deepReview" (list "nats")
+      "proxy" (list "nats" "vault" "brain" "policy-engine" "hil" "ledger" "identity" "upstream-stub")
+      "assurance" (list "nats" "proxy")
+      "console" (list "brain" "policy-engine" "ledger" "hil" "identity" "assurance") -}}
+{{- range $dependency := default (list) (get $dependencies .service) }}
+{{ include "clavenar.dependencyReadinessUrl" (dict "ctx" $.ctx "service" $dependency) }}
+{{- end }}
+{{- end -}}
+
 {{/* `kind` is "liveness"/"readiness". Port fallback chain:
 .probes.port → .healthPort → .port. Same rationale as the metrics
 helper above — kubelet probes don't carry a client cert, so they have
@@ -854,7 +966,7 @@ to land on the plain-HTTP health port under mTLS mode. */}}
 {{- $kind := .kind -}}
 {{- $defaults := index $ctx.Values.probeDefaults $kind -}}
 {{- $probePort := $svcCfg.port -}}
-{{- if and $ctx.Values.tlsBundle.secretName $svcCfg.healthPort -}}
+{{- if $svcCfg.healthPort -}}
 {{- $probePort = $svcCfg.healthPort -}}
 {{- end -}}
 {{- if $svcCfg.probes.port -}}{{- $probePort = $svcCfg.probes.port -}}{{- end -}}
@@ -876,7 +988,7 @@ tcpSocket:
 metrics annotation helper above. */}}
 {{- define "clavenar.metricsPort" -}}
 {{- $port := .svcCfg.port -}}
-{{- if and .ctx.Values.tlsBundle.secretName .svcCfg.healthPort -}}
+{{- if .svcCfg.healthPort -}}
 {{- $port = .svcCfg.healthPort -}}
 {{- end -}}
 {{- if (default dict .svcCfg.metrics).port -}}

@@ -2,6 +2,29 @@
 {{- if and .Values.services.proxy.enabled (not .Values.services.identity.enabled) }}
 {{- fail "services.proxy.enabled requires services.identity.enabled because delegation JWKS verification is a required proxy dependency" }}
 {{- end }}
+{{- $readinessDependencies := dict
+      "brain" (list "identity")
+      "policyEngine" (list "identity")
+      "ledger" (list "identity")
+      "hil" (list "identity")
+      "proxy" (list "brain" "policyEngine" "ledger" "hil" "identity")
+      "assurance" (list "proxy")
+      "console" (list "brain" "policyEngine" "ledger" "hil" "identity" "assurance") -}}
+{{- range $service, $dependencies := $readinessDependencies }}
+{{- if (index $.Values.services $service).enabled }}
+{{- range $dependency := $dependencies }}
+{{- if not (index $.Values.services $dependency).enabled }}
+{{- fail (printf "services.%s.enabled requires readiness dependency services.%s.enabled" $service $dependency) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if not (regexMatch "^https?://[^[:space:]]+/v1/sys/health$" .Values.vault.readinessUrl) }}
+{{- fail "vault.readinessUrl must be an HTTP(S) /v1/sys/health endpoint" }}
+{{- end }}
+{{- if not (regexMatch "^https?://[^[:space:]]+/readyz$" .Values.upstreamStub.readinessUrl) }}
+{{- fail "upstreamStub.readinessUrl must be a uniform HTTP(S) /readyz endpoint" }}
+{{- end }}
 {{- $controlStateReplicas := int .Values.controlState.replicas }}
 {{- if or (lt $controlStateReplicas 1) (gt $controlStateReplicas 5) }}
 {{- fail "controlState.replicas must be between 1 and 5" }}

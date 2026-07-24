@@ -66,7 +66,8 @@ synthetic proxy/NATS traffic; `service-assurance.{crt,key}` terminates the
 exact-console control listener. Under TLS mode brain /
 policy / hil / identity / ledger move `/health` + `/readyz` + `/metrics`
 to a plain-HTTP `healthPort` so kubelet probes and Prometheus scrapes
-land without a client cert. Assurance similarly moves only `/health` and
+land without a client cert. Exact dependency init gates reach the same
+ClusterIP-only ports through reviewed NetworkPolicy edges. Assurance similarly moves only `/health` and
 `/readyz` to plain diagnostics `9088`; status and mutations remain on mTLS
 `8088`.
 

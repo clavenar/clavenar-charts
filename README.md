@@ -13,6 +13,12 @@ listener, authentication boundary, caller, and Service publication. CI
 checks default, TLS, production, optional-listener, and bundled-subchart
 renders against it.
 
+The public `clavenar.dependency-readiness/v1` contract is packaged byte-for-byte
+in the chart. It drives distinct liveness/readiness probes, bounded dependency
+init gates, runtime dependency URLs, internal diagnostics Service ports, and
+matching NetworkPolicy callers. CI verifies default, bundled, and production
+renders against the public Specs source.
+
 `deploymentProfile` is explicit. The backwards-compatible `evaluation`
 default keeps the existing render surface. `production` fails Helm rendering
 unless NetworkPolicy, externally managed workload TLS, operator-managed HIL

@@ -332,21 +332,24 @@ apply walkthrough.
 
 - **Nine Deployments + nine Services**, ClusterIP, one replica each.
 - **HTTP probes** wired to `/health` (liveness) + `/readyz`
-  (readiness) for every service. The proxy exposes a second
+  (readiness) for every service. Bounded init gates wait on the exact acyclic
+  public dependency graph for at most 30 two-second probes per edge. The proxy exposes a second
   container port (`healthPort: 8080`) bound to a non-mTLS listener
   serving `/`, `/health`, `/readyz`, and `/metrics`; kubelet probes and
   Prometheus target this port. The agent-facing mTLS port (8443) serves
   `/`, `/health`, `/readyz`, `/mcp`, and `/tool/{name}` but never
-  `/metrics`, and it is the only port published by the proxy's k8s Service.
+  `/metrics`. Its Kubernetes Service exposes that diagnostics port only inside
+  the cluster for Assurance's exact readiness edge.
   Assurance likewise splits required-mTLS control (`8088`) from plain,
-  container-only `/health` + `/readyz` diagnostics (`9088`); no mutation or
+  internal `/health` + `/readyz` diagnostics (`9088`); no mutation or
   status route is installed on diagnostics. Its request, whole-run, and
   publish/ack deadlines are chart-governed, and durable completion requires an
   acknowledgement from the configured exact forensic JetStream stream.
   Brain similarly keeps auxiliary `/explain-pattern`,
   `/narrate-decision`, and `/model-snapshot` on the workload-mTLS application
   listener (`8081`). Its plain `9081` listener contains only `/`, `/health`,
-  `/readyz`, and `/metrics`; it is container-only and has no provider path.
+  `/readyz`, and `/metrics`; its ClusterIP port has no provider path and
+  NetworkPolicy admits only reviewed readiness/scrape callers.
 - **terminationGracePeriodSeconds** set to `drainCapSecs + 5` so
   the in-process watchdog (env `CLAVENAR_GRACEFUL_DRAIN_SECS`) fires
   before kubelet's SIGKILL.
@@ -551,7 +554,7 @@ services:
   deepReview:   { ... }            # singleton; daily token budget is per-pod
   assurance:
     port: 8088                      # exact-console workload mTLS control
-    healthPort: 9088                # plain /health + /readyz only; not published
+    healthPort: 9088                # plain /health + /readyz; ClusterIP-internal
     forensicSubject: clavenar.forensic
     forensicStream: clavenar-forensic # exact JetStream acknowledgement source
     requestTimeoutSecs: 30          # valid range 1..300
@@ -560,7 +563,7 @@ services:
   console:
     port: 8085                      # demo-only by default; operator mTLS when enabled
     demoPort: 9085                  # optional curated demo beside operator mTLS
-    diagnosticsPort: 9185           # health/readiness/metrics; not Service-published
+    diagnosticsPort: 9185           # health/readiness/metrics; ClusterIP-internal
     operatorMtls: { enabled: false, publicTrustSecretName: "" }
     mutationOrigins: []             # exact HTTPS Admin mutation origins
     demo: { enabled: false }
@@ -672,7 +675,7 @@ not an authorization source:
 |---|---|---|---|
 | Primary `:8085` | Always | Published | Default: plain HTTP curated demo-only router with no operator roles. With `operatorMtls.enabled`: native HTTPS, required operator client certificate, exact fingerprint + SPIFFE registry match, and role-gated operator router. |
 | Demo `:9085` | `operatorMtls.enabled && demo.enabled` | Published | Plain HTTP curated demo router. Operator cookies/state are stripped; it cannot reach operator-only routes. |
-| Diagnostics `:9185` | Always | Not published | Plain HTTP `/health`, `/readyz`, and `/metrics` only. Kubelet probes and Prometheus annotations target this port. |
+| Diagnostics `:9185` | Always | Internal readiness | Plain HTTP `/health`, `/readyz`, and `/metrics` only. Kubelet probes, reviewed dependency gates, and Prometheus annotations target this ClusterIP port. |
 
 The public operator trust Secret must contain exactly these projected keys:
 

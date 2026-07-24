@@ -112,6 +112,10 @@
     "nats": {
       "type": "object",
       "properties": {
+        "readinessUrl": {
+          "type": "string",
+          "pattern": "^https?://[^\\s]+/healthz\\?js-enabled-only=true$"
+        },
         "external": {
           "type": "object",
           "additionalProperties": false,
@@ -223,7 +227,14 @@
                         "CLAVENAR_BRAIN_URL",
                         "CLAVENAR_POLICY_URL",
                         "CLAVENAR_HIL_URL",
+                        "CLAVENAR_LEDGER_URL",
                         "CLAVENAR_IDENTITY_URL",
+                        "CLAVENAR_BRAIN_READINESS_URL",
+                        "CLAVENAR_POLICY_READINESS_URL",
+                        "CLAVENAR_HIL_READINESS_URL",
+                        "CLAVENAR_LEDGER_READINESS_URL",
+                        "CLAVENAR_IDENTITY_READINESS_URL",
+                        "CLAVENAR_UPSTREAM_READINESS_URL",
                         "CLAVENAR_PROXY_GRANT_JWKS_URL",
                         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS",
                         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS",
@@ -585,6 +596,10 @@
             "port": { "type": "integer", "const": 8085 },
             "demoPort": { "type": "integer", "const": 9085 },
             "diagnosticsPort": { "type": "integer", "const": 9185 },
+            "simulatorReadinessUrl": {
+              "type": "string",
+              "pattern": "^$|^https?://[^\\s]+/readyz$"
+            },
             "operatorMtls": {
               "type": "object",
               "additionalProperties": false,
@@ -661,6 +676,13 @@
                         "CLAVENAR_CONSOLE_POLICY_ENGINE_URL",
                         "CLAVENAR_CONSOLE_IDENTITY_URL",
                         "CLAVENAR_ASSURANCE_URL",
+                        "CLAVENAR_CONSOLE_LEDGER_READINESS_URL",
+                        "CLAVENAR_CONSOLE_HIL_READINESS_URL",
+                        "CLAVENAR_CONSOLE_POLICY_READINESS_URL",
+                        "CLAVENAR_CONSOLE_IDENTITY_READINESS_URL",
+                        "CLAVENAR_CONSOLE_BRAIN_READINESS_URL",
+                        "CLAVENAR_CONSOLE_ASSURANCE_READINESS_URL",
+                        "CLAVENAR_CONSOLE_SIMULATOR_READINESS_URL",
                         "CLAVENAR_CONSOLE_TLS_DIR",
                         "CLAVENAR_CONSOLE_OUTBOUND_CERT_PATH",
                         "CLAVENAR_CONSOLE_OUTBOUND_KEY_PATH",
@@ -803,6 +825,7 @@
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_ASSURANCE_PROXY_URL",
+                        "CLAVENAR_ASSURANCE_PROXY_READINESS_URL",
                         "CLAVENAR_ASSURANCE_NATS_URL",
                         "CLAVENAR_ASSURANCE_ADMIN_PORT",
                         "CLAVENAR_ASSURANCE_DIAGNOSTICS_PORT",

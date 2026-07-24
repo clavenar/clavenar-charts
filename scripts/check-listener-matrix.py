@@ -914,9 +914,7 @@ def validate_brain_auxiliary_contract(values, docs, release, errors):
         return
     container = containers[0]
     tls_secret = value_at(values, "tlsBundle.secretName")
-    expected_ports = {"http": 8081}
-    if tls_secret:
-        expected_ports["health"] = 9081
+    expected_ports = {"http": 8081, "health": 9081}
     actual_ports = {
         port.get("name"): int(port["containerPort"])
         for port in container.get("ports", [])
@@ -950,12 +948,12 @@ def validate_brain_auxiliary_contract(values, docs, release, errors):
         "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES": str(
             value_at(values, "services.brain.auxBodyLimitBytes")
         ),
+        "CLAVENAR_BRAIN_HEALTH_ADDR": "0.0.0.0:9081",
     }
     if tls_secret:
         governed_env.update({
             "CLAVENAR_BRAIN_TLS_DIR": str(value_at(values, "tlsBundle.mountPath")),
             "CLAVENAR_BRAIN_ALLOWED_CALLERS": "spiffe://clavenar.local/service/proxy",
-            "CLAVENAR_BRAIN_HEALTH_ADDR": "0.0.0.0:9081",
         })
     env_entries = container.get("env", []) or []
     env_names = [entry.get("name") for entry in env_entries]
@@ -978,7 +976,6 @@ def validate_brain_auxiliary_contract(values, docs, release, errors):
     unexpected_transport = {
         "CLAVENAR_BRAIN_TLS_DIR",
         "CLAVENAR_BRAIN_ALLOWED_CALLERS",
-        "CLAVENAR_BRAIN_HEALTH_ADDR",
     } & set(env_names)
     if not tls_secret and unexpected_transport:
         errors.append(
@@ -988,7 +985,7 @@ def validate_brain_auxiliary_contract(values, docs, release, errors):
     if "CLAVENAR_BRAIN_PLAIN_ADDR" in env_names:
         errors.append("brain chart must not override the binary's loopback-only plain bind")
 
-    expected_probe_port = 9081 if tls_secret else 8081
+    expected_probe_port = 9081
     for probe_name, expected_path in (
         ("livenessProbe", "/health"),
         ("readinessProbe", "/readyz"),

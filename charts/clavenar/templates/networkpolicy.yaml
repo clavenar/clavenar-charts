@@ -10,6 +10,14 @@
       "ledger" (list "console" "deepReview")
       "hil" (list "proxy" "console" "simulator")
       "assurance" (list "console") -}}
+{{- $readinessCallers := dict
+      "identity" (list "brain" "policyEngine" "ledger" "hil" "proxy" "console")
+      "brain" (list "proxy" "console")
+      "policyEngine" (list "proxy" "console")
+      "ledger" (list "proxy" "console")
+      "hil" (list "proxy" "console")
+      "proxy" (list "assurance")
+      "assurance" (list "console") -}}
 {{- range $name, $cfg := .Values.services }}
 {{- if $cfg.enabled }}
 {{- $rules := list -}}
@@ -92,6 +100,28 @@ spec:
       ports:
         - { protocol: TCP, port: {{ $rule.port }} }
     {{- end }}
+    {{- if hasKey $readinessCallers $name }}
+    {{- $readinessPort := int $cfg.port }}
+    {{- if $cfg.healthPort }}
+      {{- $readinessPort = int $cfg.healthPort }}
+    {{- end }}
+    {{- if eq $name "proxy" }}
+      {{- $readinessPort = int $cfg.healthPort }}
+    {{- end }}
+    {{- if eq $name "assurance" }}
+      {{- $readinessPort = int $cfg.healthPort }}
+    {{- end }}
+    - from:
+        {{- range $caller := index $readinessCallers $name }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $ctx.Chart.Name }}
+              app.kubernetes.io/instance: {{ $ctx.Release.Name }}
+              app.kubernetes.io/component: {{ $caller | kebabcase }}
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: {{ $readinessPort }} }
+    {{- end }}
     {{- $metrics := default dict $cfg.metrics }}
     {{- if and $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel }}
     - from:
@@ -151,7 +181,12 @@ spec:
     - from:
         - podSelector:
             matchLabels:
-              {{- include "clavenar.selectorLabels" (dict "ctx" . "service" (ternary "exec" "proxy" .Values.exec.enabled)) | nindent 14 }}
+              {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "proxy") | nindent 14 }}
+        {{- if .Values.exec.enabled }}
+        - podSelector:
+            matchLabels:
+              {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "exec") | nindent 14 }}
+        {{- end }}
       ports:
         - { protocol: TCP, port: {{ .Values.upstreamStub.port }} }
 {{ end }}
@@ -184,6 +219,16 @@ spec:
         {{- end }}
       ports:
         - { protocol: TCP, port: 4222 }
+    - from:
+        {{- range $caller := list "proxy" "policy-engine" "ledger" "hil" "identity" "deep-review" "assurance" }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: {{ $caller }}
+        {{- end }}
+      ports:
+        - { protocol: TCP, port: 8222 }
     {{- if .Values.networkPolicy.prometheusNamespaceLabel }}
     - from:
         - namespaceSelector:
