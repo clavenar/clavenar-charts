@@ -793,6 +793,19 @@ persistence:
     # When non-empty, the chart mounts it and does not emit its own PVC.
     existingClaim: ""
 
+# Required SQLite upgrade transaction. The pre-upgrade hook takes and verifies
+# one online backup per persistence-enabled workload before patching the live
+# Deployment to Recreate. The pre-rollback hook stops the candidate writer and
+# atomically restores that exact verified generation before the source
+# Deployment returns. Both hooks use the same PVC and need no provider secret.
+statefulUpgrade:
+  enabled: true
+  verifierImage: "python@sha256:37b14db89f587f9eaa890e4a442a3fe55db452b69cca1403cc730bd0fbdc8aaf"
+  backupMethod: sqlite-online-backup
+  backupRoot: .clavenar-upgrade-backups
+  rollbackMode: verified-backup-restore
+  activeDeadlineSeconds: 600
+
 # Operator-owned scheduled backup contract. The chart deliberately does not
 # embed provider credentials or pretend a generic CronJob can take
 # application-consistent snapshots of arbitrary CSI, external NATS, and

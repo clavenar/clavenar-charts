@@ -50,8 +50,20 @@ metadata:
   name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}
   labels:
     {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+  {{- if $persist.enabled }}
+  annotations:
+    clavenar.io/stateful-upgrade-contract: {{ printf "sha256:%s" ($.Files.Get "files/stateful-upgrade-v1.fixture.json" | sha256sum) | quote }}
+    clavenar.io/release-version: {{ $.Chart.Version | quote }}
+  {{- end }}
 spec:
   replicas: {{ $cfg.replicas }}
+  {{- if $persist.enabled }}
+  # SQLite writers require termination-before-start on every upgrade. A
+  # replica count of one alone still permits the Deployment default's surge
+  # writer, so persistence always owns an explicit Recreate strategy.
+  strategy:
+    type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" $name) | nindent 6 }}

@@ -8,6 +8,33 @@
       "type": "string",
       "enum": ["evaluation", "production"]
     },
+    "statefulUpgrade": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "verifierImage",
+        "backupMethod",
+        "backupRoot",
+        "rollbackMode",
+        "activeDeadlineSeconds"
+      ],
+      "properties": {
+        "enabled": {"const": true},
+        "verifierImage": {
+          "type": "string",
+          "pattern": "^[a-z0-9./_-]+@sha256:[a-f0-9]{64}$"
+        },
+        "backupMethod": {"const": "sqlite-online-backup"},
+        "backupRoot": {"const": ".clavenar-upgrade-backups"},
+        "rollbackMode": {"const": "verified-backup-restore"},
+        "activeDeadlineSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 900
+        }
+      }
+    },
     "scheduledBackup": {
       "type": "object",
       "additionalProperties": false,

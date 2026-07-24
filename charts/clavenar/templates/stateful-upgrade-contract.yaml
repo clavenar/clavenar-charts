@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-stateful-upgrade-contract
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "stateful-upgrade-contract") | nindent 4 }}
+immutable: true
+data:
+  stateful-upgrade-v1.schema.json: |
+{{ .Files.Get "files/stateful-upgrade-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  stateful-upgrade-v1.fixture.json: |
+{{ .Files.Get "files/stateful-upgrade-v1.fixture.json" | trimSuffix "\n" | indent 4 }}

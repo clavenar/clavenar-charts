@@ -86,6 +86,13 @@ bounded two-public-root rollout with readiness gates and rollback, retains only
 the retired public CA as history, and rejects implicit or malformed changes.
 See the chart README for the rotation values and operator sequence.
 
+Persistence-enabled SQLite workloads also use explicit `Recreate` rollouts.
+Chart 0.25.0 adds verified online pre-upgrade backups and zero-writer,
+digest-checked pre-rollback restoration for Ledger, HIL, Identity, Policy
+Engine, and Proxy. Establish 0.25.0 or newer as the rollback source revision;
+older revisions cannot contain the restore hook. PostgreSQL Ledger remains
+outside this SQLite upgrade transaction.
+
 Sequence diagrams for the six primary flows — `helm install` render +
 apply, pod boot under `tlsBundle.secretName`, cross-service backend URL
 wiring under TLS, Prometheus scrape + Grafana sidecar discovery, the

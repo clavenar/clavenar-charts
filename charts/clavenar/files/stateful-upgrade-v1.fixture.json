@@ -1,0 +1,198 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.stateful-upgrade/v1",
+  "operationId": "stateful-upgrade-1.200.0-to-1.201.0-20260724T180000Z",
+  "environment": "kubernetes",
+  "startedAt": "2026-07-24T18:00:00Z",
+  "finishedAt": "2026-07-24T18:12:00Z",
+  "sourceRelease": {
+    "version": "1.200.0",
+    "artifactSha256": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "schemaSetSha256": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "targetRelease": {
+    "version": "1.201.0",
+    "artifactSha256": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "schemaSetSha256": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  },
+  "storage": {
+    "csiProvisioner": "rancher.io/local-path",
+    "storageClass": "standard",
+    "volumeBindingMode": "WaitForFirstConsumer",
+    "pvcUidsRetained": true
+  },
+  "backup": {
+    "backupId": "upgrade-backup-1.200.0-to-1.201.0",
+    "createdAt": "2026-07-24T18:02:00Z",
+    "method": "sqlite-online-backup",
+    "verification": "quick-check-and-sha256",
+    "manifestSha256": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "sourceVersion": "1.200.0",
+    "targetVersion": "1.201.0",
+    "workloads": [
+      {
+        "service": "ledger",
+        "databaseSha256": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "databaseBytes": 8192,
+        "quickCheck": "ok"
+      },
+      {
+        "service": "hil",
+        "databaseSha256": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "databaseBytes": 8192,
+        "quickCheck": "ok"
+      },
+      {
+        "service": "identity",
+        "databaseSha256": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "databaseBytes": 8192,
+        "quickCheck": "ok"
+      },
+      {
+        "service": "policy-engine",
+        "databaseSha256": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+        "databaseBytes": 8192,
+        "quickCheck": "ok"
+      },
+      {
+        "service": "proxy",
+        "databaseSha256": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+        "databaseBytes": 8192,
+        "quickCheck": "ok"
+      }
+    ]
+  },
+  "workloads": [
+    {
+      "service": "ledger",
+      "databasePath": "/var/lib/clavenar/clavenar_ledger.db",
+      "pvcName": "accept-ledger-data",
+      "pvcUid": "11111111-1111-4111-8111-111111111111",
+      "rolloutStrategy": "Recreate",
+      "schema": {
+        "before": 5,
+        "after": 6,
+        "forwardCompatible": true,
+        "rollbackMode": "verified-backup-restore"
+      },
+      "mutatedStateSha256": "sha256:6111111111111111111111111111111111111111111111111111111111111111",
+      "afterUpgradeStateSha256": "sha256:6111111111111111111111111111111111111111111111111111111111111111",
+      "afterRollbackStateSha256": "sha256:6111111111111111111111111111111111111111111111111111111111111111",
+      "recordsBefore": 4,
+      "recordsAfterRollback": 4,
+      "functionalVerification": "chain-valid"
+    },
+    {
+      "service": "hil",
+      "databasePath": "/var/lib/clavenar/clavenar_hil.db",
+      "pvcName": "accept-hil-data",
+      "pvcUid": "22222222-2222-4222-8222-222222222222",
+      "rolloutStrategy": "Recreate",
+      "schema": {
+        "before": 1,
+        "after": 2,
+        "forwardCompatible": true,
+        "rollbackMode": "verified-backup-restore"
+      },
+      "mutatedStateSha256": "sha256:6222222222222222222222222222222222222222222222222222222222222222",
+      "afterUpgradeStateSha256": "sha256:6222222222222222222222222222222222222222222222222222222222222222",
+      "afterRollbackStateSha256": "sha256:6222222222222222222222222222222222222222222222222222222222222222",
+      "recordsBefore": 2,
+      "recordsAfterRollback": 2,
+      "functionalVerification": "pending-and-decision-retained"
+    },
+    {
+      "service": "identity",
+      "databasePath": "/var/lib/clavenar/clavenar_identity.db",
+      "pvcName": "accept-identity-data",
+      "pvcUid": "33333333-3333-4333-8333-333333333333",
+      "rolloutStrategy": "Recreate",
+      "schema": {
+        "before": 1,
+        "after": 2,
+        "forwardCompatible": true,
+        "rollbackMode": "verified-backup-restore"
+      },
+      "mutatedStateSha256": "sha256:6333333333333333333333333333333333333333333333333333333333333333",
+      "afterUpgradeStateSha256": "sha256:6333333333333333333333333333333333333333333333333333333333333333",
+      "afterRollbackStateSha256": "sha256:6333333333333333333333333333333333333333333333333333333333333333",
+      "recordsBefore": 2,
+      "recordsAfterRollback": 2,
+      "functionalVerification": "agent-and-credential-retained"
+    },
+    {
+      "service": "policy-engine",
+      "databasePath": "/var/lib/clavenar-policy-engine/policies.db",
+      "pvcName": "accept-policy-engine-data",
+      "pvcUid": "44444444-4444-4444-8444-444444444444",
+      "rolloutStrategy": "Recreate",
+      "schema": {
+        "before": 1,
+        "after": 2,
+        "forwardCompatible": true,
+        "rollbackMode": "verified-backup-restore"
+      },
+      "mutatedStateSha256": "sha256:6444444444444444444444444444444444444444444444444444444444444444",
+      "afterUpgradeStateSha256": "sha256:6444444444444444444444444444444444444444444444444444444444444444",
+      "afterRollbackStateSha256": "sha256:6444444444444444444444444444444444444444444444444444444444444444",
+      "recordsBefore": 2,
+      "recordsAfterRollback": 2,
+      "functionalVerification": "active-version-and-history-retained"
+    },
+    {
+      "service": "proxy",
+      "databasePath": "/var/lib/clavenar/server-execution.db",
+      "pvcName": "accept-proxy-data",
+      "pvcUid": "55555555-5555-4555-8555-555555555555",
+      "rolloutStrategy": "Recreate",
+      "schema": {
+        "before": 1,
+        "after": 2,
+        "forwardCompatible": true,
+        "rollbackMode": "verified-backup-restore"
+      },
+      "mutatedStateSha256": "sha256:6555555555555555555555555555555555555555555555555555555555555555",
+      "afterUpgradeStateSha256": "sha256:6555555555555555555555555555555555555555555555555555555555555555",
+      "afterRollbackStateSha256": "sha256:6555555555555555555555555555555555555555555555555555555555555555",
+      "recordsBefore": 2,
+      "recordsAfterRollback": 2,
+      "functionalVerification": "execution-intent-result-retained"
+    }
+  ],
+  "faults": {
+    "failedScheduling": {
+      "injected": true,
+      "upgradeBlocked": true,
+      "rollbackCompleted": true,
+      "overlappingWritersObserved": 0
+    },
+    "interruptedMigration": {
+      "injected": true,
+      "failedClosed": true,
+      "partialSchemaDetected": true,
+      "rollbackCompleted": true,
+      "overlappingWritersObserved": 0
+    }
+  },
+  "rollback": {
+    "performed": true,
+    "reason": "interrupted-migration",
+    "backupVerifiedBeforeMutation": true,
+    "backupRestored": true,
+    "sourceReleaseReady": true,
+    "targetReleaseReady": false
+  },
+  "phaseSequence": [
+    "installed",
+    "mutated",
+    "backup-verified",
+    "failed-scheduling-refused",
+    "migration-interrupted",
+    "rollback-restored",
+    "source-ready",
+    "verified"
+  ],
+  "maximumObservedApplicationWriters": 1,
+  "status": "pass",
+  "sanitized": true
+}

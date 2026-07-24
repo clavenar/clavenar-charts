@@ -1,0 +1,290 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/stateful-upgrade-v1.schema.json",
+  "title": "Clavenar stateful upgrade and rollback receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "operationId",
+    "environment",
+    "startedAt",
+    "finishedAt",
+    "sourceRelease",
+    "targetRelease",
+    "storage",
+    "backup",
+    "workloads",
+    "faults",
+    "rollback",
+    "phaseSequence",
+    "maximumObservedApplicationWriters",
+    "status",
+    "sanitized"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.stateful-upgrade/v1"},
+    "operationId": {
+      "type": "string",
+      "pattern": "^stateful-upgrade-[0-9A-Za-z._-]+$"
+    },
+    "environment": {"const": "kubernetes"},
+    "startedAt": {"$ref": "#/$defs/timestamp"},
+    "finishedAt": {"$ref": "#/$defs/timestamp"},
+    "sourceRelease": {"$ref": "#/$defs/release"},
+    "targetRelease": {"$ref": "#/$defs/release"},
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "csiProvisioner",
+        "storageClass",
+        "volumeBindingMode",
+        "pvcUidsRetained"
+      ],
+      "properties": {
+        "csiProvisioner": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "storageClass": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "volumeBindingMode": {
+          "enum": ["Immediate", "WaitForFirstConsumer"]
+        },
+        "pvcUidsRetained": {"const": true}
+      }
+    },
+    "backup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "backupId",
+        "createdAt",
+        "method",
+        "verification",
+        "manifestSha256",
+        "sourceVersion",
+        "targetVersion",
+        "workloads"
+      ],
+      "properties": {
+        "backupId": {
+          "type": "string",
+          "pattern": "^upgrade-backup-[0-9A-Za-z._-]+$"
+        },
+        "createdAt": {"$ref": "#/$defs/timestamp"},
+        "method": {"const": "sqlite-online-backup"},
+        "verification": {"const": "quick-check-and-sha256"},
+        "manifestSha256": {"$ref": "#/$defs/digest"},
+        "sourceVersion": {"$ref": "#/$defs/version"},
+        "targetVersion": {"$ref": "#/$defs/version"},
+        "workloads": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "service",
+              "databaseSha256",
+              "databaseBytes",
+              "quickCheck"
+            ],
+            "properties": {
+              "service": {"$ref": "#/$defs/service"},
+              "databaseSha256": {"$ref": "#/$defs/digest"},
+              "databaseBytes": {"type": "integer", "minimum": 1},
+              "quickCheck": {"const": "ok"}
+            }
+          }
+        }
+      }
+    },
+    "workloads": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "service",
+          "databasePath",
+          "pvcName",
+          "pvcUid",
+          "rolloutStrategy",
+          "schema",
+          "mutatedStateSha256",
+          "afterUpgradeStateSha256",
+          "afterRollbackStateSha256",
+          "recordsBefore",
+          "recordsAfterRollback",
+          "functionalVerification"
+        ],
+        "properties": {
+          "service": {"$ref": "#/$defs/service"},
+          "databasePath": {
+            "type": "string",
+            "pattern": "^/var/lib/clavenar(?:-policy-engine)?/[A-Za-z0-9._-]+\\.db$"
+          },
+          "pvcName": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+          },
+          "pvcUid": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "rolloutStrategy": {"const": "Recreate"},
+          "schema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "before",
+              "after",
+              "forwardCompatible",
+              "rollbackMode"
+            ],
+            "properties": {
+              "before": {"type": "integer", "minimum": 1},
+              "after": {"type": "integer", "minimum": 1},
+              "forwardCompatible": {"const": true},
+              "rollbackMode": {"const": "verified-backup-restore"}
+            }
+          },
+          "mutatedStateSha256": {"$ref": "#/$defs/digest"},
+          "afterUpgradeStateSha256": {"$ref": "#/$defs/digest"},
+          "afterRollbackStateSha256": {"$ref": "#/$defs/digest"},
+          "recordsBefore": {"type": "integer", "minimum": 1},
+          "recordsAfterRollback": {"type": "integer", "minimum": 1},
+          "functionalVerification": {
+            "enum": [
+              "chain-valid",
+              "pending-and-decision-retained",
+              "agent-and-credential-retained",
+              "active-version-and-history-retained",
+              "execution-intent-result-retained"
+            ]
+          }
+        }
+      }
+    },
+    "faults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["failedScheduling", "interruptedMigration"],
+      "properties": {
+        "failedScheduling": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "injected",
+            "upgradeBlocked",
+            "rollbackCompleted",
+            "overlappingWritersObserved"
+          ],
+          "properties": {
+            "injected": {"const": true},
+            "upgradeBlocked": {"const": true},
+            "rollbackCompleted": {"const": true},
+            "overlappingWritersObserved": {"const": 0}
+          }
+        },
+        "interruptedMigration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "injected",
+            "failedClosed",
+            "partialSchemaDetected",
+            "rollbackCompleted",
+            "overlappingWritersObserved"
+          ],
+          "properties": {
+            "injected": {"const": true},
+            "failedClosed": {"const": true},
+            "partialSchemaDetected": {"const": true},
+            "rollbackCompleted": {"const": true},
+            "overlappingWritersObserved": {"const": 0}
+          }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "performed",
+        "reason",
+        "backupVerifiedBeforeMutation",
+        "backupRestored",
+        "sourceReleaseReady",
+        "targetReleaseReady"
+      ],
+      "properties": {
+        "performed": {"const": true},
+        "reason": {"const": "interrupted-migration"},
+        "backupVerifiedBeforeMutation": {"const": true},
+        "backupRestored": {"const": true},
+        "sourceReleaseReady": {"const": true},
+        "targetReleaseReady": {"const": false}
+      }
+    },
+    "phaseSequence": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "installed"},
+        {"const": "mutated"},
+        {"const": "backup-verified"},
+        {"const": "failed-scheduling-refused"},
+        {"const": "migration-interrupted"},
+        {"const": "rollback-restored"},
+        {"const": "source-ready"},
+        {"const": "verified"}
+      ],
+      "items": false,
+      "minItems": 8,
+      "maxItems": 8
+    },
+    "maximumObservedApplicationWriters": {"const": 1},
+    "status": {"const": "pass"},
+    "sanitized": {"const": true}
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "artifactSha256", "schemaSetSha256"],
+      "properties": {
+        "version": {"$ref": "#/$defs/version"},
+        "artifactSha256": {"$ref": "#/$defs/digest"},
+        "schemaSetSha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "service": {
+      "enum": ["ledger", "hil", "identity", "policy-engine", "proxy"]
+    }
+  }
+}

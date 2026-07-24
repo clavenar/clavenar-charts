@@ -164,6 +164,33 @@ only the sanitized manifest, never repository credentials or protected state.
 This boundary does not assert isolated restoration, disaster recovery, or
 upgrade rollback.
 
+### Stateful SQLite upgrades
+
+Every persistence-enabled SQLite Deployment renders `strategy.type: Recreate`;
+a replica limit alone does not prevent the default Deployment surge from
+opening the same database twice. Before each upgrade, five default-on hooks
+take SQLite online backups for Ledger, HIL, Identity, Policy Engine, and Proxy,
+run `PRAGMA quick_check`, bind the exact source/target chart versions and
+database digest in an immutable generation, and only then enforce the live
+`Recreate` strategy. A pre-rollback hook scales the candidate writer to zero,
+verifies the bound backup again, restores through SQLite into a temporary
+database, and atomically replaces the failed migration.
+
+The rollback hook is carried by the rollback target revision. Establish chart
+0.25.0 or newer as the source revision before relying on automatic verified
+restore; the first upgrade from an older chart receives the backup and
+single-writer protection, but the older rollback target has no restore hook.
+Do not remove `.clavenar-upgrade-backups` from a retained PVC. PostgreSQL
+Ledger is explicitly outside this SQLite path when
+`persistence.ledger.enabled=false`.
+
+The chart embeds the public `clavenar.stateful-upgrade/v1` schema and example
+receipt in an immutable ConfigMap. The live acceptance runner in
+`clavenar-e2e` installs the pinned host-path CSI driver, mutates all five state
+classes, and injects failed scheduling plus interrupted migration while
+asserting fixed PVC UIDs, exact state commitments, and at most one application
+writer.
+
 ### Authentication Secrets
 
 The default remains backwards compatible: the chart generates

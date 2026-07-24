@@ -1,0 +1,626 @@
+{{- if .Values.statefulUpgrade.enabled }}
+{{- if ne .Values.statefulUpgrade.backupMethod "sqlite-online-backup" }}
+{{- fail "statefulUpgrade.backupMethod must be sqlite-online-backup" }}
+{{- end }}
+{{- if ne .Values.statefulUpgrade.rollbackMode "verified-backup-restore" }}
+{{- fail "statefulUpgrade.rollbackMode must be verified-backup-restore" }}
+{{- end }}
+{{- if not (regexMatch "^[a-z0-9./_-]+@sha256:[a-f0-9]{64}$" .Values.statefulUpgrade.verifierImage) }}
+{{- fail "statefulUpgrade.verifierImage must be an immutable sha256 reference" }}
+{{- end }}
+{{- $hookName := printf "%s-stateful-upgrade" (include "clavenar.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- $workloads := list
+      (dict "key" "ledger" "service" "ledger" "database" "clavenar_ledger.db")
+      (dict "key" "hil" "service" "hil" "database" "clavenar_hil.db")
+      (dict "key" "identity" "service" "identity" "database" "clavenar_identity.db")
+      (dict "key" "policyEngine" "service" "policy-engine" "database" "policies.db")
+      (dict "key" "proxy" "service" "proxy" "database" "server-execution.db")
+}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $hookName }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "stateful-upgrade") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-upgrade,pre-rollback
+    helm.sh/hook-weight: "-40"
+    helm.sh/hook-delete-policy: before-hook-creation
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $hookName }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "stateful-upgrade") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-upgrade,pre-rollback
+    helm.sh/hook-weight: "-40"
+    helm.sh/hook-delete-policy: before-hook-creation
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+    resourceNames:
+      {{- range $row := $workloads }}
+      - {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $row.key) }}
+      {{- end }}
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $hookName }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "stateful-upgrade") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-upgrade,pre-rollback
+    helm.sh/hook-weight: "-40"
+    helm.sh/hook-delete-policy: before-hook-creation
+subjects:
+  - kind: ServiceAccount
+    name: {{ $hookName }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $hookName }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $hookName }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "stateful-upgrade") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-upgrade,pre-rollback
+    helm.sh/hook-weight: "-40"
+    helm.sh/hook-delete-policy: before-hook-creation
+immutable: true
+data:
+  stateful-upgrade.py: |
+    #!/usr/bin/env python3
+    """Fail-closed SQLite online backup and verified rollback restoration."""
+    from __future__ import annotations
+
+    from contextlib import closing
+    from datetime import datetime, timezone
+    import hashlib
+    import json
+    import os
+    from pathlib import Path
+    import re
+    import sqlite3
+    import ssl
+    import sys
+    import time
+    from urllib import parse, request
+
+    CONTRACT = "clavenar.stateful-upgrade/v1"
+    METHOD = "sqlite-online-backup"
+    VERIFICATION = "quick-check-and-sha256"
+    ROLLBACK_MODE = "verified-backup-restore"
+    VERSION = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+    GENERATION = re.compile(r"^upgrade-backup-[0-9A-Za-z._-]+$")
+    DATA_ROOT = Path("/data")
+
+
+    def fail(message: str) -> None:
+        raise RuntimeError(message)
+
+
+    def env(name: str) -> str:
+        value = os.environ.get(name, "")
+        if not value:
+            fail(f"{name} is required")
+        return value
+
+
+    MODE = env("MODE")
+    SERVICE = env("SERVICE")
+    DEPLOYMENT = env("DEPLOYMENT")
+    NAMESPACE = env("NAMESPACE")
+    TARGET_RELEASE = env("TARGET_RELEASE")
+    DATABASE_NAME = env("DATABASE_NAME")
+    BACKUP_ROOT_NAME = env("BACKUP_ROOT")
+    SELECTOR = env("APPLICATION_SELECTOR")
+    if MODE not in {"backup", "restore"}:
+        fail("MODE is invalid")
+    if not VERSION.fullmatch(TARGET_RELEASE):
+        fail("TARGET_RELEASE is invalid")
+    if DATABASE_NAME not in {
+        "clavenar_ledger.db",
+        "clavenar_hil.db",
+        "clavenar_identity.db",
+        "policies.db",
+        "server-execution.db",
+    }:
+        fail("DATABASE_NAME is invalid")
+    if BACKUP_ROOT_NAME != ".clavenar-upgrade-backups":
+        fail("BACKUP_ROOT is invalid")
+
+    DATABASE = DATA_ROOT / DATABASE_NAME
+    BACKUP_ROOT = DATA_ROOT / BACKUP_ROOT_NAME
+    POINTER = BACKUP_ROOT / "current.json"
+    API = (
+        "https://"
+        + env("KUBERNETES_SERVICE_HOST")
+        + ":"
+        + env("KUBERNETES_SERVICE_PORT_HTTPS")
+    )
+    TOKEN = Path("/var/run/secrets/kubernetes.io/serviceaccount/token").read_text(
+        encoding="utf-8"
+    )
+    CONTEXT = ssl.create_default_context(
+        cafile="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+    )
+
+
+    def utc_now() -> str:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+    def api(method: str, path: str, payload: dict | None = None) -> dict:
+        body = None if payload is None else json.dumps(payload).encode()
+        headers = {"Authorization": f"Bearer {TOKEN}"}
+        if payload is not None:
+            headers["Content-Type"] = "application/merge-patch+json"
+        call = request.Request(API + path, data=body, headers=headers, method=method)
+        with request.urlopen(call, timeout=15, context=CONTEXT) as response:
+            value = json.load(response)
+        if not isinstance(value, dict):
+            fail("Kubernetes API returned a non-object")
+        return value
+
+
+    def deployment() -> dict:
+        return api(
+            "GET",
+            "/apis/apps/v1/namespaces/"
+            + parse.quote(NAMESPACE, safe="")
+            + "/deployments/"
+            + parse.quote(DEPLOYMENT, safe=""),
+        )
+
+
+    def live_release(document: dict) -> str:
+        metadata = document.get("metadata", {})
+        annotations = metadata.get("annotations", {})
+        labels = metadata.get("labels", {})
+        version = annotations.get("clavenar.io/release-version", "")
+        if not version:
+            chart = labels.get("helm.sh/chart", "")
+            version = chart.rsplit("-", 1)[-1]
+        if not VERSION.fullmatch(version):
+            fail("live Deployment has no exact release version")
+        return version
+
+
+    def application_pods() -> list[dict]:
+        value = api(
+            "GET",
+            "/api/v1/namespaces/"
+            + parse.quote(NAMESPACE, safe="")
+            + "/pods?labelSelector="
+            + parse.quote(SELECTOR, safe="=,"),
+        )
+        items = value.get("items")
+        if not isinstance(items, list):
+            fail("Kubernetes pod inventory is invalid")
+        return [
+            item
+            for item in items
+            if not item.get("metadata", {}).get("deletionTimestamp")
+        ]
+
+
+    def pod_ready(pod: dict) -> bool:
+        return any(
+            condition.get("type") == "Ready" and condition.get("status") == "True"
+            for condition in pod.get("status", {}).get("conditions", [])
+        )
+
+
+    def wait_for_application_writers(expected: int, timeout: int = 180) -> None:
+        deadline = time.monotonic() + timeout
+        while True:
+            pods = application_pods()
+            if len(pods) == expected and (
+                expected == 0
+                or all(
+                    pod.get("status", {}).get("phase") == "Running" and pod_ready(pod)
+                    for pod in pods
+                )
+            ):
+                return
+            if len(pods) > 1:
+                fail("overlapping SQLite application writers observed")
+            if time.monotonic() >= deadline:
+                fail("application writer convergence deadline exceeded")
+            time.sleep(2)
+
+
+    def scale_deployment(replicas: int) -> None:
+        api(
+            "PATCH",
+            "/apis/apps/v1/namespaces/"
+            + parse.quote(NAMESPACE, safe="")
+            + "/deployments/"
+            + parse.quote(DEPLOYMENT, safe=""),
+            {"spec": {"replicas": replicas}},
+        )
+
+
+    def force_recreate_strategy() -> None:
+        api(
+            "PATCH",
+            "/apis/apps/v1/namespaces/"
+            + parse.quote(NAMESPACE, safe="")
+            + "/deployments/"
+            + parse.quote(DEPLOYMENT, safe=""),
+            {
+                "spec": {
+                    "strategy": {
+                        "type": "Recreate",
+                        "rollingUpdate": None,
+                    }
+                }
+            },
+        )
+
+
+    def quick_check(path: Path) -> None:
+        uri = f"file:{path}?mode=ro"
+        with closing(sqlite3.connect(uri, uri=True, timeout=30)) as database:
+            result = database.execute("PRAGMA quick_check").fetchone()
+        if result != ("ok",):
+            fail("SQLite quick_check failed")
+
+
+    def sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+        return "sha256:" + digest.hexdigest()
+
+
+    def sync_directory(path: Path) -> None:
+        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+
+    def atomic_json(path: Path, value: dict) -> None:
+        temporary = path.with_name(path.name + f".{os.getpid()}.tmp")
+        descriptor = os.open(
+            temporary,
+            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+            0o600,
+        )
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+                json.dump(value, output, sort_keys=True, separators=(",", ":"))
+                output.write("\n")
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(temporary, path)
+            sync_directory(path.parent)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+
+
+    def backup_database() -> None:
+        wait_for_application_writers(1)
+        live = live_release(deployment())
+        if not DATABASE.is_file() or DATABASE.is_symlink():
+            fail("SQLite database is missing or unsafe")
+        quick_check(DATABASE)
+        BACKUP_ROOT.mkdir(mode=0o700, parents=False, exist_ok=True)
+        os.chmod(BACKUP_ROOT, 0o700)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        generation_name = f"upgrade-backup-{live}-to-{TARGET_RELEASE}-{stamp}"
+        if not GENERATION.fullmatch(generation_name):
+            fail("backup generation is invalid")
+        generation = BACKUP_ROOT / generation_name
+        generation.mkdir(mode=0o700)
+        backup = generation / DATABASE_NAME
+        with closing(sqlite3.connect(f"file:{DATABASE}?mode=ro", uri=True, timeout=30)) as source:
+            source.execute("PRAGMA busy_timeout=30000")
+            with closing(sqlite3.connect(backup)) as target:
+                source.backup(target, pages=1024, sleep=0.05)
+                target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        os.chmod(backup, 0o600)
+        quick_check(backup)
+        manifest = {
+            "schemaVersion": 1,
+            "contract": CONTRACT,
+            "backupId": generation_name,
+            "service": SERVICE,
+            "sourceVersion": live,
+            "targetVersion": TARGET_RELEASE,
+            "method": METHOD,
+            "verification": VERIFICATION,
+            "rollbackMode": ROLLBACK_MODE,
+            "databaseSha256": sha256(backup),
+            "databaseBytes": backup.stat().st_size,
+            "quickCheck": "ok",
+            "createdAt": utc_now(),
+        }
+        atomic_json(generation / "manifest.json", manifest)
+        sync_directory(generation)
+        atomic_json(POINTER, {"generation": generation_name})
+        force_recreate_strategy()
+        rendered = deployment().get("spec", {}).get("strategy", {})
+        if rendered.get("type") != "Recreate" or rendered.get("rollingUpdate"):
+            fail("live Deployment did not accept Recreate")
+
+
+    def load_backup() -> tuple[Path, dict]:
+        if not POINTER.is_file() or POINTER.is_symlink():
+            fail("verified backup pointer is unavailable")
+        pointer = json.loads(POINTER.read_text(encoding="utf-8"))
+        if set(pointer) != {"generation"}:
+            fail("backup pointer shape is invalid")
+        generation_name = pointer["generation"]
+        if not isinstance(generation_name, str) or not GENERATION.fullmatch(generation_name):
+            fail("backup pointer generation is invalid")
+        generation = BACKUP_ROOT / generation_name
+        if generation.resolve().parent != BACKUP_ROOT.resolve() or generation.is_symlink():
+            fail("backup generation escaped its root")
+        manifest_path = generation / "manifest.json"
+        backup = generation / DATABASE_NAME
+        if (
+            not manifest_path.is_file()
+            or manifest_path.is_symlink()
+            or not backup.is_file()
+            or backup.is_symlink()
+        ):
+            fail("backup generation is incomplete or unsafe")
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        expected = {
+            "schemaVersion",
+            "contract",
+            "backupId",
+            "service",
+            "sourceVersion",
+            "targetVersion",
+            "method",
+            "verification",
+            "rollbackMode",
+            "databaseSha256",
+            "databaseBytes",
+            "quickCheck",
+            "createdAt",
+        }
+        if set(manifest) != expected:
+            fail("backup manifest shape is invalid")
+        if (
+            manifest["schemaVersion"] != 1
+            or manifest["contract"] != CONTRACT
+            or manifest["backupId"] != generation_name
+            or manifest["service"] != SERVICE
+            or manifest["sourceVersion"] != TARGET_RELEASE
+            or manifest["method"] != METHOD
+            or manifest["verification"] != VERIFICATION
+            or manifest["rollbackMode"] != ROLLBACK_MODE
+            or manifest["quickCheck"] != "ok"
+            or manifest["databaseBytes"] != backup.stat().st_size
+            or manifest["databaseSha256"] != sha256(backup)
+        ):
+            fail("backup manifest binding mismatch")
+        quick_check(backup)
+        return backup, manifest
+
+
+    def restore_database() -> None:
+        backup, manifest = load_backup()
+        live = live_release(deployment())
+        if live not in {manifest["sourceVersion"], manifest["targetVersion"]}:
+            fail("live release is outside the rollback pair")
+        scale_deployment(0)
+        wait_for_application_writers(0)
+        temporary = DATA_ROOT / f".{DATABASE_NAME}.{os.getpid()}.restore"
+        if temporary.exists():
+            fail("restore target already exists")
+        try:
+            with closing(sqlite3.connect(f"file:{backup}?mode=ro", uri=True, timeout=30)) as source:
+                with closing(sqlite3.connect(temporary)) as target:
+                    source.backup(target, pages=1024, sleep=0.05)
+                    target.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            os.chmod(temporary, 0o600)
+            quick_check(temporary)
+            for suffix in ("-wal", "-shm"):
+                sidecar = Path(str(DATABASE) + suffix)
+                if sidecar.exists():
+                    if not sidecar.is_file() or sidecar.is_symlink():
+                        fail("SQLite sidecar is unsafe")
+                    sidecar.unlink()
+            os.replace(temporary, DATABASE)
+            sync_directory(DATA_ROOT)
+            quick_check(DATABASE)
+            if sha256(DATABASE) != manifest["databaseSha256"]:
+                fail("restored database digest mismatch")
+            atomic_json(
+                DATA_ROOT / ".clavenar-upgrade-last-restore.json",
+                {
+                    "schemaVersion": 1,
+                    "contract": CONTRACT,
+                    "service": SERVICE,
+                    "backupId": manifest["backupId"],
+                    "sourceVersion": manifest["sourceVersion"],
+                    "targetVersion": manifest["targetVersion"],
+                    "restoredAt": utc_now(),
+                    "status": "pass",
+                },
+            )
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+
+
+    try:
+        if MODE == "backup":
+            backup_database()
+        else:
+            restore_database()
+    except Exception as error:
+        print(f"stateful upgrade hook failed: {error}", file=sys.stderr)
+        raise SystemExit(1)
+{{- range $row := $workloads }}
+{{- $svc := index $.Values.services $row.key }}
+{{- $persist := index $.Values.persistence $row.key }}
+{{- if and $svc.enabled $persist.enabled }}
+{{- $deployment := include "clavenar.serviceFullname" (dict "ctx" $ "service" $row.key) }}
+{{- $claim := default (printf "%s-data" $deployment) $persist.existingClaim }}
+{{- $selector := printf "app.kubernetes.io/name=%s,app.kubernetes.io/instance=%s,app.kubernetes.io/component=%s" $.Chart.Name $.Release.Name $row.service }}
+{{- $backupJob := printf "%s-upgrade-backup" $deployment | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $backupJob }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" $ "service" "stateful-upgrade") | nindent 4 }}
+    clavenar.io/stateful-service: {{ $row.service }}
+  annotations:
+    helm.sh/hook: pre-upgrade
+    helm.sh/hook-weight: "-35"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $.Values.statefulUpgrade.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" "stateful-upgrade") | nindent 8 }}
+        clavenar.io/stateful-service: {{ $row.service }}
+    spec:
+      serviceAccountName: {{ $hookName }}
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ $.Chart.Name }}
+                    app.kubernetes.io/instance: {{ $.Release.Name }}
+                    app.kubernetes.io/component: {{ $row.service }}
+      containers:
+        - name: backup
+          image: {{ $.Values.statefulUpgrade.verifierImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "/scripts/stateful-upgrade.py"]
+          env:
+            - {name: MODE, value: backup}
+            - {name: SERVICE, value: {{ $row.service | quote }}}
+            - {name: DEPLOYMENT, value: {{ $deployment | quote }}}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - {name: TARGET_RELEASE, value: {{ $.Chart.Version | quote }}}
+            - {name: DATABASE_NAME, value: {{ $row.database | quote }}}
+            - {name: BACKUP_ROOT, value: {{ $.Values.statefulUpgrade.backupRoot | quote }}}
+            - {name: APPLICATION_SELECTOR, value: {{ $selector | quote }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: script, mountPath: /scripts, readOnly: true}
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: script
+          configMap:
+            name: {{ $hookName }}
+            defaultMode: 0444
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $claim }}
+{{- $restoreJob := printf "%s-rollback-restore" $deployment | trunc 63 | trimSuffix "-" }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $restoreJob }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" $ "service" "stateful-upgrade") | nindent 4 }}
+    clavenar.io/stateful-service: {{ $row.service }}
+  annotations:
+    helm.sh/hook: pre-rollback
+    helm.sh/hook-weight: "-35"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: {{ $.Values.statefulUpgrade.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "clavenar.selectorLabels" (dict "ctx" $ "service" "stateful-upgrade") | nindent 8 }}
+        clavenar.io/stateful-service: {{ $row.service }}
+    spec:
+      serviceAccountName: {{ $hookName }}
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: {{ $.Chart.Name }}
+                    app.kubernetes.io/instance: {{ $.Release.Name }}
+                    app.kubernetes.io/component: {{ $row.service }}
+      containers:
+        - name: restore
+          image: {{ $.Values.statefulUpgrade.verifierImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["python3", "/scripts/stateful-upgrade.py"]
+          env:
+            - {name: MODE, value: restore}
+            - {name: SERVICE, value: {{ $row.service | quote }}}
+            - {name: DEPLOYMENT, value: {{ $deployment | quote }}}
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - {name: TARGET_RELEASE, value: {{ $.Chart.Version | quote }}}
+            - {name: DATABASE_NAME, value: {{ $row.database | quote }}}
+            - {name: BACKUP_ROOT, value: {{ $.Values.statefulUpgrade.backupRoot | quote }}}
+            - {name: APPLICATION_SELECTOR, value: {{ $selector | quote }}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - {name: script, mountPath: /scripts, readOnly: true}
+            - {name: data, mountPath: /data}
+      volumes:
+        - name: script
+          configMap:
+            name: {{ $hookName }}
+            defaultMode: 0444
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ $claim }}
+{{- end }}
+{{- end }}
+{{- end }}
