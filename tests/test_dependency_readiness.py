@@ -16,12 +16,15 @@ SPEC.loader.exec_module(GATE)
 
 class DependencyReadinessChartTests(unittest.TestCase):
     def test_complete_helm_projection_passes(self) -> None:
+        source_root = ROOT.parent
+        if not (source_root / "clavenar-specs").is_dir():
+            source_root = ROOT
         result = subprocess.run(
             [
                 "python3",
                 str(SCRIPT),
                 "--source-root",
-                str(ROOT.parent),
+                str(source_root),
                 "--require-source",
             ],
             capture_output=True,
