@@ -1,0 +1,41 @@
+{{- /*
+Standard Prometheus Operator routing resource. Receiver URL and bearer
+authority are references to operator-owned Secrets in this namespace; the
+chart never accepts either sensitive value inline.
+*/}}
+{{- if and .Values.alerting.enabled .Values.alertmanager.enabled }}
+{{- $urlSecret := required "alertmanager.receiver.urlSecretName is required when alertmanager is enabled" .Values.alertmanager.receiver.urlSecretName }}
+{{- $urlKey := required "alertmanager.receiver.urlSecretKey is required when alertmanager is enabled" .Values.alertmanager.receiver.urlSecretKey }}
+{{- $tokenSecret := required "alertmanager.receiver.bearerSecretName is required when alertmanager is enabled" .Values.alertmanager.receiver.bearerSecretName }}
+{{- $tokenKey := required "alertmanager.receiver.bearerSecretKey is required when alertmanager is enabled" .Values.alertmanager.receiver.bearerSecretKey }}
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: {{ include "clavenar.fullname" . }}-routing
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "alertmanager") | nindent 4 }}
+    {{- with .Values.alertmanager.configLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  route:
+    receiver: operator-inbox
+    groupBy:
+      - alertname
+      - severity
+      - operation_id
+    groupWait: 5s
+    groupInterval: 10s
+    repeatInterval: 4h
+  receivers:
+    - name: operator-inbox
+      webhookConfigs:
+        - sendResolved: true
+          urlSecret:
+            name: {{ $urlSecret | quote }}
+            key: {{ $urlKey | quote }}
+          httpConfig:
+            bearerTokenSecret:
+              name: {{ $tokenSecret | quote }}
+              key: {{ $tokenKey | quote }}
+{{- end }}

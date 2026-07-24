@@ -1,0 +1,18 @@
+{{- /*
+Standard Prometheus Operator rule resource. The operator discovers this object
+through the configured labels and validates the rule grammar through its
+admission webhook. The rule source is never interpreted as a Helm template.
+*/}}
+{{- if .Values.alerting.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "clavenar.fullname" . }}-alerts
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "alerts") | nindent 4 }}
+    {{- with .Values.alerting.prometheusRuleLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+{{ .Files.Get "alerts/clavenar-alerts.yaml" | indent 2 }}
+{{- end }}

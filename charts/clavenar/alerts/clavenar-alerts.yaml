@@ -1,4 +1,18 @@
 groups:
+  - name: clavenar.synthetic-delivery
+    interval: 5s
+    rules:
+      - alert: ClavenarSyntheticProductionPage
+        expr: clavenar_alert_drill_active == 1
+        labels:
+          severity: critical
+          component: alert-delivery
+        annotations:
+          summary: "Synthetic production alert delivery drill"
+          description: |
+            Operator-confirmed synthetic page used only to prove firing,
+            authenticated durable delivery, acknowledgement, and resolution.
+
   - name: clavenar.critical
     interval: 30s
     rules:
@@ -18,7 +32,7 @@ groups:
               3. Quarantine the ledger volume before any chain-mutating ops.
 
       - alert: BrainMockModeInProd
-        expr: clavenar_brain_mock_mode{env="prod"} == 1
+        expr: clavenar_brain_mock_mode == 1
         for: 5m
         labels:
           severity: critical
@@ -271,7 +285,7 @@ groups:
       # monthly bill, not a momentary spike. Monitor-only — it never
       # denies traffic. Edit the literal `> 200` to your daily budget
       # (this file is loaded verbatim; `tpl` is not applied, so the
-      # threshold can't be a Helm value — see alerts-configmap.yaml).
+      # threshold is intentionally fixed in the public PrometheusRule catalog).
       - alert: BrainInspectionBudgetSoftCap
         expr: |
           (sum(increase(clavenar_brain_cost_estimated_usd_micros_total[24h])) / 1e6)
@@ -338,7 +352,7 @@ groups:
 
       - alert: VerifySlow
         expr: |
-          clavenar_ledger_verify_duration_seconds{quantile="0.95",env="prod"}
+          clavenar_ledger_verify_duration_seconds{quantile="0.95"}
           > 5
         for: 10m
         labels:
@@ -352,7 +366,7 @@ groups:
             the cold tier and resetting the vacuum cursor.
 
       - alert: SimulatorRunningTooLong
-        expr: min_over_time(clavenar_simulator_running{env="prod"}[24h]) == 1
+        expr: min_over_time(clavenar_simulator_running[24h]) == 1
         labels:
           severity: warning
           component: simulator

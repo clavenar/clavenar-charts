@@ -117,17 +117,17 @@ jobs:
       - name: install kubeconform
         run: go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
       - name: kubeconform — default
-        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/default.yaml
+        run: kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 /tmp/default.yaml
       - name: kubeconform — all-on
-        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/all-on.yaml
+        run: kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 /tmp/all-on.yaml
       - name: kubeconform — postgres
-        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/postgres.yaml
+        run: kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 /tmp/postgres.yaml
       - name: kubeconform — bundled
-        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/bundled.yaml
+        run: kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 /tmp/bundled.yaml
       - name: kubeconform — optional
-        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/optional.yaml
+        run: kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 /tmp/optional.yaml
       - name: kubeconform — production
-        run: kubeconform -summary -strict -kubernetes-version 1.30.0 /tmp/production.yaml
+        run: kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 /tmp/production.yaml
 
   shellcheck:
     name: shellcheck

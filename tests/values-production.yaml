@@ -4,6 +4,16 @@
 # distinct from both the Helm release and Prometheus namespaces.
 deploymentProfile: production
 
+alertmanager:
+  enabled: true
+  configLabels:
+    alertmanagerConfig: clavenar
+  receiver:
+    urlSecretName: clavenar-alert-routing
+    urlSecretKey: webhook-url
+    bearerSecretName: clavenar-alert-routing
+    bearerSecretKey: bearer-token
+
 scheduledBackup:
   enabled: true
   operator: platform-backup-controller

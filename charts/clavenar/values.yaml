@@ -285,37 +285,27 @@ drainCapSecs: 30
 dashboards:
   enabled: true
 
-# Prometheus alerting rules. Ship the rule catalog
-# (charts/clavenar/alerts/*.yaml) into a ConfigMap labelled
-# `prometheus_rule: "1"`. kube-prometheus-stack discovers via that
-# label. Set `enabled: false` if your Prometheus is configured to
-# load rules differently.
+# Prometheus Operator alerting rules. The chart emits a standard
+# PrometheusRule; labels must match the owning Prometheus ruleSelector.
 alerting:
   enabled: true
+  prometheusRuleLabels:
+    release: kube-prometheus-stack
 
-# Alertmanager routing. Disabled by default — most operators already
-# run an Alertmanager and want to merge clavenar alerts into it.
-# When enabled, the chart projects a Secret with severity-based
-# routing (critical → slack + email, warning → slack only). Channel
-# `#clavenar-ops` is deliberately distinct from HIL's `#clavenar-approvals`.
+# Prometheus Operator Alertmanager routing. The chart emits an
+# AlertmanagerConfig and accepts only references to operator-owned Secrets.
+# The URL must identify a durable operator-backed receiver; the bearer token
+# must authenticate Alertmanager delivery. Inline credentials and discard
+# receivers are intentionally unsupported.
 alertmanager:
   enabled: false
-  slack:
-    # Slack webhook URL for ops channel. Required when alertmanager
-    # is enabled.
-    opsWebhookUrl: ""
-  email:
-    # Critical-severity alerts also email this address. Empty disables
-    # the email receiver and falls back to slack-only.
-    to: ""
-    from: ""
-    smtp:
-      host: ""
-      port: 587
-      username: ""
-      # In prod, source this from a secretKeyRef rather than literal
-      # values. Inline is fine for evaluation clusters.
-      password: ""
+  configLabels:
+    alertmanagerConfig: clavenar
+  receiver:
+    urlSecretName: ""
+    urlSecretKey: webhook-url
+    bearerSecretName: ""
+    bearerSecretKey: token
 
 # Every service Dockerfile ships USER 65532 (Google distroless nonroot).
 # fsGroup remounts PVCs so SQLite writes work on ledger/hil/identity.

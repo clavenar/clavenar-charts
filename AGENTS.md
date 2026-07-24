@@ -61,7 +61,8 @@ charts/clavenar/
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
     vault-{bootstrap,seed}-job.yaml       # dev-mode transit engine + stub agent credential
-    dashboards-configmap.yaml alerts-configmap.yaml alertmanager-config-secret.yaml
+    dashboards-configmap.yaml prometheus-rule.yaml alertmanager-config.yaml
+    alerts-configmap.yaml                 # compatibility source anchor; emits no resource
   dashboards/ alerts/   # Grafana JSON + Prometheus rules, label-discovered by kube-prometheus-stack
 tests/values-bundled.yaml   # nats + vault subcharts + auto-mint TLS; CI bundled fixture
 scripts/push-images.sh      # fail-closed tombstone for the retired mutable/partial publisher

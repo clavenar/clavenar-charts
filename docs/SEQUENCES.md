@@ -42,8 +42,8 @@ sequenceDiagram
     Tpl->>Tpl: networkpolicy.yaml fires only if networkPolicy.enabled
     Tpl->>Tpl: pdb.yaml fires only when any services.x.replicas greater than 1
     Tpl->>Tpl: dashboards-configmap fires only if dashboards.enabled
-    Tpl->>Tpl: alerts-configmap fires only if alerting.enabled
-    Tpl->>Tpl: alertmanager-config-secret fires only if alerting AND alertmanager
+    Tpl->>Tpl: PrometheusRule fires only if alerting.enabled
+    Tpl->>Tpl: AlertmanagerConfig fires only if alerting AND alertmanager
     Tpl-->>Helm: rendered manifests batch
     Helm->>API: POST batch (Deployments, Services, PVCs, ConfigMap, NOTES)
     API-->>Helm: accepted
@@ -146,9 +146,9 @@ sequenceDiagram
 
 `clavenar.metricsAnnotations` writes `prometheus.io/scrape="true"` at the
 pod level with a port fallback chain `metrics.port → healthPort → port`,
-so under TLS the scrape lands on the plain-HTTP health listener. Rules
-+ dashboards ship as ConfigMaps labelled `prometheus_rule:"1"` /
-`grafana_dashboard:"1"` for the kube-prometheus-stack sidecar to pick up.
+so under TLS the scrape lands on the plain-HTTP health listener. Rules ship as
+a standard Prometheus Operator `PrometheusRule`; dashboards remain ConfigMaps
+labelled `grafana_dashboard:"1"` for the Grafana sidecar.
 
 ```mermaid
 sequenceDiagram
@@ -156,7 +156,7 @@ sequenceDiagram
     participant API as kube-apiserver
     participant Prom as Prometheus<br/>(in-cluster)
     participant Sidecar as Grafana sidecar
-    participant CM1 as ConfigMap<br/>clavenar-alerts
+    participant Rule as PrometheusRule<br/>clavenar-alerts
     participant CM2 as ConfigMap<br/>clavenar-dashboards
     participant Pod as brain Pod<br/>(annotations: scrape, port 9081)
 
@@ -173,48 +173,42 @@ sequenceDiagram
     Sidecar->>CM2: read clavenar-overview.json, clavenar-cost.json
     Sidecar->>Sidecar: provision to Grafana via /api/dashboards/db
 
-    Note over Prom: PrometheusRule sidecar
-    Prom->>API: LIST configmaps where label prometheus_rule=1
-    API-->>Prom: clavenar-alerts ConfigMap
-    Prom->>CM1: read clavenar-alerts.yaml
-    Prom->>Prom: load clavenar.critical + clavenar.warning rule groups
+    Note over Prom: Prometheus Operator ruleSelector
+    Prom->>API: LIST PrometheusRules matching configured labels
+    API-->>Prom: clavenar-alerts PrometheusRule
+    Prom->>Rule: load spec.groups
+    Prom->>Prom: load synthetic, critical, and warning rule groups
 ```
 
 ## 5. Alert fan-out — `LedgerChainCorrupted` fires
 
-Severity-based routing splits critical vs. warning. `clavenar.critical`
-matches against the `critical` receiver (Slack #clavenar-ops + email when
-SMTP is configured); the default `slack-ops` receiver catches the rest.
-The Secret form keeps webhook + SMTP creds off ConfigMaps.
+The chart emits a standard `AlertmanagerConfig` that routes every Clavenar
+alert to an operator-owned durable inbox. The webhook URL and bearer token are
+referenced from an existing Secret; neither credential is accepted inline.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant Prom as Prometheus
     participant AM as Alertmanager
-    participant Sec as Secret<br/>clavenar-alertmanager
-    participant Slack as Slack<br/>#clavenar-ops
-    participant SMTP as SMTP relay
+    participant AMC as AlertmanagerConfig
+    participant Sec as Secret<br/>operator-owned routing
+    participant Inbox as Durable operator inbox
     actor Op as Oncall
 
     Note over Prom: rule clavenar_ledger_chain_valid == 0<br/>for 1m, severity=critical
     Prom->>Prom: rule eval, sample over threshold for 1m
     Prom->>AM: POST /api/v1/alerts (alertname=LedgerChainCorrupted)
 
-    AM->>Sec: load alertmanager.yml at boot
-    Sec-->>AM: route + receivers config
-    AM->>AM: group_wait 30s, group_by alertname,severity
-    AM->>AM: route matches severity=critical -> receiver "critical"
-
-    par Slack hop
-        AM->>Slack: POST webhook (channel #clavenar-ops, send_resolved=true)
-        Slack-->>Op: incoming alert
-    and email hop (only if alertmanager.email.to set)
-        AM->>SMTP: EHLO + AUTH PLAIN, MAIL FROM
-        SMTP-->>Op: alert email
-    end
-
-    Note over Prom,AM: when sample clears<br/>AM fires resolved notification on same channels
+    AM->>AMC: select operator-inbox route
+    AMC->>Sec: resolve webhook URL + bearer token
+    AM->>AM: group_wait 5s, group_by alertname,severity,operation_id
+    AM->>Inbox: authenticated POST (status=firing)
+    Inbox-->>Op: durable notification
+    Op->>Inbox: authenticated acknowledgement
+    Note over Prom,AM: when sample clears
+    AM->>Inbox: authenticated POST (status=resolved)
+    Inbox-->>Op: durable lifecycle receipt
 ```
 
 ## 6. NetworkPolicy perimeter — sidecar tries to reach `brain`
@@ -391,10 +385,10 @@ flowchart TD
     V --> Dash{dashboards.enabled?}
     Dash -->|yes| DashCm[emit ConfigMap label grafana_dashboard=1]
     V --> Alerts{alerting.enabled?}
-    Alerts -->|yes| AlertsCm[emit ConfigMap label prometheus_rule=1]
+    Alerts -->|yes| AlertsRule[emit PrometheusRule with discovery labels]
     Alerts --> Am{alertmanager.enabled?}
-    Am -->|yes| AmSec[emit Alertmanager Secret with Slack plus SMTP routing]
-    Am -->|no| NoAm[operator wires alerts into their own AM]
+    Am -->|yes| AmConfig[emit AlertmanagerConfig with Secret references]
+    Am -->|no| NoAm[operator wires alerts into their own Alertmanager]
 
     V --> Exec{exec.enabled?}
     Exec -->|yes| ExecDep[emit exec Deployment + Service + workspace PVC]
