@@ -1,6 +1,0 @@
-{{- /*
-Compatibility source anchor for the public state-recovery inventory.
-
-Alert rules are emitted as the standard PrometheusRule resource in
-prometheus-rule.yaml. This file intentionally emits no Kubernetes object.
-*/}}

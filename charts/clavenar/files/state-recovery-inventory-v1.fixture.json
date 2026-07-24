@@ -888,13 +888,14 @@
     },
     {
       "id": "observability-state",
-      "purpose": "Prometheus, Grafana, Alertmanager, dashboards, rules, routing configuration, and retained operational evidence",
+      "purpose": "Prometheus, Grafana, Alertmanager, durable operator inbox, dashboards, rules, routing configuration, and retained operational evidence",
       "owner": "SRE",
       "authority": "observability",
       "criticality": "tier-1",
       "confidentiality": "restricted",
       "locations": [
         {"topology": "compose-single-host", "resource": "compose-volume:alertmanager-data", "persistence": "retained"},
+        {"topology": "compose-single-host", "resource": "compose-volume:alert-inbox-data", "persistence": "retained"},
         {"topology": "compose-single-host", "resource": "compose-volume:grafana-data", "persistence": "retained"},
         {"topology": "compose-single-host", "resource": "compose-volume:prometheus-data", "persistence": "retained"},
         {"topology": "compose-single-host", "resource": "compose-bind-class:observability", "persistence": "signed-source"},
@@ -921,7 +922,10 @@
       "sources": [
         "clavenar-e2e/prod/prometheus.yml",
         "clavenar-e2e/prod/alerts.yaml",
-        "clavenar-charts/charts/clavenar/templates/alerts-configmap.yaml"
+        "clavenar-e2e/prod/alertmanager.yml",
+        "clavenar-e2e/scripts/alert_receiver.py",
+        "clavenar-charts/charts/clavenar/templates/prometheus-rule.yaml",
+        "clavenar-charts/charts/clavenar/templates/alertmanager-config.yaml"
       ]
     }
   ]

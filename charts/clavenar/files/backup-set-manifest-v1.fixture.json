@@ -6,7 +6,7 @@
   "topology": "compose-single-host",
   "inventory": {
     "contract": "clavenar.state-recovery-inventory/v1",
-    "sha256": "49c36d8f0db7ff86a9b5b2d0cfbe4f22016624fadb746f633de6e6de866e6f31"
+    "sha256": "0188d2400ca88efa6651ddf4f30c3d7aa3a6f17b7301f264ca96aa5ce8df554d"
   },
   "planSha256": "1111111111111111111111111111111111111111111111111111111111111111",
   "startedAt": "2026-07-23T12:00:00Z",
