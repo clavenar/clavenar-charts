@@ -3,7 +3,7 @@
   "contract": "clavenar.distributed-control-resilience/v1",
   "inventory": {
     "contract": "clavenar.distributed-control-state/v1",
-    "sha256": "528f9b88821e0589020491b78278961924a4692a854f2b9f59c8838725b7d9a9"
+    "sha256": "2f844c04496968baabbe395bf216eea1c0bac7058d642814cb9d5ceb2d7bd63c"
   },
   "snapshotAuthorization": {
     "mode": "disabled",

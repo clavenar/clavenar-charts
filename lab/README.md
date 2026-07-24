@@ -146,7 +146,7 @@ seed manually before applying the agent pod:
 
 ```bash
 curl -H "X-Vault-Token: $VAULT_TOKEN" -X POST \
-  "${VAULT_ADDR}/v1/secret/data/agents/agent-001" \
+  "${VAULT_ADDR}/v1/secret/data/agents/_legacy_unqualified/agent-001" \
   -d '{"data":{"api_key":"stub-key"}}'
 ```
 

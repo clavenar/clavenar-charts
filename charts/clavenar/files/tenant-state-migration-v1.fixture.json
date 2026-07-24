@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.tenant-state-migration/v1",
+  "keyContract": "clavenar.tenant-agent-key/v1",
+  "legacySentinelTenant": "_legacy_unqualified",
+  "migration": {
+    "selectionEnvironment": "CLAVENAR_TENANT_STATE_MIGRATION_TENANTS",
+    "mode": "tenant-at-a-time-dual-read-comparison",
+    "match": "serve-qualified",
+    "mismatch": "fail-closed-and-evidence",
+    "missing": "fail-closed-and-evidence",
+    "qualifiedWriteRequired": true,
+    "legacyDualWriteAllowed": false
+  },
+  "collisionVector": {
+    "tenantA": "acme",
+    "tenantB": "globex",
+    "agentId": "shared-agent",
+    "expected": "distinct-state"
+  },
+  "states": [
+    {
+      "id": "agent-lifecycle-state",
+      "owner": "identity",
+      "store": "sqlite",
+      "partitionKind": "tenant-agent-predicate",
+      "partition": "agents UNIQUE(tenant,agent_name); every lifecycle lookup and mutation predicates tenant",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-identity/src/agents/store.rs",
+          "contains": ["WHERE tenant = ?1 AND agent_name = ?2", "lifecycle_lookup_isolates_same_agent_name_between_tenants"]
+        }
+      ]
+    },
+    {
+      "id": "agent-rate-buckets",
+      "owner": "proxy",
+      "store": "memory",
+      "partitionKind": "canonical-agent-key",
+      "partition": "AgentKey canonical tenant/agent plus an independent typed tenant bucket",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "none",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-proxy/src/rate_limit.rs",
+          "contains": ["check_agent_key", "same_agent_name_in_two_tenants_has_independent_agent_buckets"]
+        }
+      ]
+    },
+    {
+      "id": "hil-pending-rows",
+      "owner": "hil",
+      "store": "sqlite",
+      "partitionKind": "tenant-agent-predicate",
+      "partition": "pending_requests tenant and agent_id columns with (tenant,agent_id) index",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-hil/src/persistence.rs",
+          "contains": ["AgentKey::from_legacy_read", "from_unqualified_legacy_identity", "pending_reads_isolate_same_agent_name_between_tenants"]
+        },
+        {
+          "source": "clavenar-hil/src/schema.rs",
+          "contains": ["_legacy_unqualified", "idx_pending_tenant_agent"]
+        }
+      ]
+    },
+    {
+      "id": "lite-pending-access",
+      "owner": "lite",
+      "store": "sqlite",
+      "partitionKind": "tenant-agent-predicate",
+      "partition": "pendings tenant and agent_id columns; agent poll predicates correlation_id, tenant, and agent_id",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-lite/src/ledger.rs",
+          "contains": ["get_pending_for_agent", "same_agent_name_persists_distinct_pending_tenants"]
+        },
+        {
+          "source": "clavenar-lite/src/proxy.rs",
+          "contains": ["poll_identity.tenant", "poll_identity.agent_id"]
+        }
+      ]
+    },
+    {
+      "id": "policy-learning",
+      "owner": "policy-engine",
+      "store": "memory",
+      "partitionKind": "tenant-agent-predicate",
+      "partition": "one validated tenant per learning corpus; every agent validates as AgentKey",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "none",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-policy-engine/src/miner/mod.rs",
+          "contains": ["learning corpus must contain exactly one tenant", "AgentKey::from_legacy_read", "list_active_for_engine(&conn, Some(tenant.as_str()))"]
+        },
+        {
+          "source": "clavenar-policy-engine/tests/mine_test.rs",
+          "contains": ["learning_rejects_same_agent_name_mixed_across_tenants"]
+        }
+      ]
+    },
+    {
+      "id": "policy-replay",
+      "owner": "ledger",
+      "store": "sqlite",
+      "partitionKind": "tenant-predicate",
+      "partition": "replay corpus reads and counts apply the explicit operator tenant predicate",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-ledger/src/reads/canary.rs",
+          "contains": ["push_operator_scope", "replay_corpus_keeps_same_agent_names_in_operator_tenants_isolated"]
+        },
+        {
+          "source": "clavenar-ledger/src/handler/audit/canary.rs",
+          "contains": ["operator_tenant_scope", "read_replay_corpus"]
+        }
+      ]
+    },
+    {
+      "id": "regulatory-exports",
+      "owner": "ledger",
+      "store": "sqlite-or-postgres",
+      "partitionKind": "tenant-predicate",
+      "partition": "regulatory time-window reads require tenant equality in both supported stores",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-ledger/src/handler/export.rs",
+          "contains": ["TenantId::new", "read_in_time_window(window.from, window.to, tenant.as_str())"]
+        },
+        {
+          "source": "clavenar-ledger/src/storage/sqlite.rs",
+          "contains": ["AND tenant = ?3", "regulatory_window_isolates_same_agent_name_between_tenants"]
+        },
+        {
+          "source": "clavenar-ledger/src/storage/postgres.rs",
+          "contains": ["AND tenant = $3"]
+        }
+      ]
+    },
+    {
+      "id": "revocation-controls",
+      "owner": "identity",
+      "store": "jetstream-kv",
+      "partitionKind": "collision-safe-agent-key",
+      "partition": "agent.v2.<hex tenant>.<hex agent> and force_hil.v2.<hex tenant>.<hex agent>",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "none",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-identity/src/revocation.rs",
+          "contains": ["qualified_agent_key", "agent.v2", "force_hil_key"]
+        },
+        {
+          "source": "clavenar-proxy/src/revocation.rs",
+          "contains": ["qualified_agent_key", "same_agent_and_separator_like_tenants_do_not_collide"]
+        }
+      ]
+    },
+    {
+      "id": "spend-history",
+      "owner": "policy-engine",
+      "store": "memory",
+      "partitionKind": "canonical-agent-key",
+      "partition": "canonical AgentKey plus calendar spend window",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "canonical-agent-key",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-policy-engine/src/evaluate.rs",
+          "contains": ["state_agent_key", "record_and_total", "invalid_state_identity_fails_instead_of_skipping_breakers"]
+        },
+        {
+          "source": "clavenar-policy-engine/src/spend.rs",
+          "contains": ["same_agent_name_in_two_tenants_is_independent"]
+        }
+      ]
+    },
+    {
+      "id": "tenant-quota-buckets",
+      "owner": "proxy",
+      "store": "memory",
+      "partitionKind": "tenant-predicate",
+      "partition": "validated tenant plus UTC calendar month",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-proxy/src/quota.rs",
+          "contains": ["cache.get(tenant)", "quota_cache_keeps_tenants_in_distinct_partitions"]
+        }
+      ]
+    },
+    {
+      "id": "tool-definition-pins",
+      "owner": "proxy",
+      "store": "memory",
+      "partitionKind": "canonical-agent-key",
+      "partition": "typed AgentKey maps independently to each tool-definition digest map",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "canonical-agent-key",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-proxy/src/supply_chain.rs",
+          "contains": ["HashMap<AgentKey", "per_agent_pins_are_independent"]
+        },
+        {
+          "source": "clavenar-identity/src/tool_pins.rs",
+          "contains": ["AgentKey::from_legacy_read", "snapshot_identity_is_tenant_qualified_and_consistent"]
+        }
+      ]
+    },
+    {
+      "id": "vault-upstream-secrets",
+      "owner": "proxy",
+      "store": "vault-kv-v2",
+      "partitionKind": "canonical-agent-key",
+      "partition": "secret/data/agents/<tenant>/<agent>",
+      "legacyRead": "tenant-bound-compare",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "tenant",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-proxy/src/vault.rs",
+          "contains": ["CLAVENAR_TENANT_STATE_MIGRATION_TENANTS", "\"tenant\" => agent_key.tenant()", "tenant_state_migration_comparisons_total", "same_agent_name_maps_to_distinct_qualified_paths"]
+        },
+        {
+          "source": "clavenar-simulator/src/vault.rs",
+          "contains": ["secret/data/agents/{tenant}/{cn}", "same_agent_name_has_a_distinct_tenant_path"]
+        }
+      ]
+    },
+    {
+      "id": "velocity-history",
+      "owner": "policy-engine",
+      "store": "jetstream-kv",
+      "partitionKind": "canonical-agent-key",
+      "partition": "agent.<hex canonical tenant/agent bytes>",
+      "legacyRead": "not-applicable",
+      "cutoverWrite": "qualified-only",
+      "metricDimension": "canonical-agent-key",
+      "collisionProof": "same-agent-two-tenant-negative",
+      "sourceChecks": [
+        {
+          "source": "clavenar-proxy/src/history.rs",
+          "contains": ["hex::encode(agent_id.as_bytes())", "encoded_key_is_injective_across_tenant_and_label_separators"]
+        },
+        {
+          "source": "clavenar-policy-engine/src/tracker.rs",
+          "contains": ["hex::encode(agent_id.as_bytes())", "same_agent_name_in_two_tenants_is_independent", "nats_kv_key_encodes_canonical_identity_injectively"]
+        },
+        {
+          "source": "clavenar-lite/src/policy.rs",
+          "contains": ["velocity_isolates_same_agent_name_between_tenants"]
+        }
+      ]
+    }
+  ],
+  "prohibitions": [
+    "bare-agent-authority-after-cutover",
+    "implicit-default-tenant",
+    "legacy-dual-write",
+    "cross-tenant-corpus",
+    "correlation-id-only-pending-access",
+    "unscoped-export"
+  ]
+}

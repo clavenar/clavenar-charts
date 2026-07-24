@@ -78,6 +78,7 @@ class DistributedControlStateChartTests(unittest.TestCase):
         )
         pod = proxy["spec"]["template"]
         self.assertIn("checksum/distributed-control-state", pod["metadata"]["annotations"])
+        self.assertIn("checksum/tenant-state-migration", pod["metadata"]["annotations"])
         self.assertIn(
             "checksum/distributed-control-resilience", pod["metadata"]["annotations"]
         )
@@ -101,6 +102,8 @@ class DistributedControlStateChartTests(unittest.TestCase):
             {
                 "distributed-control-state-v1.schema.json",
                 "distributed-control-state-v1.fixture.json",
+                "tenant-state-migration-v1.schema.json",
+                "tenant-state-migration-v1.fixture.json",
                 "distributed-control-resilience-v1.schema.json",
                 "distributed-control-resilience-v1.fixture.json",
             },

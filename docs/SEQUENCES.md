@@ -334,8 +334,8 @@ sequenceDiagram
     Helm->>API: create vault-agent-seed Job (weight 1)
     API->>VSeed: start
     VSeed->>Vault: poll vault status until reachable
-    VSeed->>Vault: kv put secret/agents/agent-001 api_key=stub-key
-    VSeed->>Vault: kv get secret/agents/agent-001 (post-condition)
+    VSeed->>Vault: kv put secret/agents/_legacy_unqualified/agent-001 api_key=stub-key
+    VSeed->>Vault: kv get secret/agents/_legacy_unqualified/agent-001 (post-condition)
     VSeed-->>API: Job succeeded
     Helm-->>Op: release deployed — pods mount clavenar-certs (flow 2);<br/>identity signs SVIDs via transit
 ```
@@ -409,6 +409,6 @@ flowchart TD
     Vault -->|yes| VaultTok[emit vault-token Secret with dev root token]
     Vault -->|yes| VaultBoot[post-install hook, weight 0, enable transit + create clavenar-identity key]
     VaultBoot --> Seed{agentVaultSeed.enabled?}
-    Seed -->|yes| SeedJob[post-install hook, weight 1, kv put secret/agents/agent-001]
+    Seed -->|yes| SeedJob[post-install hook, weight 1, kv put secret/agents/_legacy_unqualified/agent-001]
     Seed -->|no| NoSeed[BYO per-agent creds]
 ```

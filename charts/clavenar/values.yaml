@@ -240,7 +240,7 @@ exec:
 # One-shot Job that seeds Vault with a stub api_key for agent-001 (the
 # CN baked into the auto-mint starter `client.crt`). The proxy refuses
 # every request with `403 No credentials found for agent <id>` until a
-# Vault entry exists at `secret/data/agents/<id>`. The Job is opt-in;
+# Vault entry exists at `secret/data/agents/<tenant>/<id>`. The Job is opt-in;
 # operators using BYO Vault must seed the entry themselves (see
 # `lab/README.md` for the curl).
 #
@@ -248,11 +248,16 @@ exec:
 # without the bundled Vault, there's nothing for the Job to talk to.
 agentVaultSeed:
   enabled: false
+  # Tenant-qualified state partition. The auto-mint starter certificate
+  # is still CN-only, so its explicit compatibility partition is the
+  # reserved legacy sentinel until tenant-bearing lab SVIDs ship.
+  tenant: _legacy_unqualified
   # The agent_id the proxy will see on inbound mTLS connections. Matches
   # the CN in the auto-mint starter client cert. Change only if you've
   # supplied a custom tlsBundle Secret with a different starter CN.
   agentId: agent-001
-  # The opaque value stored under `secret/data/agents/<agentId>`. The
+  # The opaque value stored under
+  # `secret/data/agents/<tenant>/<agentId>`. The
   # proxy only checks for *presence*, not value, so the literal here is
   # a marker. Production deployments source real per-agent credentials
   # from their own Vault policies — this Job is lab-only.

@@ -3,7 +3,7 @@ Post-install + post-upgrade Job that seeds Vault with a stub api_key
 for the lab agent (default `agent-001`, matching the CN of the
 auto-mint starter client cert). The clavenar-proxy returns 403
 "No credentials found for agent <id>" on every request until a
-KV entry exists at `secret/data/agents/<id>` — see
+KV entry exists at `secret/data/agents/<tenant>/<id>` — see
 repos/clavenar-ctl/docs/clients/README.md "Shared prerequisites".
 
 Gated on BOTH `agentVaultSeed.enabled` AND `vault.bundled.enabled` —
@@ -77,14 +77,14 @@ spec:
               vault secrets enable -path=secret -version=2 kv 2>/dev/null || true
 
               # Idempotent: kv put overwrites in place. The proxy gates
-              # on presence at the `secret/data/agents/<id>` path; the
+              # on presence at the `secret/data/agents/<tenant>/<id>` path; the
               # api_key value itself is opaque.
-              vault kv put "secret/agents/${AGENT_ID}" \
+              vault kv put "secret/agents/${TENANT}/${AGENT_ID}" \
                   api_key="${STUB_API_KEY}"
 
               # Post-condition: the entry must be readable.
-              vault kv get "secret/agents/${AGENT_ID}" >/dev/null
-              echo "Seeded secret/data/agents/${AGENT_ID} at ${VAULT_ADDR}"
+              vault kv get "secret/agents/${TENANT}/${AGENT_ID}" >/dev/null
+              echo "Seeded secret/data/agents/${TENANT}/${AGENT_ID} at ${VAULT_ADDR}"
           env:
             - name: VAULT_ADDR
               value: {{ include "clavenar.vaultAddr" . | quote }}
@@ -95,6 +95,8 @@ spec:
                   key: bootstrap-token
             - name: AGENT_ID
               value: {{ .Values.agentVaultSeed.agentId | quote }}
+            - name: TENANT
+              value: {{ .Values.agentVaultSeed.tenant | quote }}
             - name: STUB_API_KEY
               value: {{ .Values.agentVaultSeed.stubApiKey | quote }}
           resources:

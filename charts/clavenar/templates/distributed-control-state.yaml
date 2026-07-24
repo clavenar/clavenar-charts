@@ -10,6 +10,10 @@ data:
 {{ .Files.Get "files/distributed-control-state-v1.schema.json" | trimSuffix "\n" | indent 4 }}
   distributed-control-state-v1.fixture.json: |
 {{ .Files.Get "files/distributed-control-state-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
+  tenant-state-migration-v1.schema.json: |
+{{ .Files.Get "files/tenant-state-migration-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  tenant-state-migration-v1.fixture.json: |
+{{ .Files.Get "files/tenant-state-migration-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
   distributed-control-resilience-v1.schema.json: |
 {{ .Files.Get "files/distributed-control-resilience-v1.schema.json" | trimSuffix "\n" | indent 4 }}
   distributed-control-resilience-v1.fixture.json: |

@@ -93,6 +93,7 @@ spec:
         {{- end }}
         {{- if $mountsControlState }}
         checksum/distributed-control-state: {{ $.Files.Get "files/distributed-control-state-v1.fixture.json" | sha256sum }}
+        checksum/tenant-state-migration: {{ $.Files.Get "files/tenant-state-migration-v1.fixture.json" | sha256sum }}
         checksum/distributed-control-resilience: {{ $.Files.Get "files/distributed-control-resilience-v1.fixture.json" | sha256sum }}
         {{- end }}
         {{- if $mountsTsaTrust }}
@@ -490,6 +491,10 @@ spec:
                 path: distributed-control-state-v1.schema.json
               - key: distributed-control-state-v1.fixture.json
                 path: distributed-control-state-v1.fixture.json
+              - key: tenant-state-migration-v1.schema.json
+                path: tenant-state-migration-v1.schema.json
+              - key: tenant-state-migration-v1.fixture.json
+                path: tenant-state-migration-v1.fixture.json
               - key: distributed-control-resilience-v1.schema.json
                 path: distributed-control-resilience-v1.schema.json
               - key: distributed-control-resilience-v1.fixture.json

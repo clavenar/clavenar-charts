@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/tenant-state-migration-v1.schema.json",
+  "title": "Clavenar tenant-qualified state migration inventory",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "keyContract",
+    "legacySentinelTenant",
+    "migration",
+    "collisionVector",
+    "states",
+    "prohibitions"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.tenant-state-migration/v1"},
+    "keyContract": {"const": "clavenar.tenant-agent-key/v1"},
+    "legacySentinelTenant": {"const": "_legacy_unqualified"},
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "selectionEnvironment",
+        "mode",
+        "match",
+        "mismatch",
+        "missing",
+        "qualifiedWriteRequired",
+        "legacyDualWriteAllowed"
+      ],
+      "properties": {
+        "selectionEnvironment": {
+          "const": "CLAVENAR_TENANT_STATE_MIGRATION_TENANTS"
+        },
+        "mode": {"const": "tenant-at-a-time-dual-read-comparison"},
+        "match": {"const": "serve-qualified"},
+        "mismatch": {"const": "fail-closed-and-evidence"},
+        "missing": {"const": "fail-closed-and-evidence"},
+        "qualifiedWriteRequired": {"const": true},
+        "legacyDualWriteAllowed": {"const": false}
+      }
+    },
+    "collisionVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenantA", "tenantB", "agentId", "expected"],
+      "properties": {
+        "tenantA": {"const": "acme"},
+        "tenantB": {"const": "globex"},
+        "agentId": {"const": "shared-agent"},
+        "expected": {"const": "distinct-state"}
+      }
+    },
+    "states": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": {"$ref": "#/$defs/state"}
+    },
+    "prohibitions": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "bare-agent-authority-after-cutover"},
+        {"const": "implicit-default-tenant"},
+        {"const": "legacy-dual-write"},
+        {"const": "cross-tenant-corpus"},
+        {"const": "correlation-id-only-pending-access"},
+        {"const": "unscoped-export"}
+      ],
+      "items": false,
+      "minItems": 6,
+      "maxItems": 6
+    }
+  },
+  "$defs": {
+    "sourceCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "contains"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "pattern": "^clavenar-[a-z0-9-]+/.+"
+        },
+        "contains": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "owner",
+        "store",
+        "partitionKind",
+        "partition",
+        "legacyRead",
+        "cutoverWrite",
+        "metricDimension",
+        "collisionProof",
+        "sourceChecks"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{2,63}$"
+        },
+        "owner": {
+          "type": "string",
+          "enum": [
+            "hil",
+            "identity",
+            "ledger",
+            "lite",
+            "policy-engine",
+            "proxy"
+          ]
+        },
+        "store": {
+          "type": "string",
+          "enum": [
+            "memory",
+            "jetstream-kv",
+            "sqlite",
+            "sqlite-or-postgres",
+            "vault-kv-v2"
+          ]
+        },
+        "partitionKind": {
+          "type": "string",
+          "enum": [
+            "canonical-agent-key",
+            "collision-safe-agent-key",
+            "tenant-agent-predicate",
+            "tenant-predicate"
+          ]
+        },
+        "partition": {"type": "string", "minLength": 1},
+        "legacyRead": {
+          "type": "string",
+          "enum": ["tenant-bound-compare", "not-applicable"]
+        },
+        "cutoverWrite": {"const": "qualified-only"},
+        "metricDimension": {
+          "type": "string",
+          "enum": ["canonical-agent-key", "tenant", "none"]
+        },
+        "collisionProof": {"const": "same-agent-two-tenant-negative"},
+        "sourceChecks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/sourceCheck"}
+        }
+      }
+    }
+  }
+}
