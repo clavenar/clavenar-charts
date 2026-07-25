@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.7.0",
+  "contractVersion": "1.8.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:3b61080eb6f711d9b183c1348504360ae990e9dfca7f3fb16f043805a7770332",
-  "matrixSha256": "sha256:51ea1568c261b9035784c1714b8198cdc684f6d32218557cf976049e6efdf613",
+  "listenerMatrixSha256": "sha256:513963353847fcf6f42df579fd30cedc6280fc66baaeab11c4c7be2dfbd11624",
+  "matrixSha256": "sha256:55ee8709a0ffccd322c16863c263fec4a24ab8a3d0bfd1426bb402b69eb9c0cf",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -136,6 +136,15 @@
           "family": "hil-pending-manage",
           "method": "PATCH",
           "pathTemplate": "/pending/{id}/incident"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.namespace.cleanup",
+          "family": "hil-demo-namespace-cleanup",
+          "method": "POST",
+          "pathTemplate": "/admin/namespaces/demo/cleanup"
         },
         {
           "allowedCallerIds": [
@@ -893,6 +902,15 @@
           "family": "ledger-audit-stream",
           "method": "GET",
           "pathTemplate": "/stream/audit"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.namespace.cleanup",
+          "family": "ledger-demo-namespace-cleanup",
+          "method": "POST",
+          "pathTemplate": "/admin/namespaces/demo/cleanup"
         },
         {
           "allowedCallerIds": [

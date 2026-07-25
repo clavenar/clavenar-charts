@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.state-namespace-isolation/v1",
+  "namespaces": ["operator", "demo"],
+  "allocation": {
+    "scope": "shared-global",
+    "strategy": "cryptographically-random-uuid",
+    "collisionVector": "same-tenant-same-agent-cross-namespace",
+    "expected": "distinct-identifiers-and-owned-state"
+  },
+  "cleanup": {
+    "namespace": "demo",
+    "authentication": "workload-mtls-capability",
+    "selection": "explicit-owner-only",
+    "idempotent": true,
+    "volumeAction": "retain",
+    "operatorRetention": "required",
+    "legacyRetention": "required",
+    "receiptContract": "clavenar.namespace-cleanup-receipt/v1"
+  },
+  "ledger": {
+    "chainVersion": 6,
+    "namespacePosition": "after-v5-fields",
+    "cleanupMutation": "separate-non-hash-tombstone",
+    "liveViews": "exclude-demo-tombstones",
+    "verification": "retain-all-chain-rows",
+    "exports": "retain-evidence",
+    "anchors": "retain"
+  },
+  "components": [
+    {
+      "id": "hil-pending",
+      "owner": "hil",
+      "ownership": "explicit-required",
+      "cleanup": "authenticated-owned-delete",
+      "sourceChecks": [
+        {
+          "source": "clavenar-console/src/handlers/demo.rs",
+          "contains": [
+            "\"state_namespace\": clavenar_shared::state_namespace::DEMO_NAMESPACE",
+            "state_namespace: clavenar_shared::state_namespace::DEMO_NAMESPACE.to_owned()"
+          ]
+        },
+        {
+          "source": "clavenar-hil/src/handler/lifecycle.rs",
+          "contains": ["parse::<clavenar_shared::state_namespace::StateNamespace>()", "state_namespace: state_namespace.as_str().to_owned()"]
+        },
+        {
+          "source": "clavenar-hil/src/handler/namespace.rs",
+          "contains": ["DELETE FROM pending_requests WHERE state_namespace = 'demo'", "retained_operator"]
+        }
+      ]
+    },
+    {
+      "id": "ledger-chain",
+      "owner": "ledger",
+      "ownership": "hash-committed",
+      "cleanup": "not-applicable",
+      "sourceChecks": [
+        {
+          "source": "clavenar-ledger/src/chain.rs",
+          "contains": ["pub const CURRENT_CHAIN_VERSION: i64 = 6", "pub(crate) state_namespace: &'a str"]
+        }
+      ]
+    },
+    {
+      "id": "ledger-live-views",
+      "owner": "ledger",
+      "ownership": "explicit-required",
+      "cleanup": "authenticated-owned-tombstone",
+      "sourceChecks": [
+        {
+          "source": "clavenar-sdk/src/ledger.rs",
+          "contains": [
+            "pub state_namespace: String"
+          ]
+        },
+        {
+          "source": "clavenar-ledger/src/storage.rs",
+          "contains": ["tombstone_demo_namespace", "NamespaceCleanupCounts"]
+        },
+        {
+          "source": "clavenar-ledger/src/reads/mod.rs",
+          "contains": ["demo_deleted_at IS NULL"]
+        }
+      ]
+    },
+    {
+      "id": "platform-reset",
+      "owner": "e2e",
+      "ownership": "explicit-required",
+      "cleanup": "orchestrates-owned-endpoints",
+      "sourceChecks": [
+        {
+          "source": "clavenar-e2e/prod/run-demo-reset.sh",
+          "contains": ["/admin/namespaces/demo/cleanup", "namespace-cleanup-receipt.json"]
+        },
+        {
+          "source": "clavenar-e2e/dev/run-demo-reset.sh",
+          "contains": ["/admin/namespaces/demo/cleanup", "namespace-cleanup-receipt.json"]
+        }
+      ]
+    },
+    {
+      "id": "proxy-routing",
+      "owner": "proxy",
+      "ownership": "trusted-derived",
+      "cleanup": "not-applicable",
+      "sourceChecks": [
+        {
+          "source": "clavenar-proxy/src/handler/mcp.rs",
+          "contains": ["StateNamespace::from_explicit_demo", "state_namespace"]
+        }
+      ]
+    },
+    {
+      "id": "shared-ownership",
+      "owner": "shared",
+      "ownership": "typed-exact",
+      "cleanup": "not-applicable",
+      "sourceChecks": [
+        {
+          "source": "clavenar-shared/src/state_namespace.rs",
+          "contains": ["pub const OPERATOR_NAMESPACE", "pub enum StateNamespace"]
+        }
+      ]
+    }
+  ],
+  "prohibitions": [
+    "untrusted-namespace-selection",
+    "implicit-demo-default",
+    "operator-or-legacy-cleanup",
+    "ledger-chain-row-deletion",
+    "forensic-evidence-deletion",
+    "service-stop-for-cleanup",
+    "volume-delete-or-recreate",
+    "allocator-reset"
+  ]
+}

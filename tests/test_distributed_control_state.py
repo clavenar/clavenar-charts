@@ -106,6 +106,8 @@ class DistributedControlStateChartTests(unittest.TestCase):
                 "tenant-state-migration-v1.fixture.json",
                 "distributed-control-resilience-v1.schema.json",
                 "distributed-control-resilience-v1.fixture.json",
+                "state-namespace-isolation-v1.schema.json",
+                "state-namespace-isolation-v1.fixture.json",
             },
             {item["key"] for item in volume["configMap"]["items"]},
         )
