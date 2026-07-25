@@ -18,6 +18,10 @@ data:
 {{ .Files.Get "files/state-namespace-isolation-v1.schema.json" | trimSuffix "\n" | indent 4 }}
   state-namespace-isolation-v1.fixture.json: |
 {{ .Files.Get "files/state-namespace-isolation-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
+  tenant-route-authorization-v1.schema.json: |
+{{ .Files.Get "files/tenant-route-authorization-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  tenant-route-authorization-v1.fixture.json: |
+{{ .Files.Get "files/tenant-route-authorization-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
   distributed-control-resilience-v1.schema.json: |
 {{ .Files.Get "files/distributed-control-resilience-v1.schema.json" | trimSuffix "\n" | indent 4 }}
   distributed-control-resilience-v1.fixture.json: |

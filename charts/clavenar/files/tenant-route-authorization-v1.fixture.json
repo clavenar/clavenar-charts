@@ -1,0 +1,109 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.tenant-route-authorization/v1",
+  "productionIdentity": {
+    "source": "verified-client-certificate-uri-san",
+    "required": true,
+    "acceptedShapes": [
+      "spiffe://<trust-domain>/tenant/<tenant>/agent/<agent>",
+      "spiffe://<trust-domain>/tenant/<tenant>/agent/<agent>/instance/<instance>"
+    ],
+    "rejected": [
+      "absent-spiffe-uri-san",
+      "legacy-common-name",
+      "abbreviated-agent-spiffe",
+      "non-agent-spiffe",
+      "malformed-or-extra-path"
+    ]
+  },
+  "authority": {
+    "proxy": "verified-tenant-agent-spiffe",
+    "hil": "authenticated-principal-or-exact-workload-scope",
+    "lite": "tenant-bound-agent-or-operator-token"
+  },
+  "routes": [
+    {
+      "owner": "hil",
+      "routes": ["list", "stream", "decide", "poll", "get-by-id"]
+    },
+    {
+      "owner": "lite",
+      "routes": ["list", "decide", "poll", "get-by-id"]
+    },
+    {
+      "owner": "proxy",
+      "routes": ["ingress"]
+    }
+  ],
+  "denial": {
+    "timing": "before-target-lookup-or-mutation",
+    "objectStatus": "cross-tenant-equals-not-found",
+    "mutation": "none",
+    "collection": "authenticated-tenant-only"
+  },
+  "compatibility": {
+    "production": "no-unqualified-identity",
+    "development": "explicit-single-user-legacy-only"
+  },
+  "sourceChecks": [
+    {
+      "source": "clavenar-shared/src/spiffe.rs",
+      "contains": [
+        "pub fn tenant_agent_key_from_spiffe",
+        "[\"tenant\", _, \"agent\", _, \"instance\", _]"
+      ]
+    },
+    {
+      "source": "clavenar-proxy/src/handler/gates.rs",
+      "contains": [
+        "enforce_tenant_identity_or_reject",
+        "\"tenant_spiffe_required\""
+      ]
+    },
+    {
+      "source": "clavenar-hil/src/persistence.rs",
+      "contains": [
+        "pub(crate) fn fetch_pending_for_tenant",
+        "WHERE id = ?1 AND tenant = ?2"
+      ]
+    },
+    {
+      "source": "clavenar-hil/src/handler/decide.rs",
+      "contains": [
+        "PendingScope::Tenant(principal.tenant.clone())",
+        "apply_decision_in_scope"
+      ]
+    },
+    {
+      "source": "clavenar-hil/src/decision.rs",
+      "contains": [
+        "fetch_pending_for_demo_prefix(&tx, id, prefix)",
+        "fetch_pending_for_tenant(&tx, id, tenant)"
+      ]
+    },
+    {
+      "source": "clavenar-lite/src/proxy.rs",
+      "contains": [
+        "pub struct TenantRegistry",
+        "resolve_operator_tenant",
+        "decide_pending_for_tenant"
+      ]
+    },
+    {
+      "source": "clavenar-lite/src/ledger.rs",
+      "contains": [
+        "pub async fn list_pendings_for_tenant",
+        "pub async fn decide_pending_for_tenant",
+        "AND (?5 IS NULL OR tenant = ?5)"
+      ]
+    }
+  ],
+  "prohibitions": [
+    "header-body-or-query-tenant-authority",
+    "production-common-name-fallback",
+    "unqualified-multi-agent-registry",
+    "global-authenticated-pending-list",
+    "cross-tenant-existence-disclosure",
+    "cross-tenant-decision-mutation"
+  ]
+}
