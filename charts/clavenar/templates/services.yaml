@@ -91,6 +91,8 @@ spec:
         {{- if eq $name "hil" }}
         checksum/hil-retention-schema: {{ $.Files.Get "files/hil-retention-v1.schema.json" | sha256sum }}
         checksum/hil-retention-fixture: {{ $.Files.Get "files/hil-retention-v1.fixture.json" | sha256sum }}
+        checksum/hil-erasure-schema: {{ $.Files.Get "files/hil-erasure-v1.schema.json" | sha256sum }}
+        checksum/hil-erasure-fixture: {{ $.Files.Get "files/hil-erasure-v1.fixture.json" | sha256sum }}
         {{- end }}
         {{- if $mountsAttestationContract }}
         checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}

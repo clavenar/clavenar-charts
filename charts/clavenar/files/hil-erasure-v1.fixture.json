@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.hil-erasure/v1",
+  "d08Binding": {
+    "stateId": "hil-decisions",
+    "lifecycleProfile": "hil-sensitive",
+    "retentionContract": "clavenar.hil-retention/v1"
+  },
+  "deadlineErasure": {
+    "terminalPayloadDeadline": "purge-sensitive-payload",
+    "metadataDeadline": "delete-pending-row",
+    "maximumRowsPerSweep": 100,
+    "activeLegalHold": "defer",
+    "tombstone": "hil-payload-purged/v1"
+  },
+  "legalHold": {
+    "route": "POST /admin/pending/{pending_id}/legal-hold",
+    "capability": "hil.retention.manage",
+    "actions": ["apply", "release"],
+    "operationId": "required-uuid",
+    "holdId": "required-uuid",
+    "authority": "authenticated-tenant-and-workload",
+    "reasonPersistence": "sha256-commitment-only",
+    "sameOperationReplay": "exact-receipt",
+    "operationSubstitution": "conflict",
+    "crossTenantOrUnknown": "not-found",
+    "releaseDeferredErasure": "execute-before-success"
+  },
+  "tenantErasure": {
+    "trigger": "tenant-offboard",
+    "unheldRows": "delete-in-owner-transaction",
+    "heldRows": "mark-deferred",
+    "releasedDeferredRows": "delete-immediately",
+    "otherTenants": "unchanged",
+    "demoCleanup": "same-audited-erasure-path"
+  },
+  "audit": {
+    "localTable": "hil_deletion_audit",
+    "localMutation": "immutable",
+    "forensicStages": ["operation.intent", "transition.committed"],
+    "forensicOperation": "pending.retention_delete",
+    "allowedPayloadFields": [
+      "operation",
+      "pending_id",
+      "trigger",
+      "disposition",
+      "state",
+      "retention_policy",
+      "retention_tier",
+      "original_payload_sha256"
+    ],
+    "sensitiveContent": "prohibited"
+  },
+  "physicalDeletion": {
+    "sqliteSecureDelete": true,
+    "walCheckpoint": "TRUNCATE",
+    "vacuumAfterDeletion": true,
+    "transactionalAudit": true
+  },
+  "doesNotAssert": [
+    "backup-copy-erasure",
+    "restored-environment-erasure"
+  ],
+  "sourceChecks": [
+    {
+      "source": "clavenar-hil/src/erasure.rs",
+      "contains": ["MAX_ERASURE_ROWS_PER_SWEEP", "erase_tenant_rows", "sanitize_after_physical_deletion"]
+    },
+    {
+      "source": "clavenar-hil/src/handler/legal_hold.rs",
+      "contains": ["clavenar.hil-legal-hold/v1", "apply", "release"]
+    },
+    {
+      "source": "clavenar-hil/src/forensic_outbox.rs",
+      "contains": ["append_deletion_intent", "append_deletion_committed", "pending.retention_delete"]
+    },
+    {
+      "source": "clavenar-hil/src/schema.rs",
+      "contains": ["PRAGMA secure_delete=ON", "hil_deletion_audit", "pending_requests_active_hold_no_delete"]
+    },
+    {
+      "source": "clavenar-hil/src/handler/tenant_lifecycle.rs",
+      "contains": ["erase_tenant_rows", "rows_erased", "rows_held"]
+    },
+    {
+      "source": "clavenar-e2e/scripts/check_hil_erasure.py",
+      "contains": ["def validate_semantics", "def validate_live", "erasure-at-rest"]
+    }
+  ],
+  "prohibitions": [
+    "delete-active-legal-hold",
+    "raw-legal-hold-reason",
+    "sensitive-content-in-deletion-audit",
+    "unaudited-pending-row-delete",
+    "unbounded-erasure-sweep",
+    "cross-tenant-hold-mutation",
+    "operation-id-substitution",
+    "success-before-deferred-erasure",
+    "backup-erasure-claim-in-wp-11.7"
+  ]
+}

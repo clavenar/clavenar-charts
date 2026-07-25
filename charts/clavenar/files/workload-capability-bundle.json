@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.9.0",
+  "contractVersion": "1.10.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:fb5f2817591b4ad561499515c6462778c5070f8e47a899a8df10172ea170e2e6",
-  "matrixSha256": "sha256:8567c45baa78ae752b21e25dfb42abc2324c87408313fac8b2e78e19e6c83ed1",
+  "listenerMatrixSha256": "sha256:f7d63e8d3e55630ee9b3f1aac1365d90605b119c49267cc53b18070490465c0c",
+  "matrixSha256": "sha256:cd7de043c424d2a0c887f13881e6af1a02d7dfaf2b5f8856307ebdb33b8bd6ef",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -145,6 +145,15 @@
           "family": "hil-demo-namespace-cleanup",
           "method": "POST",
           "pathTemplate": "/admin/namespaces/demo/cleanup"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.retention.manage",
+          "family": "hil-legal-hold",
+          "method": "POST",
+          "pathTemplate": "/admin/pending/{id}/legal-hold"
         },
         {
           "allowedCallerIds": [

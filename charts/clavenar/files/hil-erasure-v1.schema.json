@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/hil-erasure-v1.schema.json",
+  "title": "Clavenar HIL legal hold, bounded erasure, and deletion audit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "d08Binding",
+    "deadlineErasure",
+    "legalHold",
+    "tenantErasure",
+    "audit",
+    "physicalDeletion",
+    "doesNotAssert",
+    "sourceChecks",
+    "prohibitions"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.hil-erasure/v1"},
+    "d08Binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stateId", "lifecycleProfile", "retentionContract"],
+      "properties": {
+        "stateId": {"const": "hil-decisions"},
+        "lifecycleProfile": {"const": "hil-sensitive"},
+        "retentionContract": {"const": "clavenar.hil-retention/v1"}
+      }
+    },
+    "deadlineErasure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["terminalPayloadDeadline", "metadataDeadline", "maximumRowsPerSweep", "activeLegalHold", "tombstone"],
+      "properties": {
+        "terminalPayloadDeadline": {"const": "purge-sensitive-payload"},
+        "metadataDeadline": {"const": "delete-pending-row"},
+        "maximumRowsPerSweep": {"const": 100},
+        "activeLegalHold": {"const": "defer"},
+        "tombstone": {"const": "hil-payload-purged/v1"}
+      }
+    },
+    "legalHold": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["route", "capability", "actions", "operationId", "holdId", "authority", "reasonPersistence", "sameOperationReplay", "operationSubstitution", "crossTenantOrUnknown", "releaseDeferredErasure"],
+      "properties": {
+        "route": {"const": "POST /admin/pending/{pending_id}/legal-hold"},
+        "capability": {"const": "hil.retention.manage"},
+        "actions": {
+          "type": "array",
+          "prefixItems": [{"const": "apply"}, {"const": "release"}],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "operationId": {"const": "required-uuid"},
+        "holdId": {"const": "required-uuid"},
+        "authority": {"const": "authenticated-tenant-and-workload"},
+        "reasonPersistence": {"const": "sha256-commitment-only"},
+        "sameOperationReplay": {"const": "exact-receipt"},
+        "operationSubstitution": {"const": "conflict"},
+        "crossTenantOrUnknown": {"const": "not-found"},
+        "releaseDeferredErasure": {"const": "execute-before-success"}
+      }
+    },
+    "tenantErasure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trigger", "unheldRows", "heldRows", "releasedDeferredRows", "otherTenants", "demoCleanup"],
+      "properties": {
+        "trigger": {"const": "tenant-offboard"},
+        "unheldRows": {"const": "delete-in-owner-transaction"},
+        "heldRows": {"const": "mark-deferred"},
+        "releasedDeferredRows": {"const": "delete-immediately"},
+        "otherTenants": {"const": "unchanged"},
+        "demoCleanup": {"const": "same-audited-erasure-path"}
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["localTable", "localMutation", "forensicStages", "forensicOperation", "allowedPayloadFields", "sensitiveContent"],
+      "properties": {
+        "localTable": {"const": "hil_deletion_audit"},
+        "localMutation": {"const": "immutable"},
+        "forensicStages": {
+          "type": "array",
+          "prefixItems": [{"const": "operation.intent"}, {"const": "transition.committed"}],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "forensicOperation": {"const": "pending.retention_delete"},
+        "allowedPayloadFields": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "operation"},
+            {"const": "pending_id"},
+            {"const": "trigger"},
+            {"const": "disposition"},
+            {"const": "state"},
+            {"const": "retention_policy"},
+            {"const": "retention_tier"},
+            {"const": "original_payload_sha256"}
+          ],
+          "items": false,
+          "minItems": 8,
+          "maxItems": 8
+        },
+        "sensitiveContent": {"const": "prohibited"}
+      }
+    },
+    "physicalDeletion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sqliteSecureDelete", "walCheckpoint", "vacuumAfterDeletion", "transactionalAudit"],
+      "properties": {
+        "sqliteSecureDelete": {"const": true},
+        "walCheckpoint": {"const": "TRUNCATE"},
+        "vacuumAfterDeletion": {"const": true},
+        "transactionalAudit": {"const": true}
+      }
+    },
+    "doesNotAssert": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "backup-copy-erasure"},
+        {"const": "restored-environment-erasure"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "sourceChecks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {"$ref": "#/$defs/sourceCheck"}
+    },
+    "prohibitions": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "delete-active-legal-hold"},
+        {"const": "raw-legal-hold-reason"},
+        {"const": "sensitive-content-in-deletion-audit"},
+        {"const": "unaudited-pending-row-delete"},
+        {"const": "unbounded-erasure-sweep"},
+        {"const": "cross-tenant-hold-mutation"},
+        {"const": "operation-id-substitution"},
+        {"const": "success-before-deferred-erasure"},
+        {"const": "backup-erasure-claim-in-wp-11.7"}
+      ],
+      "items": false,
+      "minItems": 9,
+      "maxItems": 9
+    }
+  },
+  "$defs": {
+    "sourceCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "contains"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1, "maxLength": 160},
+        "contains": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 160}
+        }
+      }
+    }
+  }
+}

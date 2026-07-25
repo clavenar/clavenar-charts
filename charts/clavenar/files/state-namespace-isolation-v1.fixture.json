@@ -47,7 +47,7 @@
         },
         {
           "source": "clavenar-hil/src/handler/namespace.rs",
-          "contains": ["DELETE FROM pending_requests WHERE state_namespace = 'demo'", "retained_operator"]
+          "contains": ["erase_demo_rows", "retained_legal_hold", "retained_operator"]
         }
       ]
     },
