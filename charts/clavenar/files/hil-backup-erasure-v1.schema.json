@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/hil-backup-erasure-v1.schema.json",
+  "title": "Clavenar HIL backup and restore erasure enforcement",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "bindings",
+    "phases",
+    "copyBoundary",
+    "dispositionAuthority",
+    "sanitization",
+    "receipt",
+    "failurePolicy",
+    "sourceChecks",
+    "prohibitions"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.hil-backup-erasure/v1"},
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["retention", "erasure", "backup", "restore"],
+      "properties": {
+        "retention": {"const": "clavenar.hil-retention/v1"},
+        "erasure": {"const": "clavenar.hil-erasure/v1"},
+        "backup": {"const": "clavenar.backup-set-manifest/v1"},
+        "restore": {"const": "clavenar.isolated-restore-receipt/v1"}
+      }
+    },
+    "phases": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "backup-copy"},
+        {"const": "restore-admission"}
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "copyBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applicationConsistent",
+        "productionDatabaseMutation",
+        "sanitizeBeforeEncryption",
+        "sanitizeBeforeWorkloadRead"
+      ],
+      "properties": {
+        "applicationConsistent": {"const": true},
+        "productionDatabaseMutation": {"const": "prohibited"},
+        "sanitizeBeforeEncryption": {"const": true},
+        "sanitizeBeforeWorkloadRead": {"const": true}
+      }
+    },
+    "dispositionAuthority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "signature",
+        "keyCustody",
+        "generation",
+        "tenantPersistence",
+        "publicReceipt",
+        "restoreMinimum"
+      ],
+      "properties": {
+        "contract": {"const": "clavenar.tenant-erasure-disposition/v1"},
+        "signature": {"const": "hmac-sha256"},
+        "keyCustody": {"const": "external-to-backup-chain"},
+        "generation": {"const": "strictly-monotonic-on-addition"},
+        "tenantPersistence": {"const": "private-authority-file-only"},
+        "publicReceipt": {"const": "generation-key-id-and-sha256-only"},
+        "restoreMinimum": {"const": "latest-external-generation"}
+      }
+    },
+    "sanitization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "maximumRowsPerTransaction",
+        "expiredPayload",
+        "expiredMetadata",
+        "offboardedUnheld",
+        "offboardedHeld",
+        "activeLegalHold",
+        "releasedDeferred",
+        "sqliteSecureDelete",
+        "walCheckpoint",
+        "vacuum",
+        "quickCheck"
+      ],
+      "properties": {
+        "maximumRowsPerTransaction": {"const": 100},
+        "expiredPayload": {"const": "fixed-purged-tombstone"},
+        "expiredMetadata": {"const": "delete-with-minimized-local-audit"},
+        "offboardedUnheld": {"const": "delete-with-minimized-local-audit"},
+        "offboardedHeld": {"const": "retain-and-mark-deferred"},
+        "activeLegalHold": {"const": "retain-protected-and-auditable"},
+        "releasedDeferred": {"const": "delete-before-admission"},
+        "sqliteSecureDelete": {"const": true},
+        "walCheckpoint": {"const": "TRUNCATE"},
+        "vacuum": {"const": true},
+        "quickCheck": {"const": true}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiredBindings", "sensitiveContent"],
+      "properties": {
+        "requiredBindings": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "policy_sha256"},
+            {"const": "evaluated_at"},
+            {"const": "input_database_sha256"},
+            {"const": "output_database_sha256"},
+            {"const": "disposition_generation"},
+            {"const": "disposition_key_id"},
+            {"const": "disposition_sha256"},
+            {"const": "payloads_purged"},
+            {"const": "rows_deleted"},
+            {"const": "rows_held"},
+            {"const": "transactions"},
+            {"const": "forbidden_fixture_matches"}
+          ],
+          "items": false,
+          "minItems": 12,
+          "maxItems": 12
+        },
+        "sensitiveContent": {"const": "prohibited"}
+      }
+    },
+    "failurePolicy": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "missing-disposition"},
+        {"const": "invalid-signature"},
+        {"const": "stale-generation"},
+        {"const": "generation-rollback"},
+        {"const": "unknown-policy"},
+        {"const": "database-substitution"},
+        {"const": "active-hold-deletion"},
+        {"const": "post-sanitization-invariant"},
+        {"const": "forbidden-fixture-recovery"}
+      ],
+      "items": false,
+      "minItems": 9,
+      "maxItems": 9
+    },
+    "sourceChecks": {
+      "type": "array",
+      "minItems": 6,
+      "items": {"$ref": "#/$defs/sourceCheck"}
+    },
+    "prohibitions": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "encrypt-before-copy-sanitization"},
+        {"const": "start-workload-before-restore-sanitization"},
+        {"const": "restore-embedded-disposition-over-newer-external"},
+        {"const": "raw-tenant-in-public-receipt"},
+        {"const": "raw-payload-in-public-receipt"},
+        {"const": "raw-hold-reason-in-public-receipt"},
+        {"const": "signing-key-in-backup-chain"},
+        {"const": "unbounded-sanitization-transaction"},
+        {"const": "legal-hold-bypass"}
+      ],
+      "items": false,
+      "minItems": 9,
+      "maxItems": 9
+    }
+  },
+  "$defs": {
+    "sourceCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "contains"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1, "maxLength": 180},
+        "contains": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 180}
+        }
+      }
+    }
+  }
+}

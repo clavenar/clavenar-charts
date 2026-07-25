@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.isolated-restore-receipt/v1",
+  "restoreId": "restore-20260723T220000Z-0123456789ab",
+  "release": {
+    "version": "1.183.0",
+    "reference": "ghcr.io/clavenar/clavenar-stack-release@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "bomSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "exactImages": 11
+  },
+  "source": {
+    "backupId": "backup-20260723T212023Z-fc14124d24be",
+    "reference": "ghcr.io/clavenar/clavenar-prod-backups@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "objectDigest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "snapshotId": "4444444444444444444444444444444444444444444444444444444444444444",
+    "inventorySha256": "0188d2400ca88efa6651ddf4f30c3d7aa3a6f17b7301f264ca96aa5ce8df554d",
+    "planSha256": "4bd5c39de4a0f5228add8f1a13e67329a7730f4df97064a2c07d4575b55f3083",
+    "recoveryPoint": "2026-07-23T21:20:52Z"
+  },
+  "chain": {
+    "objects": 9,
+    "oldestObject": "ghcr.io/clavenar/clavenar-prod-backups@sha256:5555555555555555555555555555555555555555555555555555555555555555",
+    "newestObject": "ghcr.io/clavenar/clavenar-prod-backups@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "complete": true,
+    "metadataVerified": true,
+    "encryptedDeltasVerified": true,
+    "repositoryCheck": true,
+    "exactSnapshot": true,
+    "plaintextImported": false
+  },
+  "isolation": {
+    "projectName": "clavenar-restore-0123456789ab",
+    "productionProjectName": "clavenar-prod",
+    "freshNamespace": true,
+    "freshVolumes": true,
+    "productionContainersChanged": 0,
+    "productionVolumesMounted": 0,
+    "sharedNetworks": 0,
+    "hostPortsPublished": 0,
+    "productionResolvable": false
+  },
+  "coverage": {
+    "capturedStateIds": [
+      "application-secrets",
+      "attestation-authority",
+      "broker-jetstream",
+      "caddy-acme-state",
+      "hil-decisions",
+      "identity-authority",
+      "ledger-evidence",
+      "observability-state",
+      "policy-governance",
+      "proxy-execution",
+      "vault-key-metadata",
+      "vault-recovery-material",
+      "workload-pki-authority",
+      "workload-trust-history"
+    ],
+    "externalCustodyStateIds": ["operator-private-custody"],
+    "reconstructibleStateIds": [
+      "simulator-agent-identities",
+      "workload-current-identities"
+    ],
+    "signedSourceStateIds": [
+      "operator-public-trust",
+      "release-configuration",
+      "tsa-trust"
+    ]
+  },
+  "stateResults": [
+    {"stateId":"release-configuration","disposition":"signed-source","objectiveProfile":"immutable-release","rpoSeconds":0,"rtoSeconds":1800,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"vault-recovery-material","disposition":"restored","objectiveProfile":"zero-loss-critical","rpoSeconds":0,"rtoSeconds":3600,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"vault-key-metadata","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"application-secrets","disposition":"restored","objectiveProfile":"zero-loss-critical","rpoSeconds":0,"rtoSeconds":3600,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"attestation-authority","disposition":"restored","objectiveProfile":"zero-loss-critical","rpoSeconds":0,"rtoSeconds":3600,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"operator-private-custody","disposition":"external-custody","objectiveProfile":"zero-loss-critical","rpoSeconds":0,"rtoSeconds":3600,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"workload-pki-authority","disposition":"restored","objectiveProfile":"zero-loss-critical","rpoSeconds":0,"rtoSeconds":3600,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"operator-public-trust","disposition":"signed-source","objectiveProfile":"critical-hour","rpoSeconds":3600,"rtoSeconds":14400,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"workload-trust-history","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"tsa-trust","disposition":"signed-source","objectiveProfile":"immutable-release","rpoSeconds":0,"rtoSeconds":1800,"lossSeconds":0,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"broker-jetstream","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"identity-authority","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"policy-governance","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"ledger-evidence","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"hil-decisions","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"proxy-execution","disposition":"restored","objectiveProfile":"critical-five-minute","rpoSeconds":300,"rtoSeconds":3600,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"workload-current-identities","disposition":"reconstructed","objectiveProfile":"reconstructible-hour","rpoSeconds":3600,"rtoSeconds":7200,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"simulator-agent-identities","disposition":"reconstructed","objectiveProfile":"reconstructible-hour","rpoSeconds":3600,"rtoSeconds":7200,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"caddy-acme-state","disposition":"restored","objectiveProfile":"critical-hour","rpoSeconds":3600,"rtoSeconds":14400,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true},
+    {"stateId":"observability-state","disposition":"restored","objectiveProfile":"observability-day","rpoSeconds":86400,"rtoSeconds":86400,"lossSeconds":180,"restoreSeconds":600,"withinRpo":true,"withinRto":true,"contentSha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","integrityVerified":true,"functionalVerified":true}
+  ],
+  "validation": {
+    "sqlite": {"databases":5,"quickCheck":true,"policyMutationExact":true,"hilStateExact":true,"identityStateExact":true,"ledgerChain":true,"ledgerSignatures":true,"tsaHistory":true},
+    "hilBackupErasure": {
+      "backupCopy": {
+        "schemaVersion":1,
+        "contract":"clavenar.hil-backup-erasure/v1",
+        "phase":"backup-copy",
+        "evaluatedAt":"2026-07-23T21:20:52Z",
+        "policySha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "inputDatabaseSha256":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "outputDatabaseSha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "disposition":{"contract":"clavenar.tenant-erasure-disposition/v1","generation":1,"keyId":"sha256:1111111111111111111111111111111111111111111111111111111111111111","sha256":"1212121212121212121212121212121212121212121212121212121212121212"},
+        "outcomes":{"payloadsPurged":0,"rowsDeleted":0,"rowsHeld":0,"transactions":0,"forbiddenFixtureMatches":0},
+        "physical":{"secureDelete":true,"walCheckpoint":"TRUNCATE","vacuum":true,"quickCheck":true},
+        "result":"pass"
+      },
+      "restoreAdmission": {
+        "schemaVersion":1,
+        "contract":"clavenar.hil-backup-erasure/v1",
+        "phase":"restore-admission",
+        "evaluatedAt":"2026-07-23T22:00:00Z",
+        "policySha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+        "inputDatabaseSha256":"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "outputDatabaseSha256":"1313131313131313131313131313131313131313131313131313131313131313",
+        "disposition":{"contract":"clavenar.tenant-erasure-disposition/v1","generation":2,"keyId":"sha256:1111111111111111111111111111111111111111111111111111111111111111","sha256":"1414141414141414141414141414141414141414141414141414141414141414"},
+        "outcomes":{"payloadsPurged":1,"rowsDeleted":1,"rowsHeld":1,"transactions":2,"forbiddenFixtureMatches":0},
+        "physical":{"secureDelete":true,"walCheckpoint":"TRUNCATE","vacuum":true,"quickCheck":true},
+        "result":"pass"
+      },
+      "beforeWorkloadStart": true
+    },
+    "jetstream": {"streams":7,"consumers":6,"kvBuckets":4,"sequencesExact":true,"authorizationEnforced":true},
+    "vault": {"storageVerified":true,"recoveryMaterialVerified":true,"transitHistoryExact":true,"applicationSecretsVerified":true,"attestationAuthorityVerified":true,"workloadPkiAuthorityVerified":true,"trustHistoryVerified":true},
+    "identities": {"privateKeysCopied":false,"workloadIdentitiesReissued":13,"simulatorIdentitiesReissued":64,"signedOneUseRecovery":true},
+    "stack": {"servicesReady":11,"exactRelease":true,"representativeGovernedTransaction":true},
+    "ancillary": {"operatorTrustVerified":true,"releaseConfigurationVerified":true,"caddyStateVerified":true,"observabilityStateVerified":true}
+  },
+  "timing": {
+    "startedAt": "2026-07-23T22:00:00Z",
+    "readyAt": "2026-07-23T22:10:00Z",
+    "validatedAt": "2026-07-23T22:12:00Z",
+    "sourceAgeSeconds": 2348,
+    "restoreDurationSeconds": 600,
+    "lossWindowSeconds": 180
+  },
+  "doesNotAssert": ["disaster-recovery", "upgrade-safety"],
+  "result": "pass"
+}

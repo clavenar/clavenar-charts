@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.hil-backup-erasure/v1",
+  "bindings": {
+    "retention": "clavenar.hil-retention/v1",
+    "erasure": "clavenar.hil-erasure/v1",
+    "backup": "clavenar.backup-set-manifest/v1",
+    "restore": "clavenar.isolated-restore-receipt/v1"
+  },
+  "phases": [
+    "backup-copy",
+    "restore-admission"
+  ],
+  "copyBoundary": {
+    "applicationConsistent": true,
+    "productionDatabaseMutation": "prohibited",
+    "sanitizeBeforeEncryption": true,
+    "sanitizeBeforeWorkloadRead": true
+  },
+  "dispositionAuthority": {
+    "contract": "clavenar.tenant-erasure-disposition/v1",
+    "signature": "hmac-sha256",
+    "keyCustody": "external-to-backup-chain",
+    "generation": "strictly-monotonic-on-addition",
+    "tenantPersistence": "private-authority-file-only",
+    "publicReceipt": "generation-key-id-and-sha256-only",
+    "restoreMinimum": "latest-external-generation"
+  },
+  "sanitization": {
+    "maximumRowsPerTransaction": 100,
+    "expiredPayload": "fixed-purged-tombstone",
+    "expiredMetadata": "delete-with-minimized-local-audit",
+    "offboardedUnheld": "delete-with-minimized-local-audit",
+    "offboardedHeld": "retain-and-mark-deferred",
+    "activeLegalHold": "retain-protected-and-auditable",
+    "releasedDeferred": "delete-before-admission",
+    "sqliteSecureDelete": true,
+    "walCheckpoint": "TRUNCATE",
+    "vacuum": true,
+    "quickCheck": true
+  },
+  "receipt": {
+    "requiredBindings": [
+      "policy_sha256",
+      "evaluated_at",
+      "input_database_sha256",
+      "output_database_sha256",
+      "disposition_generation",
+      "disposition_key_id",
+      "disposition_sha256",
+      "payloads_purged",
+      "rows_deleted",
+      "rows_held",
+      "transactions",
+      "forbidden_fixture_matches"
+    ],
+    "sensitiveContent": "prohibited"
+  },
+  "failurePolicy": [
+    "missing-disposition",
+    "invalid-signature",
+    "stale-generation",
+    "generation-rollback",
+    "unknown-policy",
+    "database-substitution",
+    "active-hold-deletion",
+    "post-sanitization-invariant",
+    "forbidden-fixture-recovery"
+  ],
+  "sourceChecks": [
+    {
+      "source": "clavenar-e2e/scripts/hil_backup_erasure.py",
+      "contains": [
+        "refresh_disposition",
+        "sanitize_database",
+        "PRAGMA secure_delete=ON",
+        "PRAGMA wal_checkpoint(TRUNCATE)",
+        "VACUUM"
+      ]
+    },
+    {
+      "source": "clavenar-e2e/scripts/run-scheduled-backup.py",
+      "contains": [
+        "refresh_disposition",
+        "sanitize_database",
+        "hilPrivacy"
+      ]
+    },
+    {
+      "source": "clavenar-e2e/scripts/isolated_restore.py",
+      "contains": [
+        "restore-admission",
+        "minimum_disposition_generation",
+        "hilPrivacy"
+      ]
+    },
+    {
+      "source": "clavenar-e2e/scripts/run_isolated_stack.py",
+      "contains": [
+        "hilBackupErasure",
+        "restoreAdmission"
+      ]
+    },
+    {
+      "source": "clavenar-e2e/prod/run-scheduled-backup.sh",
+      "contains": [
+        "hil-erasure-disposition",
+        "hil-erasure-authority-key"
+      ]
+    },
+    {
+      "source": "clavenar-e2e/scripts/run-scheduled-restore.sh",
+      "contains": [
+        "ISOLATED_RESTORE_HIL_ERASURE_DISPOSITION",
+        "ISOLATED_RESTORE_HIL_ERASURE_AUTHORITY_KEY"
+      ]
+    }
+  ],
+  "prohibitions": [
+    "encrypt-before-copy-sanitization",
+    "start-workload-before-restore-sanitization",
+    "restore-embedded-disposition-over-newer-external",
+    "raw-tenant-in-public-receipt",
+    "raw-payload-in-public-receipt",
+    "raw-hold-reason-in-public-receipt",
+    "signing-key-in-backup-chain",
+    "unbounded-sanitization-transaction",
+    "legal-hold-bypass"
+  ]
+}

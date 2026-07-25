@@ -123,6 +123,37 @@
       "verification": "archive-round-trip"
     }
   ],
+  "privacy": {
+    "hilBackupErasure": {
+      "schemaVersion": 1,
+      "contract": "clavenar.hil-backup-erasure/v1",
+      "phase": "backup-copy",
+      "evaluatedAt": "2026-07-23T12:00:00Z",
+      "policySha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "inputDatabaseSha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "outputDatabaseSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "disposition": {
+        "contract": "clavenar.tenant-erasure-disposition/v1",
+        "generation": 1,
+        "keyId": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+        "sha256": "1212121212121212121212121212121212121212121212121212121212121212"
+      },
+      "outcomes": {
+        "payloadsPurged": 0,
+        "rowsDeleted": 0,
+        "rowsHeld": 0,
+        "transactions": 0,
+        "forbiddenFixtureMatches": 0
+      },
+      "physical": {
+        "secureDelete": true,
+        "walCheckpoint": "TRUNCATE",
+        "vacuum": true,
+        "quickCheck": true
+      },
+      "result": "pass"
+    }
+  },
   "encryption": {
     "format": "restic-repository",
     "repositoryVersion": 2,

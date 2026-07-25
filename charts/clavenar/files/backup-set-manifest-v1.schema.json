@@ -17,6 +17,7 @@
     "schedule",
     "coverage",
     "captures",
+    "privacy",
     "encryption",
     "offsite",
     "metrics",
@@ -91,6 +92,14 @@
       "type": "array",
       "minItems": 1,
       "items": {"$ref": "#/$defs/capture"}
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hilBackupErasure"],
+      "properties": {
+        "hilBackupErasure": {"$ref": "#/$defs/hilPrivacy"}
+      }
     },
     "encryption": {
       "type": "object",
@@ -249,6 +258,76 @@
             "state-native-and-archive"
           ]
         }
+      }
+    },
+    "hilPrivacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "contract",
+        "phase",
+        "evaluatedAt",
+        "policySha256",
+        "inputDatabaseSha256",
+        "outputDatabaseSha256",
+        "disposition",
+        "outcomes",
+        "physical",
+        "result"
+      ],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "contract": {"const": "clavenar.hil-backup-erasure/v1"},
+        "phase": {"enum": ["backup-copy", "restore-admission"]},
+        "evaluatedAt": {"type": "string", "format": "date-time"},
+        "policySha256": {"$ref": "#/$defs/sha256"},
+        "inputDatabaseSha256": {"$ref": "#/$defs/sha256"},
+        "outputDatabaseSha256": {"$ref": "#/$defs/sha256"},
+        "disposition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contract", "generation", "keyId", "sha256"],
+          "properties": {
+            "contract": {"const": "clavenar.tenant-erasure-disposition/v1"},
+            "generation": {"type": "integer", "minimum": 1},
+            "keyId": {
+              "type": "string",
+              "pattern": "^sha256:[a-f0-9]{64}$"
+            },
+            "sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "outcomes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "payloadsPurged",
+            "rowsDeleted",
+            "rowsHeld",
+            "transactions",
+            "forbiddenFixtureMatches"
+          ],
+          "properties": {
+            "payloadsPurged": {"type": "integer", "minimum": 0},
+            "rowsDeleted": {"type": "integer", "minimum": 0},
+            "rowsHeld": {"type": "integer", "minimum": 0},
+            "transactions": {"type": "integer", "minimum": 0},
+            "forbiddenFixtureMatches": {"const": 0}
+          }
+        },
+        "physical": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["secureDelete", "walCheckpoint", "vacuum", "quickCheck"],
+          "properties": {
+            "secureDelete": {"const": true},
+            "walCheckpoint": {"const": "TRUNCATE"},
+            "vacuum": {"const": true},
+            "quickCheck": {"const": true}
+          }
+        },
+        "result": {"const": "pass"}
       }
     }
   }

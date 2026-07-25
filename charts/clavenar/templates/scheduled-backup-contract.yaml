@@ -24,6 +24,7 @@ metadata:
     {{- include "clavenar.labels" (dict "ctx" . "service" "scheduled-backup") | nindent 4 }}
   annotations:
     clavenar.com/backup-contract: clavenar.backup-set-manifest/v1
+    clavenar.com/hil-privacy-contract: clavenar.hil-backup-erasure/v1
     clavenar.com/backup-operator: {{ $backup.operator | default "disabled" | quote }}
 immutable: true
 data:
@@ -31,6 +32,14 @@ data:
 {{ .Files.Get "files/backup-set-manifest-v1.schema.json" | trimSuffix "\n" | indent 4 }}
   backup-set-manifest-v1.fixture.json: |
 {{ .Files.Get "files/backup-set-manifest-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
+  hil-backup-erasure-v1.schema.json: |
+{{ .Files.Get "files/hil-backup-erasure-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  hil-backup-erasure-v1.fixture.json: |
+{{ .Files.Get "files/hil-backup-erasure-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
+  isolated-restore-receipt-v1.schema.json: |
+{{ .Files.Get "files/isolated-restore-receipt-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  isolated-restore-receipt-v1.fixture.json: |
+{{ .Files.Get "files/isolated-restore-receipt-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
   helm-scheduled-backup-plan.json: |
     {
       "schemaVersion": 1,

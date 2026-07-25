@@ -139,6 +139,13 @@ The chart packages the exact public
 signed-source sets. Current workload and simulator private identities are
 excluded and must be reissued.
 
+The same immutable ConfigMap packages `clavenar.hil-backup-erasure/v1` and
+the privacy-bearing backup/isolated-restore receipt contracts. An operator
+must sanitize the application-consistent HIL copy before encryption and apply
+the latest externally authenticated tenant-erasure disposition before any
+restored workload starts. The disposition signing key is never chart data or
+backup content.
+
 Helm does not embed an object-store credential or pretend one generic CronJob
 can snapshot arbitrary CSI, external NATS, and external Vault backends
 consistently. Production requires `scheduledBackup.enabled=true`, a named
