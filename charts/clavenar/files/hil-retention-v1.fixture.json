@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.hil-retention/v1",
+  "d08Binding": {
+    "stateId": "hil-decisions",
+    "lifecycleProfile": "hil-sensitive",
+    "maximumRetentionSeconds": 2592000
+  },
+  "purposes": [
+    {
+      "id": "active-review-and-execution",
+      "statuses": ["pending"],
+      "payloadAvailability": "bounded-decision-lifetime",
+      "storage": "authenticated-encryption",
+      "projection": "hil-minimized-review/v1"
+    },
+    {
+      "id": "terminal-payload-review",
+      "statuses": ["approved", "denied", "expired"],
+      "payloadAvailability": "tier-deadline",
+      "storage": "authenticated-encryption",
+      "projection": "hil-minimized-review/v1"
+    },
+    {
+      "id": "minimized-decision-audit",
+      "statuses": ["pending", "approved", "denied", "expired"],
+      "payloadAvailability": "digest-and-minimized-metadata-only",
+      "storage": "minimized-plaintext",
+      "projection": "hil-minimized-audit/v1"
+    }
+  ],
+  "tiers": [
+    {
+      "id": "auto",
+      "terminalPayloadRetentionSeconds": 86400,
+      "metadataRetentionSeconds": 2592000
+    },
+    {
+      "id": "standard",
+      "terminalPayloadRetentionSeconds": 604800,
+      "metadataRetentionSeconds": 2592000
+    },
+    {
+      "id": "strict",
+      "terminalPayloadRetentionSeconds": 2592000,
+      "metadataRetentionSeconds": 2592000
+    }
+  ],
+  "legacyTier": {
+    "nullOrEmptyMapsTo": "standard",
+    "unknownNewWrite": "reject",
+    "unknownStoredRow": "fail-closed"
+  },
+  "protection": {
+    "algorithm": "xchacha20-poly1305",
+    "envelope": "hil-payload-envelope/v1",
+    "keySource": "CLAVENAR_HIL_PAYLOAD_KEY_FILE",
+    "keyBytes": 32,
+    "keyId": "sha256-key-commitment",
+    "nonceBytes": 24,
+    "freshNoncePerPayload": true,
+    "aadFields": [
+      "contract",
+      "tenant",
+      "pending_id",
+      "payload_kind",
+      "purpose",
+      "tier",
+      "policy_version"
+    ],
+    "payloadKinds": ["request", "historical-modified"],
+    "plaintextPersistence": false
+  },
+  "minimization": {
+    "profile": "hil-minimized-review/v1",
+    "retainedFields": [
+      "jsonrpc",
+      "method",
+      "params.name",
+      "params.arguments.keys",
+      "canonical_payload_sha256"
+    ],
+    "argumentValues": "redacted",
+    "secretLikeFields": "redacted",
+    "maximumProjectionBytes": 4096
+  },
+  "rowMetadata": [
+    "retention_policy",
+    "retention_purpose",
+    "retention_tier",
+    "payload_protection",
+    "payload_key_id",
+    "protected_at",
+    "payload_retention_expires_at",
+    "metadata_retention_expires_at",
+    "payload_availability",
+    "minimization_profile"
+  ],
+  "migration": {
+    "legacyPlaintext": "protect-before-ready",
+    "transaction": "bounded-batch",
+    "maximumRowsPerTransaction": 100,
+    "canonicalDigestPreserved": true,
+    "sqliteWalPlaintextRemnants": "checkpoint-and-vacuum-before-ready",
+    "resumeAfterCrash": true
+  },
+  "readBoundary": {
+    "authorizedInWindow": "decrypt-exact-in-memory",
+    "crossTenant": "not-found",
+    "expired": "payload-unavailable",
+    "authenticationFailure": "fail-closed",
+    "unknownEnvelope": "fail-closed",
+    "logsMetricsOutboxNotifications": "minimized-no-plaintext"
+  },
+  "doesNotAssert": [
+    "physical-purge",
+    "legal-hold-mutation",
+    "tenant-erasure-execution",
+    "backup-restore-erasure-enforcement"
+  ],
+  "sourceChecks": [
+    {
+      "source": "clavenar-hil/src/retention.rs",
+      "contains": ["AUTO_PAYLOAD_RETENTION_SECONDS", "STRICT_PAYLOAD_RETENTION_SECONDS", "normalize_approval_tier"]
+    },
+    {
+      "source": "clavenar-hil/src/payload_protection.rs",
+      "contains": ["XChaCha20Poly1305", "CLAVENAR_HIL_PAYLOAD_KEY_FILE", "hil-payload-envelope/v1"]
+    },
+    {
+      "source": "clavenar-hil/src/schema.rs",
+      "contains": ["payload_retention_expires_at", "minimized_payload"]
+    },
+    {
+      "source": "clavenar-hil/src/persistence.rs",
+      "contains": ["protect_request_payload", "unprotect_request_payload"]
+    },
+    {
+      "source": "clavenar-hil/src/main.rs",
+      "contains": ["migrate_plaintext_payloads", "payload protection"]
+    },
+    {
+      "source": "clavenar-charts/charts/clavenar/templates/hil.yaml",
+      "contains": ["CLAVENAR_HIL_PAYLOAD_KEY_FILE", "hil-payload-key"]
+    },
+    {
+      "source": "clavenar-e2e/prod/docker-compose.yml",
+      "contains": ["CLAVENAR_HIL_PAYLOAD_KEY_FILE", "hil_payload_key"]
+    },
+    {
+      "source": "clavenar-e2e/scripts/check_hil_retention.py",
+      "contains": ["def validate_semantics", "plaintext-at-rest"]
+    }
+  ],
+  "prohibitions": [
+    "plaintext-payload-in-sqlite-or-wal",
+    "inline-production-payload-key",
+    "unknown-tier-new-write",
+    "deadline-beyond-d08-cap",
+    "cross-tenant-decryption",
+    "null-payload-on-decryption-failure",
+    "plaintext-in-observability-or-forensic-projection",
+    "rollback-to-plaintext",
+    "purge-or-erasure-claim-in-wp-11.6"
+  ]
+}

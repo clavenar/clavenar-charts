@@ -20,6 +20,7 @@ inside the range is the iterated value.
 {{- $mountsControlState := eq $name "proxy" }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
+{{- $mountsHilPayloadKey := eq $name "hil" }}
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
 {{- $mountsVaultToken := and (not (empty $vaultTokenSecret)) (has $name (list "proxy" "identity")) }}
 {{- $mountsTsaTrust := and (eq $name "ledger") (not (empty $.Values.tlsBundle.secretName)) $.Values.ledgerCryptographicVerification.enabled }}
@@ -86,6 +87,10 @@ spec:
         {{- end }}
         {{- if $mountsCapability }}
         checksum/workload-capability-bundle: {{ $.Files.Get "files/workload-capability-bundle.json" | sha256sum }}
+        {{- end }}
+        {{- if eq $name "hil" }}
+        checksum/hil-retention-schema: {{ $.Files.Get "files/hil-retention-v1.schema.json" | sha256sum }}
+        checksum/hil-retention-fixture: {{ $.Files.Get "files/hil-retention-v1.fixture.json" | sha256sum }}
         {{- end }}
         {{- if $mountsAttestationContract }}
         checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}
@@ -274,6 +279,8 @@ spec:
               value: "true"
             {{- end }}
             {{- if eq $name "hil" }}
+            - name: CLAVENAR_HIL_PAYLOAD_KEY_FILE
+              value: {{ include "clavenar.hilPayloadKeyFile" $ | quote }}
             # CLAVENAR_HIL_SESSION_KEY: HIL session-cookie HMAC key
             # (64-char hex). HIL auto-mints an ephemeral key when unset,
             # which would invalidate every session on pod restart — pin
@@ -331,7 +338,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -380,6 +387,12 @@ spec:
               subPath: brain-cache-hmac-key
               readOnly: true
             {{- end }}
+            {{- if $mountsHilPayloadKey }}
+            - name: {{ include "clavenar.hilPayloadKeyVolume" $ }}
+              mountPath: {{ include "clavenar.hilPayloadKeyFile" $ }}
+              subPath: hil-payload-key
+              readOnly: true
+            {{- end }}
             {{- if $mountsVaultToken }}
             - name: vault-token
               mountPath: /run/secrets/vault-token
@@ -395,7 +408,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -532,6 +545,15 @@ spec:
             items:
               - key: brain-cache-hmac-key
                 path: brain-cache-hmac-key
+        {{- end }}
+        {{- if $mountsHilPayloadKey }}
+        - name: {{ include "clavenar.hilPayloadKeyVolume" $ }}
+          secret:
+            secretName: {{ required "hilPayloadProtection.secretName is required" $.Values.hilPayloadProtection.secretName }}
+            defaultMode: 0440
+            items:
+              - key: {{ required "hilPayloadProtection.key is required" $.Values.hilPayloadProtection.key }}
+                path: hil-payload-key
         {{- end }}
         {{- if $mountsVaultToken }}
         - name: vault-token

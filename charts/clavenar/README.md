@@ -119,6 +119,7 @@ recovery, and runtime behavior in the target cluster.
 | Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
 | HIL and Brain cache keys | Chart creates and upgrade-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret containing all governed keys |
+| HIL exact-payload encryption key | Operator pre-creates the Secret selected by `hilPayloadProtection`; only HIL receives its mode-0440 file projection | Operator or secret-store controller owns the same dedicated 32-byte key and its rotation |
 | Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
 | Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes 7 Claude-Code-built-in-parity tools (`bash`, `read_file`, …) so an agent whose built-ins are denylisted still has a shell, but every call lands in the ledger | Lab-only; production still routes to a real MCP via `CLAVENAR_UPSTREAM_URL` |
@@ -197,7 +198,24 @@ The default remains backwards compatible: the chart generates
 `<release>-shared-tokens`, keeps its data stable across upgrades, and injects
 the HIL session and console-to-HIL decision credentials only through
 `secretKeyRef`; Brain receives its cache HMAC key only through a mode-0440 file
-projection. For production, pre-provision an Opaque Secret containing
+projection. Exact pending-request payloads use a separate operator-owned
+XChaCha20-Poly1305 key that is mounted only into HIL. Generate 32 random bytes
+as 64 lowercase hexadecimal characters, store them in a file readable by the
+Secret creation command, and never put the key in chart values:
+
+```bash
+openssl rand -hex 32 > /secure/path/hil-payload-key
+kubectl -n clavenar create secret generic clavenar-hil-payload \
+  --from-file=hil-payload-key=/secure/path/hil-payload-key
+```
+
+Select a different Secret or data key with
+`hilPayloadProtection.secretName` and `hilPayloadProtection.key`. Rotate it
+only through an operational migration that keeps existing ciphertext
+decryptable; HIL deliberately refuses malformed, missing, inline, or
+unexpectedly permissive key material before opening SQLite.
+
+For production, pre-provision a separate Opaque Secret containing
 `hil-session-key`, `hil-decide-token`, `hil-bootstrap-token`, and
 `brain-cache-hmac-key`, then select it without putting any value in a values
 file or Deployment manifest:

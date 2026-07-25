@@ -1,0 +1,388 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/hil-retention-v1.schema.json",
+  "title": "Clavenar HIL payload minimization and retention",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "d08Binding",
+    "purposes",
+    "tiers",
+    "legacyTier",
+    "protection",
+    "minimization",
+    "rowMetadata",
+    "migration",
+    "readBoundary",
+    "doesNotAssert",
+    "sourceChecks",
+    "prohibitions"
+  ],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.hil-retention/v1"},
+    "d08Binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stateId", "lifecycleProfile", "maximumRetentionSeconds"],
+      "properties": {
+        "stateId": {"const": "hil-decisions"},
+        "lifecycleProfile": {"const": "hil-sensitive"},
+        "maximumRetentionSeconds": {"const": 2592000}
+      }
+    },
+    "purposes": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/activePurpose"},
+        {"$ref": "#/$defs/terminalPurpose"},
+        {"$ref": "#/$defs/auditPurpose"}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "tiers": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/autoTier"},
+        {"$ref": "#/$defs/standardTier"},
+        {"$ref": "#/$defs/strictTier"}
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "legacyTier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nullOrEmptyMapsTo", "unknownNewWrite", "unknownStoredRow"],
+      "properties": {
+        "nullOrEmptyMapsTo": {"const": "standard"},
+        "unknownNewWrite": {"const": "reject"},
+        "unknownStoredRow": {"const": "fail-closed"}
+      }
+    },
+    "protection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "envelope",
+        "keySource",
+        "keyBytes",
+        "keyId",
+        "nonceBytes",
+        "freshNoncePerPayload",
+        "aadFields",
+        "payloadKinds",
+        "plaintextPersistence"
+      ],
+      "properties": {
+        "algorithm": {"const": "xchacha20-poly1305"},
+        "envelope": {"const": "hil-payload-envelope/v1"},
+        "keySource": {"const": "CLAVENAR_HIL_PAYLOAD_KEY_FILE"},
+        "keyBytes": {"const": 32},
+        "keyId": {"const": "sha256-key-commitment"},
+        "nonceBytes": {"const": 24},
+        "freshNoncePerPayload": {"const": true},
+        "aadFields": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "contract"},
+            {"const": "tenant"},
+            {"const": "pending_id"},
+            {"const": "payload_kind"},
+            {"const": "purpose"},
+            {"const": "tier"},
+            {"const": "policy_version"}
+          ],
+          "items": false,
+          "minItems": 7,
+          "maxItems": 7
+        },
+        "payloadKinds": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "request"},
+            {"const": "historical-modified"}
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "plaintextPersistence": {"const": false}
+      }
+    },
+    "minimization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "retainedFields",
+        "argumentValues",
+        "secretLikeFields",
+        "maximumProjectionBytes"
+      ],
+      "properties": {
+        "profile": {"const": "hil-minimized-review/v1"},
+        "retainedFields": {
+          "type": "array",
+          "prefixItems": [
+            {"const": "jsonrpc"},
+            {"const": "method"},
+            {"const": "params.name"},
+            {"const": "params.arguments.keys"},
+            {"const": "canonical_payload_sha256"}
+          ],
+          "items": false,
+          "minItems": 5,
+          "maxItems": 5
+        },
+        "argumentValues": {"const": "redacted"},
+        "secretLikeFields": {"const": "redacted"},
+        "maximumProjectionBytes": {"const": 4096}
+      }
+    },
+    "rowMetadata": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "retention_policy"},
+        {"const": "retention_purpose"},
+        {"const": "retention_tier"},
+        {"const": "payload_protection"},
+        {"const": "payload_key_id"},
+        {"const": "protected_at"},
+        {"const": "payload_retention_expires_at"},
+        {"const": "metadata_retention_expires_at"},
+        {"const": "payload_availability"},
+        {"const": "minimization_profile"}
+      ],
+      "items": false,
+      "minItems": 10,
+      "maxItems": 10
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "legacyPlaintext",
+        "transaction",
+        "maximumRowsPerTransaction",
+        "canonicalDigestPreserved",
+        "sqliteWalPlaintextRemnants",
+        "resumeAfterCrash"
+      ],
+      "properties": {
+        "legacyPlaintext": {"const": "protect-before-ready"},
+        "transaction": {"const": "bounded-batch"},
+        "maximumRowsPerTransaction": {"const": 100},
+        "canonicalDigestPreserved": {"const": true},
+        "sqliteWalPlaintextRemnants": {"const": "checkpoint-and-vacuum-before-ready"},
+        "resumeAfterCrash": {"const": true}
+      }
+    },
+    "readBoundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authorizedInWindow",
+        "crossTenant",
+        "expired",
+        "authenticationFailure",
+        "unknownEnvelope",
+        "logsMetricsOutboxNotifications"
+      ],
+      "properties": {
+        "authorizedInWindow": {"const": "decrypt-exact-in-memory"},
+        "crossTenant": {"const": "not-found"},
+        "expired": {"const": "payload-unavailable"},
+        "authenticationFailure": {"const": "fail-closed"},
+        "unknownEnvelope": {"const": "fail-closed"},
+        "logsMetricsOutboxNotifications": {"const": "minimized-no-plaintext"}
+      }
+    },
+    "doesNotAssert": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "physical-purge"},
+        {"const": "legal-hold-mutation"},
+        {"const": "tenant-erasure-execution"},
+        {"const": "backup-restore-erasure-enforcement"}
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "sourceChecks": {
+      "type": "array",
+      "minItems": 8,
+      "items": {"$ref": "#/$defs/sourceCheck"}
+    },
+    "prohibitions": {
+      "type": "array",
+      "prefixItems": [
+        {"const": "plaintext-payload-in-sqlite-or-wal"},
+        {"const": "inline-production-payload-key"},
+        {"const": "unknown-tier-new-write"},
+        {"const": "deadline-beyond-d08-cap"},
+        {"const": "cross-tenant-decryption"},
+        {"const": "null-payload-on-decryption-failure"},
+        {"const": "plaintext-in-observability-or-forensic-projection"},
+        {"const": "rollback-to-plaintext"},
+        {"const": "purge-or-erasure-claim-in-wp-11.6"}
+      ],
+      "items": false,
+      "minItems": 9,
+      "maxItems": 9
+    }
+  },
+  "$defs": {
+    "purposeBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "statuses", "payloadAvailability", "storage", "projection"],
+      "properties": {
+        "id": {"type": "string"},
+        "statuses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"enum": ["pending", "approved", "denied", "expired"]}
+        },
+        "payloadAvailability": {"type": "string"},
+        "storage": {"enum": ["authenticated-encryption", "minimized-plaintext"]},
+        "projection": {"enum": ["hil-minimized-review/v1", "hil-minimized-audit/v1"]}
+      }
+    },
+    "activePurpose": {
+      "allOf": [
+        {"$ref": "#/$defs/purposeBase"},
+        {
+          "properties": {
+            "id": {"const": "active-review-and-execution"},
+            "statuses": {
+              "prefixItems": [{"const": "pending"}],
+              "items": false,
+              "minItems": 1,
+              "maxItems": 1
+            },
+            "payloadAvailability": {"const": "bounded-decision-lifetime"},
+            "storage": {"const": "authenticated-encryption"},
+            "projection": {"const": "hil-minimized-review/v1"}
+          }
+        }
+      ]
+    },
+    "terminalPurpose": {
+      "allOf": [
+        {"$ref": "#/$defs/purposeBase"},
+        {
+          "properties": {
+            "id": {"const": "terminal-payload-review"},
+            "statuses": {
+              "prefixItems": [
+                {"const": "approved"},
+                {"const": "denied"},
+                {"const": "expired"}
+              ],
+              "items": false,
+              "minItems": 3,
+              "maxItems": 3
+            },
+            "payloadAvailability": {"const": "tier-deadline"},
+            "storage": {"const": "authenticated-encryption"},
+            "projection": {"const": "hil-minimized-review/v1"}
+          }
+        }
+      ]
+    },
+    "auditPurpose": {
+      "allOf": [
+        {"$ref": "#/$defs/purposeBase"},
+        {
+          "properties": {
+            "id": {"const": "minimized-decision-audit"},
+            "statuses": {
+              "prefixItems": [
+                {"const": "pending"},
+                {"const": "approved"},
+                {"const": "denied"},
+                {"const": "expired"}
+              ],
+              "items": false,
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "payloadAvailability": {"const": "digest-and-minimized-metadata-only"},
+            "storage": {"const": "minimized-plaintext"},
+            "projection": {"const": "hil-minimized-audit/v1"}
+          }
+        }
+      ]
+    },
+    "tierBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "terminalPayloadRetentionSeconds", "metadataRetentionSeconds"],
+      "properties": {
+        "id": {"enum": ["auto", "standard", "strict"]},
+        "terminalPayloadRetentionSeconds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2592000
+        },
+        "metadataRetentionSeconds": {"const": 2592000}
+      }
+    },
+    "autoTier": {
+      "allOf": [
+        {"$ref": "#/$defs/tierBase"},
+        {
+          "properties": {
+            "id": {"const": "auto"},
+            "terminalPayloadRetentionSeconds": {"const": 86400}
+          }
+        }
+      ]
+    },
+    "standardTier": {
+      "allOf": [
+        {"$ref": "#/$defs/tierBase"},
+        {
+          "properties": {
+            "id": {"const": "standard"},
+            "terminalPayloadRetentionSeconds": {"const": 604800}
+          }
+        }
+      ]
+    },
+    "strictTier": {
+      "allOf": [
+        {"$ref": "#/$defs/tierBase"},
+        {
+          "properties": {
+            "id": {"const": "strict"},
+            "terminalPayloadRetentionSeconds": {"const": 2592000}
+          }
+        }
+      ]
+    },
+    "sourceCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "contains"],
+      "properties": {
+        "source": {"type": "string", "minLength": 1, "maxLength": 160},
+        "contains": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1, "maxLength": 160}
+        }
+      }
+    }
+  }
+}

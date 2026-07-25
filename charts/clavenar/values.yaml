@@ -47,6 +47,15 @@ authSecrets:
   # is a no-op that preserves the current Secret data.
   rotationId: bootstrap-v1
 
+# Dedicated HIL exact-payload encryption key. This Secret is operator-owned
+# in every profile and must contain 64 hexadecimal characters (32 random
+# bytes) at `key`; HIL rejects inline key material and fails before opening
+# SQLite if the mounted file is absent or malformed. Advance
+# authSecrets.rotationId when rotating this Secret so the HIL pod rolls.
+hilPayloadProtection:
+  secretName: clavenar-hil-payload
+  key: hil-payload-key
+
 # Public Ed25519 cluster trust anchors consumed by Identity's production
 # `k8s-key-bound` evidence verifier. The Secret contains public keys only;
 # the evidence-signing private key remains with the cluster attester. Empty

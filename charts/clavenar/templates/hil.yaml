@@ -1,0 +1,16 @@
+{{/*
+HIL exact-payload protection is deliberately a dedicated Secret-file
+boundary. Keeping these names in one helper prevents env, mount, and volume
+drift while the shared services template remains the Deployment owner.
+
+Runtime contract:
+  CLAVENAR_HIL_PAYLOAD_KEY_FILE=/run/secrets/hil-payload-key
+  volume name: hil-payload-key
+*/}}
+{{- define "clavenar.hilPayloadKeyFile" -}}
+/run/secrets/hil-payload-key
+{{- end -}}
+
+{{- define "clavenar.hilPayloadKeyVolume" -}}
+hil-payload-key
+{{- end -}}

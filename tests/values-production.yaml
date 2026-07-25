@@ -32,6 +32,10 @@ authSecrets:
   existingSecretName: clavenar-runtime-auth
   rotationId: prod-20260715-01
 
+hilPayloadProtection:
+  secretName: clavenar-hil-payload
+  key: hil-payload-key
+
 attestationTrustAnchors:
   secretName: clavenar-attestation-trust
 
