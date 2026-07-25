@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.tenant-lifecycle-saga/v1",
+  "coordinator": "identity",
+  "authority": {
+    "tenant": "verified-operator-session-and-path-match",
+    "caller": "workload-mtls-plus-tenant-lifecycle-capability",
+    "requestTenantAuthority": "none"
+  },
+  "idempotency": {
+    "keySource": "Idempotency-Key",
+    "scope": "tenant-kind-key",
+    "requestDigest": "sha256-canonical-intent",
+    "intentMutable": false,
+    "mismatchStatus": 409,
+    "activePerTenant": 1
+  },
+  "operationStates": [
+    "pending",
+    "running",
+    "waiting_retry",
+    "manual_recovery",
+    "compensating",
+    "compensated",
+    "succeeded"
+  ],
+  "stepStates": [
+    "pending",
+    "running",
+    "retryable",
+    "manual_recovery",
+    "compensating",
+    "compensated",
+    "skipped",
+    "succeeded"
+  ],
+  "journaling": {
+    "beforeEffect": "durable-running-with-attempt-and-lease",
+    "afterEffect": "durable-owner-receipt-or-sanitized-error",
+    "leaseExpiry": "retry-same-idempotent-effect",
+    "errorStorage": "sanitized-bounded"
+  },
+  "retry": {
+    "maxAttempts": 5,
+    "backoffSeconds": [1, 2, 4, 8, 16],
+    "lostResponse": "reconcile-owner-or-repeat-idempotently",
+    "exhaustion": "manual_recovery"
+  },
+  "plans": [
+    {
+      "kind": "provision",
+      "steps": [
+        {"id": "tenant_record", "order": 1, "owner": "identity", "effect": "create-or-confirm-tenant-record", "compensation": "idempotent-reverse"},
+        {"id": "credential_keys", "order": 2, "owner": "identity", "effect": "create-or-confirm-tenant-key-generation", "compensation": "idempotent-reverse"},
+        {"id": "policy_namespace", "order": 3, "owner": "policy-engine", "effect": "provision-tenant-policy-namespace", "compensation": "idempotent-reverse"},
+        {"id": "hil_namespace", "order": 4, "owner": "hil", "effect": "provision-tenant-hil-namespace", "compensation": "idempotent-reverse"},
+        {"id": "cache_generation", "order": 5, "owner": "proxy", "effect": "publish-active-tenant-cache-generation", "compensation": "idempotent-reverse"},
+        {"id": "ledger_lifecycle_marker", "order": 6, "owner": "ledger", "effect": "append-provisioned-lifecycle-marker", "compensation": "not-required"}
+      ]
+    },
+    {
+      "kind": "offboard",
+      "steps": [
+        {"id": "authority_fence", "order": 1, "owner": "identity", "effect": "decommission-revoke-retire-and-freeze", "compensation": "manual-recovery-only"},
+        {"id": "credential_keys", "order": 2, "owner": "identity", "effect": "retire-tenant-key-generation", "compensation": "manual-recovery-only"},
+        {"id": "cache_generation", "order": 3, "owner": "proxy", "effect": "publish-offboarded-tenant-cache-generation", "compensation": "not-required"},
+        {"id": "policy_namespace", "order": 4, "owner": "policy-engine", "effect": "retire-tenant-policy-namespace", "compensation": "manual-recovery-only"},
+        {"id": "hil_namespace", "order": 5, "owner": "hil", "effect": "deny-pending-and-retire-tenant-namespace", "compensation": "manual-recovery-only"},
+        {"id": "ledger_final_export", "order": 6, "owner": "ledger", "effect": "create-content-addressed-final-tenant-export", "compensation": "not-required"},
+        {"id": "ledger_tombstone", "order": 7, "owner": "ledger", "effect": "tombstone-live-tenant-rows", "compensation": "manual-recovery-only"},
+        {"id": "retained_backup_disposition", "order": 8, "owner": "platform", "effect": "record-retained-pending-erasure-disposition", "compensation": "not-required"}
+      ]
+    }
+  ],
+  "receipt": {
+    "tenantScoped": true,
+    "includesEveryStep": true,
+    "successSource": "coordinator-terminal-state-only",
+    "crossTenantStatus": 404
+  },
+  "sourceChecks": [
+    {
+      "source": "clavenar-identity/src/agents/tenant_lifecycle.rs",
+      "contains": ["MAX_ATTEMPTS", "claim_step_handler", "complete_step_handler"]
+    },
+    {
+      "source": "clavenar-identity/src/db.rs",
+      "contains": ["tenant_lifecycle_operations", "tenant_lifecycle_steps"]
+    },
+    {
+      "source": "clavenar-sdk/src/agents.rs",
+      "contains": ["pub async fn start_tenant_lifecycle", "pub async fn claim_tenant_lifecycle_step"]
+    },
+    {
+      "source": "clavenar-console/src/handlers/tenant_offboard.rs",
+      "contains": ["run_offboard_saga", "LifecycleOperationState::Succeeded"]
+    },
+    {
+      "source": "clavenar-policy-engine/src/write_api.rs",
+      "contains": ["provision_tenant_handler", "drop_tenant_handler"]
+    },
+    {
+      "source": "clavenar-hil/src/handler/tenant_lifecycle.rs",
+      "contains": ["tenant_lifecycle_handler", "deny_pending_for_tenant"]
+    },
+    {
+      "source": "clavenar-ledger/src/handler/ledger.rs",
+      "contains": ["tombstone_tenant", "tenant_lifecycle_operation"]
+    },
+    {
+      "source": "clavenar-e2e/scripts/check_tenant_lifecycle_saga.py",
+      "contains": ["def validate_semantics", "effect-before-running-journal"]
+    }
+  ],
+  "prohibitions": [
+    "success-before-terminal-receipt",
+    "ignored-owner-failure",
+    "mutable-idempotency-intent",
+    "two-active-operations-per-tenant",
+    "effect-before-running-journal",
+    "unbounded-retry",
+    "cross-tenant-operation-disclosure",
+    "implicit-destructive-compensation",
+    "offboard-before-authority-fence"
+  ]
+}

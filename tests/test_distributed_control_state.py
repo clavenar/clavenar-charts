@@ -110,6 +110,8 @@ class DistributedControlStateChartTests(unittest.TestCase):
                 "state-namespace-isolation-v1.fixture.json",
                 "tenant-route-authorization-v1.schema.json",
                 "tenant-route-authorization-v1.fixture.json",
+                "tenant-lifecycle-saga-v1.schema.json",
+                "tenant-lifecycle-saga-v1.fixture.json",
             },
             {item["key"] for item in volume["configMap"]["items"]},
         )

@@ -96,6 +96,7 @@ spec:
         checksum/tenant-state-migration: {{ $.Files.Get "files/tenant-state-migration-v1.fixture.json" | sha256sum }}
         checksum/state-namespace-isolation: {{ $.Files.Get "files/state-namespace-isolation-v1.fixture.json" | sha256sum }}
         checksum/tenant-route-authorization: {{ $.Files.Get "files/tenant-route-authorization-v1.fixture.json" | sha256sum }}
+        checksum/tenant-lifecycle-saga: {{ $.Files.Get "files/tenant-lifecycle-saga-v1.fixture.json" | sha256sum }}
         checksum/distributed-control-resilience: {{ $.Files.Get "files/distributed-control-resilience-v1.fixture.json" | sha256sum }}
         {{- end }}
         {{- if $mountsTsaTrust }}
@@ -505,6 +506,10 @@ spec:
                 path: tenant-route-authorization-v1.schema.json
               - key: tenant-route-authorization-v1.fixture.json
                 path: tenant-route-authorization-v1.fixture.json
+              - key: tenant-lifecycle-saga-v1.schema.json
+                path: tenant-lifecycle-saga-v1.schema.json
+              - key: tenant-lifecycle-saga-v1.fixture.json
+                path: tenant-lifecycle-saga-v1.fixture.json
               - key: distributed-control-resilience-v1.schema.json
                 path: distributed-control-resilience-v1.schema.json
               - key: distributed-control-resilience-v1.fixture.json

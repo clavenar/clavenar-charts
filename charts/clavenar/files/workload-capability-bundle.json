@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.8.0",
+  "contractVersion": "1.9.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:513963353847fcf6f42df579fd30cedc6280fc66baaeab11c4c7be2dfbd11624",
-  "matrixSha256": "sha256:55ee8709a0ffccd322c16863c263fec4a24ab8a3d0bfd1426bb402b69eb9c0cf",
+  "listenerMatrixSha256": "sha256:86245c395c9b2801f34f0da5323f0a746596e817dd90b26753570a52e5c9eb7b",
+  "matrixSha256": "sha256:4b8b43cddd0cb936cd143b8cce29e0a9d4e78d172a8498028b2947d777b3fa24",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -145,6 +145,15 @@
           "family": "hil-demo-namespace-cleanup",
           "method": "POST",
           "pathTemplate": "/admin/namespaces/demo/cleanup"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "hil.tenant.lifecycle",
+          "family": "hil-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/admin/tenants/{tenant}/lifecycle"
         },
         {
           "allowedCallerIds": [
@@ -378,6 +387,15 @@
           "family": "identity-budget-read",
           "method": "GET",
           "pathTemplate": "/tenants/{tenant}/budget"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.tenant.lifecycle",
+          "family": "identity-tenant-lifecycle",
+          "method": "GET",
+          "pathTemplate": "/tenants/{tenant}/lifecycle/{operation_id}"
         },
         {
           "allowedCallerIds": [
@@ -630,6 +648,42 @@
           "family": "identity-budget-manage",
           "method": "POST",
           "pathTemplate": "/tenants/{tenant}/budget"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.tenant.lifecycle",
+          "family": "identity-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/tenants/{tenant}/lifecycle"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.tenant.lifecycle",
+          "family": "identity-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/tenants/{tenant}/lifecycle/{operation_id}/steps/{step_id}/claim"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.tenant.lifecycle",
+          "family": "identity-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/tenants/{tenant}/lifecycle/{operation_id}/steps/{step_id}/complete"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "identity.tenant.lifecycle",
+          "family": "identity-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/tenants/{tenant}/lifecycle/{operation_id}/steps/{step_id}/retry"
         },
         {
           "allowedCallerIds": [
@@ -916,6 +970,15 @@
           "allowedCallerIds": [
             "service-console"
           ],
+          "capability": "ledger.tenant.lifecycle",
+          "family": "ledger-tenant-lifecycle",
+          "method": "POST",
+          "pathTemplate": "/admin/tenants/{tenant}/lifecycle"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
           "capability": "ledger.tombstone.execute",
           "family": "ledger-tombstone",
           "method": "POST",
@@ -1102,6 +1165,15 @@
           "family": "policy-read",
           "method": "GET",
           "pathTemplate": "/policies/{name}/versions/{version}"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "policy.tenant.saga",
+          "family": "policy-tenant-saga",
+          "method": "POST",
+          "pathTemplate": "/admin/tenants/{tenant}/lifecycle"
         },
         {
           "allowedCallerIds": [
