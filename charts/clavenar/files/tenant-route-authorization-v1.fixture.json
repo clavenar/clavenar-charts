@@ -96,6 +96,18 @@
         "pub async fn decide_pending_for_tenant",
         "AND (?5 IS NULL OR tenant = ?5)"
       ]
+    },
+    {
+      "source": "clavenar-e2e/scripts/check-hil-tenant-scope-live.sh",
+      "contains": [
+        "cross-tenant decision returned $code, expected 404"
+      ]
+    },
+    {
+      "source": "clavenar-e2e/scripts/check-attestation-override-boundary.sh",
+      "contains": [
+        "prod) expected_code=401 ;;"
+      ]
     }
   ],
   "prohibitions": [
