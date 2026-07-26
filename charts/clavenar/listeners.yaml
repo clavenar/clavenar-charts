@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "8cf491c3b99b73a93df7adf3b900e3850ce4128a4c320414d43fc00ae6b90e37"
+reviewedContractSha256: "44b764032f4cc42e7e95f07ae449b44d62c2f45c09281bf4e7ec94652c229678"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -181,6 +181,7 @@ listeners:
       - "GET /stream/agent_audit/{cn}"
       - "GET /exports"
       - "POST /exports/run-now"
+      - "POST /exports/regulatory"
       - "GET /compliance"
       - "GET /velocity"
       - "GET /assurance"
