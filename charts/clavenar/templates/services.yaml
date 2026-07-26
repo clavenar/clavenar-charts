@@ -22,6 +22,7 @@ inside the range is the iterated value.
 {{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $mountsHilPayloadKey := eq $name "hil" }}
+{{- $mountsHilNotificationToken := and (eq $name "hil") (not (empty $cfg.notifications.webhook.tokenSecretName)) }}
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
 {{- $mountsVaultToken := and (not (empty $vaultTokenSecret)) (has $name (list "proxy" "identity")) }}
 {{- $mountsTsaTrust := and (eq $name "ledger") (not (empty $.Values.tlsBundle.secretName)) $.Values.ledgerCryptographicVerification.enabled }}
@@ -44,6 +45,9 @@ inside the range is the iterated value.
 {{- end }}
 {{- if and $managedWorkloadIdentity (gt (int $cfg.replicas) 1) }}
 {{- fail (printf "services.%s: replicas=%d with workloadIdentity.enabled=true — each exact-current workload identity requires a distinct persistent store; this Deployment supports replicas: 1" $name (int $cfg.replicas)) }}
+{{- end }}
+{{- if and (eq $name "hil") (not (empty $cfg.notifications.webhook.url)) (not $mountsHilNotificationToken) }}
+{{- fail "services.hil.notifications.webhook.tokenSecretName is required when webhook.url is set" }}
 {{- end }}
 ---
 apiVersion: apps/v1
@@ -97,6 +101,8 @@ spec:
         checksum/hil-retention-fixture: {{ $.Files.Get "files/hil-retention-v1.fixture.json" | sha256sum }}
         checksum/hil-erasure-schema: {{ $.Files.Get "files/hil-erasure-v1.schema.json" | sha256sum }}
         checksum/hil-erasure-fixture: {{ $.Files.Get "files/hil-erasure-v1.fixture.json" | sha256sum }}
+        checksum/hil-notification-lifecycle-schema: {{ $.Files.Get "files/hil-notification-lifecycle-v1.schema.json" | sha256sum }}
+        checksum/hil-notification-lifecycle-fixture: {{ $.Files.Get "files/hil-notification-lifecycle-v1.fixture.json" | sha256sum }}
         {{- end }}
         {{- if $mountsAttestationContract }}
         checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}
@@ -333,6 +339,16 @@ spec:
               value: {{ $cfg.webauthnCeremony.pendingLimits.source | quote }}
             - name: CLAVENAR_HIL_WEBAUTHN_DEPLOYMENT_PENDING_LIMIT
               value: {{ $cfg.webauthnCeremony.pendingLimits.deployment | quote }}
+            - name: CLAVENAR_HIL_NOTIFICATION_MODE
+              value: {{ $cfg.notifications.mode | quote }}
+            - name: CLAVENAR_HIL_NOTIFICATION_TIMEOUT_SECS
+              value: {{ $cfg.notifications.timeoutSeconds | quote }}
+            {{- if not (empty $cfg.notifications.webhook.url) }}
+            - name: CLAVENAR_HIL_WEBHOOK_URL
+              value: {{ $cfg.notifications.webhook.url | quote }}
+            - name: CLAVENAR_HIL_WEBHOOK_BEARER_TOKEN_FILE
+              value: /run/secrets/hil-notification-delivery-token
+            {{- end }}
             {{- end }}
             {{- if $mountsAttestationTrust }}
             - name: CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE
@@ -344,7 +360,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -404,6 +420,12 @@ spec:
               subPath: hil-payload-key
               readOnly: true
             {{- end }}
+            {{- if $mountsHilNotificationToken }}
+            - name: hil-notification-delivery-token
+              mountPath: /run/secrets/hil-notification-delivery-token
+              subPath: hil-notification-delivery-token
+              readOnly: true
+            {{- end }}
             {{- if $mountsVaultToken }}
             - name: vault-token
               mountPath: /run/secrets/vault-token
@@ -419,7 +441,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -575,6 +597,15 @@ spec:
             items:
               - key: {{ required "hilPayloadProtection.key is required" $.Values.hilPayloadProtection.key }}
                 path: hil-payload-key
+        {{- end }}
+        {{- if $mountsHilNotificationToken }}
+        - name: hil-notification-delivery-token
+          secret:
+            secretName: {{ $cfg.notifications.webhook.tokenSecretName }}
+            defaultMode: 0440
+            items:
+              - key: {{ $cfg.notifications.webhook.tokenSecretKey }}
+                path: hil-notification-delivery-token
         {{- end }}
         {{- if $mountsVaultToken }}
         - name: vault-token

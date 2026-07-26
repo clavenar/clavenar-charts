@@ -367,6 +367,45 @@
                 }
               }
             },
+            "notifications": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode", "timeoutSeconds", "webhook"],
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["disabled", "warn", "enforce"]
+                },
+                "timeoutSeconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 30
+                },
+                "webhook": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["url", "tokenSecretName", "tokenSecretKey"],
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "maxLength": 2048,
+                      "pattern": "^$|^https?://\\S+$"
+                    },
+                    "tokenSecretName": {
+                      "type": "string",
+                      "maxLength": 253,
+                      "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+                    },
+                    "tokenSecretKey": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 253,
+                      "pattern": "^[A-Za-z0-9._-]+$"
+                    }
+                  }
+                }
+              }
+            },
             "extraEnv": {
               "type": "array",
               "items": {
@@ -400,6 +439,10 @@
                         "CLAVENAR_HIL_WEBAUTHN_TENANT_PENDING_LIMIT",
                         "CLAVENAR_HIL_WEBAUTHN_SOURCE_PENDING_LIMIT",
                         "CLAVENAR_HIL_WEBAUTHN_DEPLOYMENT_PENDING_LIMIT",
+                        "CLAVENAR_HIL_NOTIFICATION_MODE",
+                        "CLAVENAR_HIL_NOTIFICATION_TIMEOUT_SECS",
+                        "CLAVENAR_HIL_WEBHOOK_URL",
+                        "CLAVENAR_HIL_WEBHOOK_BEARER_TOKEN_FILE",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH"

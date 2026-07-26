@@ -563,6 +563,18 @@ services:
         tenant: 64
         source: 12
         deployment: 256
+    # Outbound trigger/update/resolve lifecycle. `enforce` makes /readyz fail
+    # until at least one complete channel is configured; `warn` keeps the
+    # default chart usable without assuming an operator's provider.
+    notifications:
+      mode: warn
+      timeoutSeconds: 5
+      webhook:
+        url: ""
+        # Operator-owned Secret containing a 32+ byte bearer token. Required
+        # when url is non-empty; the token is mounted as a file.
+        tokenSecretName: ""
+        tokenSecretKey: token
     extraEnv:
       - name: CLAVENAR_HIL_DB
         value: /var/lib/clavenar/hil.db

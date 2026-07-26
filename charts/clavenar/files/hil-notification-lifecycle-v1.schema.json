@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/hil-notification-lifecycle-v1.schema.json",
+  "title": "Clavenar HIL notification lifecycle event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "schema_version",
+    "event",
+    "phase",
+    "status",
+    "notification_id",
+    "dedup_key",
+    "headline",
+    "pending_id",
+    "correlation_id",
+    "agent_id",
+    "method",
+    "tenant",
+    "state_namespace",
+    "created_at",
+    "decided_at"
+  ],
+  "properties": {
+    "contract": {"const": "clavenar.hil-notification-lifecycle/v1"},
+    "schema_version": {"const": 1},
+    "event": {"const": "hil_notification"},
+    "phase": {"enum": ["trigger", "update", "resolve"]},
+    "status": {"enum": ["pending", "approved", "denied", "expired"]},
+    "notification_id": {
+      "type": "string",
+      "minLength": 44,
+      "maxLength": 96,
+      "pattern": "^[0-9a-f-]{36}:(trigger|update:(approval-[1-9][0-9]*|escalated)|resolve:(approved|denied|expired))$"
+    },
+    "dedup_key": {"type": "string", "format": "uuid"},
+    "headline": {"type": "string", "minLength": 1, "maxLength": 512},
+    "pending_id": {"type": "string", "format": "uuid"},
+    "correlation_id": {"type": "string", "format": "uuid"},
+    "agent_id": {"type": "string", "minLength": 1, "maxLength": 256},
+    "method": {"type": "string", "minLength": 1, "maxLength": 256},
+    "tenant": {
+      "oneOf": [
+        {"type": "string", "minLength": 1, "maxLength": 128},
+        {"type": "null"}
+      ]
+    },
+    "state_namespace": {"type": "string", "minLength": 1, "maxLength": 128},
+    "created_at": {"type": "string", "format": "date-time"},
+    "decided_at": {
+      "oneOf": [
+        {"type": "string", "format": "date-time"},
+        {"type": "null"}
+      ]
+    },
+    "approve_url": {"type": "string", "format": "uri", "maxLength": 4096},
+    "deny_url": {"type": "string", "format": "uri", "maxLength": 4096}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"phase": {"const": "trigger"}}, "required": ["phase"]},
+      "then": {
+        "properties": {
+          "status": {"const": "pending"},
+          "notification_id": {"pattern": "^[0-9a-f-]{36}:trigger$"},
+          "decided_at": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"phase": {"const": "update"}}, "required": ["phase"]},
+      "then": {
+        "properties": {
+          "status": {"const": "pending"},
+          "notification_id": {
+            "pattern": "^[0-9a-f-]{36}:update:(approval-[1-9][0-9]*|escalated)$"
+          },
+          "decided_at": {"type": "null"}
+        }
+      }
+    },
+    {
+      "if": {"properties": {"phase": {"const": "resolve"}}, "required": ["phase"]},
+      "then": {
+        "properties": {
+          "status": {"enum": ["approved", "denied", "expired"]},
+          "notification_id": {
+            "pattern": "^[0-9a-f-]{36}:resolve:(approved|denied|expired)$"
+          },
+          "decided_at": {"type": "string", "format": "date-time"}
+        }
+      }
+    }
+  ]
+}

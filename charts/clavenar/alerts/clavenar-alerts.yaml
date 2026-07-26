@@ -350,6 +350,24 @@ groups:
             NATS JetStream health, and the Ledger consumer before backlog age
             approaches retention limits.
 
+      - alert: HILNotificationDeliveryFailing
+        expr: |
+          sum by (channel) (
+            increase(clavenar_hil_notification_deliveries_total{outcome="failure"}[10m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: critical
+          component: hil-notifications
+        annotations:
+          summary: "HIL notification channel has sustained delivery failures"
+          description: |
+            A configured HIL trigger/update/resolve channel failed more than
+            twice in ten minutes. Readiness catches missing enforce-mode
+            configuration; this alert catches runtime route or credential
+            failure after startup. Inspect the channel label and the durable
+            operator receiver before approval requests exceed their TTL.
+
       - alert: VerifySlow
         expr: |
           clavenar_ledger_verify_duration_seconds{quantile="0.95"}
