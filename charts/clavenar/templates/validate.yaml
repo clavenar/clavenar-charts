@@ -45,6 +45,20 @@
 {{- if not (has $deploymentProfile (list "evaluation" "production")) }}
 {{- fail "deploymentProfile must be exactly evaluation or production" }}
 {{- end }}
+{{- if .Values.exec.enabled }}
+{{- if eq $deploymentProfile "production" }}
+{{- fail "deploymentProfile=production forbids exec.enabled=true until WP-13 closes" }}
+{{- end }}
+{{- if empty .Values.tlsBundle.secretName }}
+{{- fail "exec.enabled=true requires tlsBundle.secretName for verified Proxy-to-Exec mTLS" }}
+{{- end }}
+{{- if not .Values.networkPolicy.enabled }}
+{{- fail "exec.enabled=true requires networkPolicy.enabled=true" }}
+{{- end }}
+{{- if and .Values.tlsBundle.autoMint (not (has "exec" (include "clavenar.bundleServices" . | splitList " "))) }}
+{{- fail "exec.enabled=true with tlsBundle.autoMint=true requires the exec workload identity" }}
+{{- end }}
+{{- end }}
 {{- $brain := .Values.services.brain }}
 {{- if ne (int $brain.port) 8081 }}
 {{- fail "services.brain.port is governed and must remain 8081" }}

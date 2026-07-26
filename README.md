@@ -29,6 +29,12 @@ certification. Operators must still validate the deployed service images,
 external PKI and CNI enforcement, release artifacts, persistence, backup and
 disaster recovery, and runtime behavior in their own environment.
 
+The optional execution gateway is excluded from default renders and explicitly
+forbidden by `deploymentProfile=production` until WP-13 closes. Evaluation
+opt-in requires workload TLS and NetworkPolicy: Proxy reaches Exec only over
+mutual TLS as the exact `service/proxy` SPIFFE identity, the Service publishes
+only the authority port, and probes use a separate health-only listener.
+
 The default Proxy PVC retains the durable server-execution intent, exact
 result, and forensic outbox across pod restarts. Because that store is SQLite,
 the chart keeps Proxy at one replica while `persistence.proxy.enabled=true`.

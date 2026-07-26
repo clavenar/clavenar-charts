@@ -234,6 +234,8 @@ exec:
     tag: ""
     pullPolicy: IfNotPresent
   port: 9001
+  # Plain health-only listener. It never serves MCP or tool routes.
+  healthPort: 9002
   # Shared workspace PVC mounted at /workspace inside clavenar-exec and
   # (when the lab pod is enabled) inside the agent pod RW so
   # `kubectl exec -- ls /workspace` works for operators.

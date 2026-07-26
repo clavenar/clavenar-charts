@@ -72,6 +72,7 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
+        "CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS",
         "VAULT_ADDR",
         "VAULT_TOKEN_FILE",
     },
@@ -259,6 +260,125 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         self.assertNotEqual(0, incomplete.returncode)
         self.assertIn("requires tlsBundle.secretName", incomplete.stderr)
+
+    def test_exec_is_excluded_from_production_and_opt_in_is_exact_mtls(self):
+        for profile in ("default", "production"):
+            names = {
+                doc.get("metadata", {}).get("name")
+                for doc in self.rendered[profile]
+                if doc.get("kind") in {
+                    "Deployment",
+                    "Service",
+                    "PersistentVolumeClaim",
+                    "NetworkPolicy",
+                }
+            }
+            self.assertNotIn("smoke-exec", names)
+
+        docs = self.rendered["optional"]
+        deployment = next(
+            doc
+            for doc in docs
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-exec"
+        )
+        pod = deployment["spec"]["template"]["spec"]
+        container = next(item for item in pod["containers"] if item["name"] == "exec")
+        self.assertEqual(
+            {"mtls": 9001, "health": 9002},
+            {item["name"]: item["containerPort"] for item in container["ports"]},
+        )
+        env = {item["name"]: item.get("value") for item in container["env"]}
+        self.assertEqual("/certs", env["CLAVENAR_EXEC_TLS_DIR"])
+        self.assertEqual("0.0.0.0:9002", env["CLAVENAR_EXEC_HEALTH_ADDR"])
+        volumes = {item["name"]: item for item in pod["volumes"]}
+        self.assertEqual(
+            {
+                ("ca.crt", "ca.crt"),
+                ("service-exec.crt", "service-exec.crt"),
+                ("service-exec.key", "service-exec.key"),
+            },
+            {
+                (item["key"], item["path"])
+                for item in volumes["certs-source"]["secret"]["items"]
+            },
+        )
+
+        service = next(
+            doc
+            for doc in docs
+            if doc.get("kind") == "Service"
+            and doc["metadata"]["name"] == "smoke-exec"
+        )
+        self.assertEqual(
+            [{"name": "mtls", "port": 9001, "protocol": "TCP", "targetPort": "mtls"}],
+            service["spec"]["ports"],
+        )
+        policy = next(
+            doc
+            for doc in docs
+            if doc.get("kind") == "NetworkPolicy"
+            and doc["metadata"]["name"] == "smoke-exec"
+        )
+        self.assertEqual(["Ingress"], policy["spec"]["policyTypes"])
+        self.assertEqual([9001], [rule["ports"][0]["port"] for rule in policy["spec"]["ingress"]])
+        self.assertEqual(
+            "proxy",
+            policy["spec"]["ingress"][0]["from"][0]["podSelector"]["matchLabels"][
+                "app.kubernetes.io/component"
+            ],
+        )
+
+        proxy = next(
+            doc
+            for doc in docs
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-proxy"
+        )
+        proxy_env = {
+            item["name"]: item.get("value")
+            for item in proxy["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual("https://smoke-exec:9001/mcp", proxy_env["CLAVENAR_UPSTREAM_URL"])
+        self.assertEqual("true", proxy_env["CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS"])
+        self.assertEqual(
+            "http://smoke-upstream-stub:9000/readyz",
+            proxy_env["CLAVENAR_UPSTREAM_READINESS_URL"],
+        )
+        self.assertIn(
+            "spiffe://clavenar.local/service/exec",
+            proxy_env["CLAVENAR_PROXY_EXPECTED_PEER_SPIFFE"].split(","),
+        )
+
+        for arguments, message in (
+            (
+                [
+                    "-f",
+                    str(ROOT / "tests/values-production.yaml"),
+                    "--set",
+                    "exec.enabled=true",
+                    "--skip-schema-validation",
+                ],
+                "deploymentProfile=production forbids exec.enabled=true",
+            ),
+            (["--set", "exec.enabled=true"], "requires tlsBundle.secretName"),
+            (
+                [
+                    "-f",
+                    str(ROOT / "tests/values-optional.yaml"),
+                    "--set",
+                    "networkPolicy.enabled=false",
+                ],
+                "requires networkPolicy.enabled=true",
+            ),
+        ):
+            result = subprocess.run(
+                ["helm", "template", "smoke", str(ROOT / "charts/clavenar"), *arguments],
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn(message, result.stderr)
 
     def test_rendered_service_environment_names_are_unique(self):
         service_names = {

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-exec-surface-containment
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "exec-surface-containment") | nindent 4 }}
+immutable: true
+data:
+  exec-surface-containment-v1.schema.json: |
+{{ .Files.Get "files/exec-surface-containment-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  exec-surface-containment-v1.fixture.json: |
+{{ .Files.Get "files/exec-surface-containment-v1.fixture.json" | trimSuffix "\n" | indent 4 }}

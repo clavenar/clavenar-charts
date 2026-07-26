@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0",
+  "contract": "clavenar.exec-surface-containment/v1",
+  "feature": "WP-13.1",
+  "status": "excluded-disabled",
+  "production": {
+    "defaultIncluded": false,
+    "optInAllowed": false,
+    "forbiddenResources": [
+      "Deployment/exec",
+      "Service/exec",
+      "PersistentVolumeClaim/exec",
+      "NetworkPolicy/exec"
+    ]
+  },
+  "evaluationOptIn": {
+    "requires": [
+      "workload-tls-secret",
+      "network-policy"
+    ],
+    "authority": {
+      "port": 9001,
+      "applicationProtocol": "HTTPS/MCP",
+      "clientAuthentication": "mutual-tls",
+      "exactCallerSpiffe": "spiffe://clavenar.local/service/proxy",
+      "agentIdentityHeader": "x-clavenar-agent-id",
+      "missingIdentityDisposition": "reject-before-dispatch"
+    },
+    "health": {
+      "port": 9002,
+      "routes": [
+        "/health",
+        "/readyz"
+      ],
+      "mcpFallback": false,
+      "servicePublished": false
+    },
+    "networkPolicy": {
+      "policyTypes": [
+        "Ingress"
+      ],
+      "authorityPeers": [
+        "proxy"
+      ],
+      "authorityPorts": [
+        9001
+      ]
+    }
+  },
+  "rollback": {
+    "execEnabled": false,
+    "stateMigrationRequired": false
+  }
+}

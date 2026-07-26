@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://specs.clavenar.com/contracts/exec-surface-containment-v1.schema.json",
+  "title": "Clavenar exec surface containment v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "feature",
+    "status",
+    "production",
+    "evaluationOptIn",
+    "rollback"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "contract": { "const": "clavenar.exec-surface-containment/v1" },
+    "feature": { "const": "WP-13.1" },
+    "status": { "const": "excluded-disabled" },
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["defaultIncluded", "optInAllowed", "forbiddenResources"],
+      "properties": {
+        "defaultIncluded": { "const": false },
+        "optInAllowed": { "const": false },
+        "forbiddenResources": {
+          "const": [
+            "Deployment/exec",
+            "Service/exec",
+            "PersistentVolumeClaim/exec",
+            "NetworkPolicy/exec"
+          ]
+        }
+      }
+    },
+    "evaluationOptIn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requires", "authority", "health", "networkPolicy"],
+      "properties": {
+        "requires": {
+          "const": ["workload-tls-secret", "network-policy"]
+        },
+        "authority": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "port",
+            "applicationProtocol",
+            "clientAuthentication",
+            "exactCallerSpiffe",
+            "agentIdentityHeader",
+            "missingIdentityDisposition"
+          ],
+          "properties": {
+            "port": { "const": 9001 },
+            "applicationProtocol": { "const": "HTTPS/MCP" },
+            "clientAuthentication": { "const": "mutual-tls" },
+            "exactCallerSpiffe": {
+              "const": "spiffe://clavenar.local/service/proxy"
+            },
+            "agentIdentityHeader": { "const": "x-clavenar-agent-id" },
+            "missingIdentityDisposition": {
+              "const": "reject-before-dispatch"
+            }
+          }
+        },
+        "health": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["port", "routes", "mcpFallback", "servicePublished"],
+          "properties": {
+            "port": { "const": 9002 },
+            "routes": { "const": ["/health", "/readyz"] },
+            "mcpFallback": { "const": false },
+            "servicePublished": { "const": false }
+          }
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyTypes", "authorityPeers", "authorityPorts"],
+          "properties": {
+            "policyTypes": { "const": ["Ingress"] },
+            "authorityPeers": { "const": ["proxy"] },
+            "authorityPorts": { "const": [9001] }
+          }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["execEnabled", "stateMigrationRequired"],
+      "properties": {
+        "execEnabled": { "const": false },
+        "stateMigrationRequired": { "const": false }
+      }
+    }
+  }
+}

@@ -40,6 +40,10 @@ spec:
     metadata:
       labels:
         {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
+      {{- if .Values.tlsBundle.autoMint }}
+      annotations:
+        clavenar.io/tls-generation: {{ .Values.tlsBundle.rotation.generation | quote }}
+      {{- end }}
     spec:
       terminationGracePeriodSeconds: {{ include "clavenar.terminationGrace" . }}
       {{- with .Values.imagePullSecrets }}
@@ -50,17 +54,47 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      initContainers:
+        - name: workload-tls-projector
+          image: "{{ .Values.tlsBundle.projectorImage.repository }}:{{ .Values.tlsBundle.projectorImage.tag }}"
+          imagePullPolicy: {{ .Values.tlsBundle.projectorImage.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              set -eu
+              umask 077
+              cp /tls-source/* /projected/
+              chmod 0444 /projected/*.crt
+              chmod 0600 /projected/*.key
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: certs-source
+              mountPath: /tls-source
+              readOnly: true
+            - name: certs
+              mountPath: /projected
       containers:
         - name: {{ $name }}
           image: "{{ .Values.exec.image.repository }}:{{ $tag }}"
           imagePullPolicy: {{ .Values.exec.image.pullPolicy }}
           ports:
-            - name: http
+            - name: mtls
               containerPort: {{ .Values.exec.port }}
+              protocol: TCP
+            - name: health
+              containerPort: {{ .Values.exec.healthPort }}
               protocol: TCP
           env:
             - name: CLAVENAR_EXEC_PORT
               value: {{ .Values.exec.port | quote }}
+            - name: CLAVENAR_EXEC_HEALTH_ADDR
+              value: "0.0.0.0:{{ .Values.exec.healthPort }}"
+            - name: CLAVENAR_EXEC_TLS_DIR
+              value: /certs
             - name: CLAVENAR_EXEC_WORKSPACE
               value: /workspace
             - name: CLAVENAR_EXEC_TIMEOUT_SECS
@@ -83,7 +117,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /health
-              port: {{ .Values.exec.port }}
+              port: {{ .Values.exec.healthPort }}
             initialDelaySeconds: 3
             periodSeconds: 10
             timeoutSeconds: 2
@@ -91,7 +125,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /readyz
-              port: {{ .Values.exec.port }}
+              port: {{ .Values.exec.healthPort }}
             initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 2
@@ -103,12 +137,28 @@ spec:
               mountPath: /workspace
             - name: tmp
               mountPath: /tmp
+            - name: certs
+              mountPath: /certs
+              readOnly: true
       volumes:
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ $fullname }}-workspace
         - name: tmp
           emptyDir: {}
+        - name: certs
+          emptyDir:
+            medium: Memory
+        - name: certs-source
+          secret:
+            secretName: {{ .Values.tlsBundle.secretName }}
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: service-exec.crt
+                path: service-exec.crt
+              - key: service-exec.key
+                path: service-exec.key
 ---
 apiVersion: v1
 kind: Service
@@ -120,9 +170,9 @@ spec:
   type: ClusterIP
   ports:
     - port: {{ .Values.exec.port }}
-      targetPort: http
+      targetPort: mtls
       protocol: TCP
-      name: http
+      name: mtls
   selector:
     {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 4 }}
 ---

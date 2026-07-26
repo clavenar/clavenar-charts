@@ -391,7 +391,9 @@ flowchart TD
     Am -->|no| NoAm[operator wires alerts into their own Alertmanager]
 
     V --> Exec{exec.enabled?}
-    Exec -->|yes| ExecDep[emit exec Deployment + Service + workspace PVC]
+    Exec -->|yes| ExecDep[emit evaluation-only exec mTLS Deployment + Service + workspace PVC + Proxy-only NetworkPolicy]
+    ExecDep --> ExecTrust[project only CA + service-exec cert/key; Proxy uses exact workload-mTLS client]
+    ExecDep --> ExecHealth[plain health-only 9002; no MCP fallback]
     Exec -->|no| NoExec[no exec gateway]
 
     V --> Stub{upstreamStub.enabled?}

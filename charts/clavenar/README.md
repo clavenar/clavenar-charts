@@ -525,7 +525,10 @@ apply walkthrough.
   agent pod. Egress for `fetch_url` defaults to deny-all until
   `exec.fetchAllowlist` names a host. Sandboxing is pod-level
   (`readOnlyRootFilesystem`, capability drop, RuntimeDefault
-  seccomp) — gVisor / Kata is v2.
+  seccomp) — gVisor / Kata is v2. This path is evaluation-only:
+  production rejects opt-in. Proxy reaches the published authority port over
+  mutual TLS, Exec accepts only the exact Proxy SPIFFE identity, and the
+  separate plain health-only port is not Service-published.
 
 ## What's not wired
 

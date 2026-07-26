@@ -3,6 +3,8 @@
 # namespace; the chart never mints production trust. Keep that namespace
 # distinct from both the Helm release and Prometheus namespaces.
 deploymentProfile: production
+exec:
+  enabled: false
 
 alertmanager:
   enabled: true

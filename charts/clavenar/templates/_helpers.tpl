@@ -119,6 +119,9 @@ keypair. Emits a space-separated list — consumed by the auto-mint
 Job's env. */}}
 {{- define "clavenar.bundleServices" -}}
 {{- $services := default (list) .Values.tlsBundle.bundleServices -}}
+{{- if .Values.exec.enabled -}}
+{{- $services = append $services "exec" -}}
+{{- end -}}
 {{- if .Values.nats.bundled.enabled -}}
 {{- $services = append $services "nats" -}}
 {{- end -}}
@@ -139,6 +142,9 @@ release-prefixed-v3-assurance
 {{- if $cfg.enabled -}}
 {{- $deployments = append $deployments ($name | kebabcase) -}}
 {{- end -}}
+{{- end -}}
+{{- if .Values.exec.enabled -}}
+{{- $deployments = append $deployments "exec" -}}
 {{- end -}}
 {{- end -}}
 {{ join " " $deployments }}
@@ -223,6 +229,7 @@ per environment variable.
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH"
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH"
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH"
+        "CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH"
@@ -451,6 +458,9 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
       "hil" "spiffe://clavenar.local/service/identity"
       "identity" "spiffe://clavenar.local/service/identity"
       "console" "spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/ledger,spiffe://clavenar.local/service/hil,spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/simulator,spiffe://clavenar.local/service/assurance,spiffe://clavenar.local/service/brain") $name -}}
+{{- if and (eq $name "proxy") .ctx.Values.exec.enabled -}}
+{{- $expected = printf "%s,spiffe://clavenar.local/service/exec" $expected -}}
+{{- end -}}
 # Managed workload identity: durable caller-held key, exact-current renewal,
 # and strict peer SPIFFE verification. The Identity Service publishes not-ready
 # endpoints so its first self-enrollment cannot deadlock on readiness.
@@ -533,7 +543,9 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # else to its CLAVENAR_EXEC_FALLBACK_URL (typically the upstream-stub
 # Service). Takes precedence over the bare upstreamStub wiring below.
 - name: CLAVENAR_UPSTREAM_URL
-  value: "http://{{ $rel }}-exec:{{ .ctx.Values.exec.port }}/mcp"
+  value: "https://{{ $rel }}-exec:{{ .ctx.Values.exec.port }}/mcp"
+- name: CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS
+  value: "true"
 {{- else if .ctx.Values.upstreamStub.enabled }}
 # Bundled echo-MCP target. Opt-in via upstreamStub.enabled. While the chart
 # emits this target, a duplicate services.proxy.extraEnv entry is rejected.

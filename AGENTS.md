@@ -80,7 +80,8 @@ identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 mTLS
 control + 9088 plain diagnostics · console
 8085 primary (demo-only by default; native operator mTLS when enabled) + 9085
 optional demo + 9185 diagnostics ·
-upstream-stub 9000 · exec 9001.
+upstream-stub 9000 · exec 9001 mutual-TLS authority + 9002 unpublished plain
+health.
 
 ## Conventions & invariants
 - After adding or updating a feature, also update the relevant `MANUAL_TESTS*` file(s) when needed.

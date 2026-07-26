@@ -287,6 +287,7 @@
                         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
                         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
                         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
+                        "CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH",
@@ -1108,6 +1109,12 @@
       },
       "then": {
         "properties": {
+          "exec": {
+            "properties": {
+              "enabled": { "const": false }
+            },
+            "required": ["enabled"]
+          },
           "authSecrets": {
             "properties": {
               "existingSecretName": { "type": "string", "minLength": 1 }
