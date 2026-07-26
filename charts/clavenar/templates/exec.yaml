@@ -42,6 +42,7 @@ spec:
       annotations:
         clavenar.io/structured-execution-sha256: {{ .Files.Get "files/structured-execution-v1.fixture.json" | sha256sum | quote }}
         clavenar.io/execution-ceilings-sha256: {{ .Files.Get "files/execution-ceilings-v1.fixture.json" | sha256sum | quote }}
+        clavenar.io/rooted-path-target-validation-sha256: {{ .Files.Get "files/rooted-path-target-validation-v1.fixture.json" | sha256sum | quote }}
       {{- if .Values.tlsBundle.autoMint }}
         clavenar.io/tls-generation: {{ .Values.tlsBundle.rotation.generation | quote }}
       {{- end }}
@@ -146,6 +147,9 @@ spec:
             - name: execution-ceilings
               mountPath: /etc/clavenar/execution-ceilings
               readOnly: true
+            - name: rooted-path-target-validation
+              mountPath: /etc/clavenar/rooted-path-target-validation
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -169,6 +173,12 @@ spec:
             items:
               - key: execution-ceilings-v1.fixture.json
                 path: execution-ceilings-v1.fixture.json
+        - name: rooted-path-target-validation
+          configMap:
+            name: {{ include "clavenar.fullname" . }}-rooted-path-target-validation
+            items:
+              - key: rooted-path-target-validation-v1.fixture.json
+                path: rooted-path-target-validation-v1.fixture.json
         - name: certs
           emptyDir:
             medium: Memory

@@ -222,9 +222,10 @@ upstreamStub:
 # process surface an agent can reach flows through the clavenar security
 # pipeline. The structured-command policy is mounted immutable and read-only.
 #
-# `fetchAllowlist` remains the application gate for `fetch_url`. WP-13.2
-# NetworkPolicy also denies external egress regardless of this list; later
-# target/DNS closure slices must land before external fetch can be enabled.
+# `fetchAllowlist` is a list of normalized HTTP(S) origin + path boundaries.
+# Credentials, fragments, sibling domains, local-use names, and non-public IP
+# literals reject at Exec startup. NetworkPolicy still denies external egress;
+# WP-13.5 must land before external fetch can be enabled.
 exec:
   enabled: false
   image:

@@ -53,8 +53,9 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "minLength": 1,
-            "maxLength": 253
+            "minLength": 10,
+            "maxLength": 2048,
+            "pattern": "^https?://[^/?#]+(?:/[^?#]*)?$"
           }
         },
         "resources": {
