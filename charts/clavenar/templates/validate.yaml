@@ -104,6 +104,7 @@
 {{- $operatorMtls := $console.operatorMtls.enabled }}
 {{- $operatorTrust := trim $console.operatorMtls.publicTrustSecretName }}
 {{- $ledger := .Values.services.ledger }}
+{{- $ledgerPostgres := $ledger.postgres }}
 {{- $trustedProxySpiffe := trim $ledger.trustedProxySpiffe }}
 {{- $requireTrustedProxy := $ledger.requireTrustedProxy }}
 {{- $trustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
@@ -114,6 +115,26 @@
 {{- end }}
 {{- if ne (int $ledger.mtlsPort) 8183 }}
 {{- fail "services.ledger.mtlsPort is governed and must remain 8183" }}
+{{- end }}
+{{- if $ledgerPostgres.enabled }}
+{{- if .Values.persistence.ledger.enabled }}
+{{- fail "services.ledger.postgres.enabled=true requires persistence.ledger.enabled=false; the staged topology must not mount the SQLite PVC" }}
+{{- end }}
+{{- if ne (int $ledger.replicas) 1 }}
+{{- fail "services.ledger.postgres.enabled=true requires services.ledger.replicas=1 until the supported HA failure model is promoted" }}
+{{- end }}
+{{- if empty (trim $ledgerPostgres.dsnSecretName) }}
+{{- fail "services.ledger.postgres.enabled=true requires services.ledger.postgres.dsnSecretName" }}
+{{- end }}
+{{- if empty (trim $ledgerPostgres.dsnSecretKey) }}
+{{- fail "services.ledger.postgres.enabled=true requires services.ledger.postgres.dsnSecretKey" }}
+{{- end }}
+{{- if empty (trim $ledgerPostgres.tlsCaSecretName) }}
+{{- fail "services.ledger.postgres.enabled=true requires services.ledger.postgres.tlsCaSecretName" }}
+{{- end }}
+{{- if empty (trim $ledgerPostgres.tlsCaSecretKey) }}
+{{- fail "services.ledger.postgres.enabled=true requires services.ledger.postgres.tlsCaSecretKey" }}
+{{- end }}
 {{- end }}
 {{- if and $trustedProxySpiffe (ne $trustedProxySpiffe $canonicalTrustedProxy) }}
 {{- fail "services.ledger.trustedProxySpiffe must be empty or the canonical exact URI spiffe://clavenar.local/service/website" }}

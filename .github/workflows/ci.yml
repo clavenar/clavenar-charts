@@ -50,10 +50,10 @@ jobs:
         working-directory: charts/clavenar
         run: |
           helm template smoke . \
-            --set services.ledger.replicas=3 \
             --set persistence.ledger.enabled=false \
-            --set services.ledger.extraEnv[0].name=CLAVENAR_LEDGER_BACKEND \
-            --set services.ledger.extraEnv[0].value=postgres \
+            --set services.ledger.postgres.enabled=true \
+            --set services.ledger.postgres.dsnSecretName=ledger-postgres-dsn \
+            --set services.ledger.postgres.tlsCaSecretName=ledger-postgres-ca \
             > /tmp/postgres.yaml
 
       # Bundled mode: nats + vault subcharts on, auto-mint TLS Job

@@ -73,11 +73,11 @@ class StatefulUpgradeChartTests(unittest.TestCase):
             "--set",
             "persistence.ledger.enabled=false",
             "--set",
-            "services.ledger.replicas=3",
+            "services.ledger.postgres.enabled=true",
             "--set",
-            "services.ledger.extraEnv[0].name=CLAVENAR_LEDGER_BACKEND",
+            "services.ledger.postgres.dsnSecretName=ledger-postgres-dsn",
             "--set",
-            "services.ledger.extraEnv[0].value=postgres",
+            "services.ledger.postgres.tlsCaSecretName=ledger-postgres-ca",
         )
         self.assertEqual(0, result.returncode, result.stderr)
         items = documents(result.stdout)

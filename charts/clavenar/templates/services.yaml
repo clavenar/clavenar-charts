@@ -26,6 +26,7 @@ inside the range is the iterated value.
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
 {{- $mountsVaultToken := and (not (empty $vaultTokenSecret)) (has $name (list "proxy" "identity")) }}
 {{- $mountsTsaTrust := and (eq $name "ledger") (not (empty $.Values.tlsBundle.secretName)) $.Values.ledgerCryptographicVerification.enabled }}
+{{- $mountsPostgresCa := and (eq $name "ledger") $cfg.postgres.enabled }}
 {{- $vaultTokenKey := ternary $.Values.vault.proxyTokenKey $.Values.vault.identityTokenKey (eq $name "proxy") }}
 {{- $mountsCert := $.Values.tlsBundle.secretName }}
 {{- $managedWorkloadIdentity := and (not (empty $.Values.tlsBundle.secretName)) $.Values.workloadIdentity.enabled (has $name (list "proxy" "brain" "policyEngine" "ledger" "hil" "identity" "console")) }}
@@ -107,6 +108,11 @@ spec:
         {{- if eq $name "ledger" }}
         checksum/active-agent-meter-schema: {{ $.Files.Get "files/active-agent-meter-v1.schema.json" | sha256sum }}
         checksum/active-agent-meter-fixture: {{ $.Files.Get "files/active-agent-meter-v1.fixture.json" | sha256sum }}
+        checksum/postgres-ledger-topology-schema: {{ $.Files.Get "files/postgres-ledger-topology-v1.schema.json" | sha256sum }}
+        checksum/postgres-ledger-topology-fixture: {{ $.Files.Get "files/postgres-ledger-topology-v1.fixture.json" | sha256sum }}
+        {{- if $mountsPostgresCa }}
+        clavenar.io/ledger-postgres-rotation-id: {{ $cfg.postgres.rotationId | quote }}
+        {{- end }}
         {{- end }}
         {{- if $mountsAttestationContract }}
         checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}
@@ -364,7 +370,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -441,11 +447,17 @@ spec:
               mountPath: /etc/clavenar/tsa
               readOnly: true
             {{- end }}
+            {{- if $mountsPostgresCa }}
+            - name: ledger-postgres-ca
+              mountPath: /etc/clavenar/postgres/ca.crt
+              subPath: ca.crt
+              readOnly: true
+            {{- end }}
             {{- with $extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -629,6 +641,15 @@ spec:
                 path: freetsa-ca.pem
               - key: freetsa-tsa.crt
                 path: freetsa-tsa.crt
+        {{- end }}
+        {{- if $mountsPostgresCa }}
+        - name: ledger-postgres-ca
+          secret:
+            secretName: {{ $cfg.postgres.tlsCaSecretName }}
+            defaultMode: 0444
+            items:
+              - key: {{ $cfg.postgres.tlsCaSecretKey }}
+                path: ca.crt
         {{- end }}
         {{- with $extraVolumes }}
         {{- toYaml . | nindent 8 }}

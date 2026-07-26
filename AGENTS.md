@@ -23,9 +23,10 @@ helm template smoke . --set tlsBundle.secretName=clavenar-certs \
   --set vault.addr=http://vault:8200 --set vault.tokenSecretName=clavenar-vault \
   --set networkPolicy.enabled=true --set networkPolicy.prometheusNamespaceLabel=monitoring \
   --set services.brain.replicas=3 --set services.policyEngine.replicas=2 > /tmp/all-on.yaml   # all-on
-helm template smoke . --set services.ledger.replicas=3 --set persistence.ledger.enabled=false \
-  --set services.ledger.extraEnv[0].name=CLAVENAR_LEDGER_BACKEND \
-  --set services.ledger.extraEnv[0].value=postgres > /tmp/postgres.yaml                       # postgres
+helm template smoke . --set persistence.ledger.enabled=false \
+  --set services.ledger.postgres.enabled=true \
+  --set services.ledger.postgres.dsnSecretName=ledger-postgres-dsn \
+  --set services.ledger.postgres.tlsCaSecretName=ledger-postgres-ca > /tmp/postgres.yaml      # staged postgres
 helm template smoke . -f ../../tests/values-bundled.yaml > /tmp/bundled.yaml                   # bundled
 helm template smoke . -f ../../tests/values-optional.yaml > /tmp/optional.yaml                 # optional listeners
 helm template smoke . -f ../../tests/values-production.yaml > /tmp/production.yaml             # fail-closed production
@@ -89,11 +90,14 @@ upstream-stub 9000 · exec 9001.
   kubectl examples always use the **kebab** name — copy-paste must resolve.
 - **SQLite-on-shared-PVC is unsafe.** ledger/hil/identity are SQLite-backed and
   pinned to `replicas: 1` (concurrent writers corrupt the file even on RWX).
-  Don't lift the pin without switching backends. Only ledger has a Postgres mode
-  (`CLAVENAR_LEDGER_BACKEND=postgres` + `CLAVENAR_LEDGER_PG_URL`, drop the PVC,
-  then scale). Document the constraint at any new SQLite-backed key.
-- **Postgres mode disables SQLite-only features** (cold-tier export, regulatory
-  bundles, Iceberg metadata, egress sweeper → 503). Wire SIEM ingest directly.
+  Don't lift the pin. Ledger's staged PostgreSQL mode is a structured opt-in
+  with persistence disabled, Secret-backed DSN and private CA, verified TLS,
+  and exactly one replica until its separate HA failure model is accepted.
+- **Postgres route scope is exact.** The packaged
+  `postgres-ledger-topology-v1` contract defines 16 supported paths and 21
+  stable-503 paths. Regulatory and compliance handlers are supported;
+  SQLite-direct analytics, cases, replay, allowlists, and cold-tier export are
+  unavailable. Do not add a chart-side SQLite fallback or an insecure TLS env.
 - **Image tag fallback:** `services.<svc>.image.tag → .Values.imageTag →
   .Chart.AppVersion` remains a legacy install boundary until WP-14.5. Root
   `VERSION` and `appVersion` are frozen at the last legacy image set. The local

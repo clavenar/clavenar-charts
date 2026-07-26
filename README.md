@@ -180,7 +180,7 @@ Kubernetes' env-list ordering.
 
 See `charts/clavenar/README.md` for the full quickstart, the `values.yaml`
 reference, mTLS cert provisioning, the SQLite-on-shared-PVC constraints,
-and how to flip the ledger to Postgres mode.
+and the staged single-replica PostgreSQL Ledger mode.
 
 ## Publishing release artifacts
 

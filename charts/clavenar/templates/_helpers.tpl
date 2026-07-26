@@ -254,6 +254,12 @@ per environment variable.
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH")
       "ledger" (list
+        "CLAVENAR_LEDGER_BACKEND"
+        "CLAVENAR_LEDGER_DB"
+        "CLAVENAR_LEDGER_PG_URL"
+        "CLAVENAR_LEDGER_PG_DSN"
+        "CLAVENAR_LEDGER_PG_TLS_CA_FILE"
+        "CLAVENAR_LEDGER_PG_ALLOW_INSECURE_TEST_ONLY"
         "CLAVENAR_LEDGER_ALLOWED_CALLERS"
         "CLAVENAR_LEDGER_TLS_DIR"
         "CLAVENAR_LEDGER_MTLS_ADDR"
@@ -580,6 +586,26 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: {{ $mount | quote }}
 - name: CLAVENAR_BRAIN_ALLOWED_CALLERS
   value: "spiffe://clavenar.local/service/proxy"
+{{- end }}
+{{- end }}
+{{- if eq $name "ledger" }}
+{{- if .ctx.Values.services.ledger.postgres.enabled }}
+# Staged Ledger-only PostgreSQL topology. The DSN is secret-backed and the
+# process forces verified TLS against this exact projected private CA.
+- name: CLAVENAR_LEDGER_BACKEND
+  value: "postgres"
+- name: CLAVENAR_LEDGER_PG_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ .ctx.Values.services.ledger.postgres.dsnSecretName }}
+      key: {{ .ctx.Values.services.ledger.postgres.dsnSecretKey }}
+- name: CLAVENAR_LEDGER_PG_TLS_CA_FILE
+  value: "/etc/clavenar/postgres/ca.crt"
+{{- else }}
+- name: CLAVENAR_LEDGER_BACKEND
+  value: "sqlite"
+- name: CLAVENAR_LEDGER_DB
+  value: "/var/lib/clavenar/ledger.db"
 {{- end }}
 {{- end }}
 {{- if eq $name "policyEngine" }}

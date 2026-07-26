@@ -452,8 +452,8 @@ apply walkthrough.
   `scripts/check-listener-matrix.py` rejects inventory drift.
 - **PodDisruptionBudget** auto-emitted for any service where
   `replicas > 1`. SQLite-pinned services (`replicas: 1`) skip
-  naturally; once an operator flips ledger to Postgres mode +
-  `replicas: 3`, a PDB lands with `minAvailable = ceil(replicas/2)`.
+  naturally. The staged PostgreSQL Ledger topology is also pinned to one
+  replica, so it does not claim disruption or multi-writer availability.
 - **TLS bundle mount** — when `tlsBundle.secretName` is set, a k8s
   Secret carrying the clavenar CA + per-service workload certs gets
   mounted read-only at `/certs`. Each pod sees only what it needs:
@@ -604,7 +604,7 @@ services:
     extraEnv: [{name: ANTHROPIC_API_KEY, value: mock-key}]
   policyEngine: { ... }
   ledger:
-    replicas: 1                    # lift only with CLAVENAR_LEDGER_BACKEND=postgres
+    replicas: 1                    # fixed for SQLite and staged PostgreSQL
     requireTrustedProxy: false     # production requires true
     trustedProxySpiffe: ""         # production fixes exact website SPIFFE URI
   hil:          { ... }            # replicas: 1 (SQLite-pinned)
@@ -837,29 +837,37 @@ Service-exposure rule has an executable promtool fixture in
 ## SQLite vs. Postgres for ledger
 
 Ledger defaults to SQLite mode (`replicas: 1` + PVC at
-`/var/lib/clavenar/ledger.db`). To run multi-replica Postgres mode:
+`/var/lib/clavenar/ledger.db`). The staged PostgreSQL mode remains one replica
+and does not constitute an HA or production-promotion claim:
 
 ```yaml
 services:
   ledger:
-    replicas: 3
-    extraEnv:
-      - name: CLAVENAR_LEDGER_BACKEND
-        value: postgres
-      - name: CLAVENAR_LEDGER_PG_URL
-        valueFrom:
-          secretKeyRef:
-            name: clavenar-ledger-pg
-            key: url
+    replicas: 1
+    postgres:
+      enabled: true
+      dsnSecretName: clavenar-ledger-pg
+      dsnSecretKey: url
+      tlsCaSecretName: clavenar-ledger-pg-ca
+      tlsCaSecretKey: ca.crt
+      rotationId: "2026-07"
 persistence:
   ledger:
-    enabled: false                # No PVC under Postgres mode
+    enabled: false
 ```
 
-Cold-tier export, regulatory bundles, Iceberg metadata, and the
-egress sweeper are SQLite-only and return 503 under Postgres mode —
-wire your SIEM ingest directly against the Postgres chain table
-instead. See the HA_RUNBOOK in `clavenar-e2e/`.
+Create the DSN and private-CA Secrets before install. The chart mounts only the
+CA key, sources the DSN with `secretKeyRef`, and renders no insecure TLS path.
+Changing either Secret or `rotationId` changes the pod template. The Ledger
+verifies the certificate against the DSN host.
+
+The packaged `clavenar.postgres-ledger-topology/v1` contract is the exact
+scope: append, verify, tenant audit reads, strict deduplication, active-agent
+metering, regulatory export, and compliance evidence are supported.
+SQLite-direct analytics, cases, replay, silence allowlists, and cold-tier
+export are among the 21 stable-503 routes, with no SQLite fallback. Database
+failover, multiple Ledger replicas, overlapping writers, and failback remain
+outside this staged topology.
 
 ## Verify locally
 

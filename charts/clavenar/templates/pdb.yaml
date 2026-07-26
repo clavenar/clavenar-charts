@@ -1,8 +1,7 @@
 {{/*
 PodDisruptionBudget — only emitted when services.<name>.replicas > 1.
-SQLite-pinned services (ledger/hil/identity in SQLite mode) keep
-replicas: 1 and skip naturally; once an operator flips ledger to
-Postgres mode + replicas: 3, a PDB lands automatically with
+SQLite-pinned services and the staged single-replica PostgreSQL Ledger
+topology skip naturally. Other multi-replica services receive
 minAvailable = ceil(replicas / 2).
 
 Disable the whole feature via .Values.podDisruptionBudget.enabled=false.

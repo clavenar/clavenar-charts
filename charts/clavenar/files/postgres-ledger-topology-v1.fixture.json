@@ -1,0 +1,68 @@
+{
+  "contract": "clavenar.postgres-ledger-topology/v1",
+  "status": "staged-not-promoted",
+  "image": {
+    "reference": "ghcr.io/clavenar/clavenar-stack-release@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "postgres_feature": true
+  },
+  "topology": {
+    "scope": "ledger-only-external-postgresql",
+    "ledger_replicas": 1,
+    "sqlite_production_default": true,
+    "whole_stack_ha": false,
+    "ha_promoted": false
+  },
+  "transport": {
+    "dsn_source": "secretKeyRef",
+    "ca_source": "secret-volume",
+    "server_name": "dsn-host",
+    "tls_required": true,
+    "insecure_chart_path": false
+  },
+  "supported_paths": [
+    "POST /log",
+    "GET /agents",
+    "GET /audit/{agent_id}",
+    "GET /audit/{agent_id}/count",
+    "GET /audit/agent/{tenant}/{agent_id}/lifecycle",
+    "GET /audit/correlation/{correlation_id}",
+    "GET /audit/entry/{entry_id}/masked-params",
+    "GET /finops/active-agents",
+    "GET /finops/active-agents/export",
+    "POST /finops/active-agents/adjustments",
+    "POST /admin/tenants/{tenant}/tombstone",
+    "POST /admin/namespaces/demo/cleanup",
+    "GET /stream/audit",
+    "GET /verify",
+    "POST /export/regulatory",
+    "POST /compliance/evidence"
+  ],
+  "unavailable_paths": [
+    "GET /audit/replay/corpus",
+    "GET /analysis/agent-envelope-recommendations",
+    "GET /analysis/agent-behavioral-baseline",
+    "GET /analysis/fleet-behavioral-diff",
+    "GET /analysis/silent-agents",
+    "GET /silence-allowlist",
+    "POST /silence-allowlist",
+    "DELETE /silence-allowlist/{agent_id}",
+    "GET /analysis/model-upgrade-canary",
+    "GET /audit/hunt",
+    "GET /finops/spend",
+    "POST /admin/tenants/{tenant}/lifecycle",
+    "POST /cases",
+    "GET /cases",
+    "GET /cases/{id}",
+    "POST /cases/{id}/timeline",
+    "POST /cases/{id}/status",
+    "POST /cases/{id}/classify",
+    "POST /cases/{id}/attach",
+    "POST /export",
+    "GET /exports"
+  ],
+  "unavailable_response": {
+    "status": 503,
+    "body": "route-stable-text",
+    "sqlite_fallback": false
+  }
+}

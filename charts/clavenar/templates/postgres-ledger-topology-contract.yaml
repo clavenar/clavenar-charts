@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-postgres-ledger-topology-contract
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "postgres-ledger-topology-contract") | nindent 4 }}
+immutable: true
+data:
+  postgres-ledger-topology-v1.schema.json: |
+{{ .Files.Get "files/postgres-ledger-topology-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  postgres-ledger-topology-v1.fixture.json: |
+{{ .Files.Get "files/postgres-ledger-topology-v1.fixture.json" | trimSuffix "\n" | indent 4 }}

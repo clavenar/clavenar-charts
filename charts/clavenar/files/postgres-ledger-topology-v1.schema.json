@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/postgres-ledger-topology-v1.schema.json",
+  "title": "Clavenar staged PostgreSQL Ledger topology",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "status",
+    "image",
+    "topology",
+    "transport",
+    "supported_paths",
+    "unavailable_paths",
+    "unavailable_response"
+  ],
+  "properties": {
+    "contract": {
+      "const": "clavenar.postgres-ledger-topology/v1"
+    },
+    "status": {
+      "const": "staged-not-promoted"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference",
+        "postgres_feature"
+      ],
+      "properties": {
+        "reference": {
+          "type": "string",
+          "pattern": "^ghcr\\.io/clavenar/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$"
+        },
+        "postgres_feature": {
+          "const": true
+        }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "ledger_replicas",
+        "sqlite_production_default",
+        "whole_stack_ha",
+        "ha_promoted"
+      ],
+      "properties": {
+        "scope": {
+          "const": "ledger-only-external-postgresql"
+        },
+        "ledger_replicas": {
+          "const": 1
+        },
+        "sqlite_production_default": {
+          "const": true
+        },
+        "whole_stack_ha": {
+          "const": false
+        },
+        "ha_promoted": {
+          "const": false
+        }
+      }
+    },
+    "transport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dsn_source",
+        "ca_source",
+        "server_name",
+        "tls_required",
+        "insecure_chart_path"
+      ],
+      "properties": {
+        "dsn_source": {
+          "const": "secretKeyRef"
+        },
+        "ca_source": {
+          "const": "secret-volume"
+        },
+        "server_name": {
+          "const": "dsn-host"
+        },
+        "tls_required": {
+          "const": true
+        },
+        "insecure_chart_path": {
+          "const": false
+        }
+      }
+    },
+    "supported_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 16,
+      "maxItems": 16,
+      "items": {
+        "enum": [
+          "POST /log",
+          "GET /agents",
+          "GET /audit/{agent_id}",
+          "GET /audit/{agent_id}/count",
+          "GET /audit/agent/{tenant}/{agent_id}/lifecycle",
+          "GET /audit/correlation/{correlation_id}",
+          "GET /audit/entry/{entry_id}/masked-params",
+          "GET /finops/active-agents",
+          "GET /finops/active-agents/export",
+          "POST /finops/active-agents/adjustments",
+          "POST /admin/tenants/{tenant}/tombstone",
+          "POST /admin/namespaces/demo/cleanup",
+          "GET /stream/audit",
+          "GET /verify",
+          "POST /export/regulatory",
+          "POST /compliance/evidence"
+        ]
+      }
+    },
+    "unavailable_paths": {
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 21,
+      "maxItems": 21,
+      "items": {
+        "enum": [
+          "GET /audit/replay/corpus",
+          "GET /analysis/agent-envelope-recommendations",
+          "GET /analysis/agent-behavioral-baseline",
+          "GET /analysis/fleet-behavioral-diff",
+          "GET /analysis/silent-agents",
+          "GET /silence-allowlist",
+          "POST /silence-allowlist",
+          "DELETE /silence-allowlist/{agent_id}",
+          "GET /analysis/model-upgrade-canary",
+          "GET /audit/hunt",
+          "GET /finops/spend",
+          "POST /admin/tenants/{tenant}/lifecycle",
+          "POST /cases",
+          "GET /cases",
+          "GET /cases/{id}",
+          "POST /cases/{id}/timeline",
+          "POST /cases/{id}/status",
+          "POST /cases/{id}/classify",
+          "POST /cases/{id}/attach",
+          "POST /export",
+          "GET /exports"
+        ]
+      }
+    },
+    "unavailable_response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "body",
+        "sqlite_fallback"
+      ],
+      "properties": {
+        "status": {
+          "const": 503
+        },
+        "body": {
+          "const": "route-stable-text"
+        },
+        "sqlite_fallback": {
+          "const": false
+        }
+      }
+    }
+  }
+}

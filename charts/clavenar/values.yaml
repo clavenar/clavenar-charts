@@ -470,19 +470,13 @@ services:
 
   ledger:
     enabled: true
-    # SQLite mode (the default below) is pinned to replicas: 1.
+    # SQLite mode (the default) is pinned to replicas: 1.
     # Concurrent writers across replicas corrupt the SQLite file even
     # on a shared RWX PVC, and SQLite's WAL doesn't help across hosts.
     #
-    # Postgres mode lifts that pin. Set:
-    #   CLAVENAR_LEDGER_BACKEND: "postgres"
-    #   CLAVENAR_LEDGER_PG_URL: "postgres://user:pass@host:5432/clavenar"
-    # and the ledger pool can scale to N replicas (Postgres serializes
-    # the chain append on a UNIQUE(seq) constraint; deadpool sizes
-    # the per-pod pool). Cold-tier export, regulatory bundles,
-    # Iceberg metadata, and the egress sweeper are SQLite-only and
-    # return 503 under Postgres mode — wire your SIEM ingest directly
-    # against the Postgres chain table instead. See HA_RUNBOOK.md.
+    # The staged PostgreSQL topology also remains replicas: 1 until the
+    # WP-12.8 failure-model contract is delivered. It moves only the Ledger
+    # chain store to external PostgreSQL; this is not whole-stack HA.
     replicas: 1
     image:
       repository: clavenar-ledger
@@ -513,12 +507,21 @@ services:
       type: httpGet
       health: /health
       ready: /readyz
-    # SQLite default. To use Postgres, drop CLAVENAR_LEDGER_DB, add
-    # `CLAVENAR_LEDGER_BACKEND=postgres` + `CLAVENAR_LEDGER_PG_URL=…`,
-    # and bump `replicas`.
-    extraEnv:
-      - name: CLAVENAR_LEDGER_DB
-        value: /var/lib/clavenar/ledger.db
+    # Staged, non-promoted PostgreSQL evaluation. The DSN (including
+    # credentials) and private CA are projected from existing Secrets.
+    # The DSN host is the verified TLS server name. Enabling this requires
+    # persistence.ledger.enabled=false and still requires replicas: 1.
+    postgres:
+      enabled: false
+      dsnSecretName: ""
+      dsnSecretKey: url
+      tlsCaSecretName: ""
+      tlsCaSecretKey: ca.crt
+      # Advance after rotating either existing Secret to roll the Pod (Secret
+      # values are intentionally never copied into Deployment annotations).
+      rotationId: initial
+    # Backend, DSN, CA, and SQLite-path variables are chart-governed.
+    extraEnv: []
     metrics:
       enabled: true
 
