@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/active-agent-meter-v1.schema.json",
+  "title": "Clavenar active-agent meter invoice",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "meter_version",
+    "tenant",
+    "window",
+    "observed_through",
+    "finalization",
+    "agents",
+    "base_active_agents",
+    "adjustments",
+    "net_active_agents",
+    "source",
+    "invoice_sha256"
+  ],
+  "properties": {
+    "contract": {
+      "const": "clavenar.active-agent-meter/v1"
+    },
+    "meter_version": {
+      "const": "1.0.0"
+    },
+    "tenant": {
+      "$ref": "#/$defs/label"
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "days",
+        "from",
+        "to"
+      ],
+      "properties": {
+        "kind": {
+          "const": "rolling"
+        },
+        "days": {
+          "const": 30
+        },
+        "from": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "to": {
+          "$ref": "#/$defs/timestamp"
+        }
+      }
+    },
+    "observed_through": {
+      "$ref": "#/$defs/timestamp"
+    },
+    "finalization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "late_event_grace_hours",
+        "final_at",
+        "status"
+      ],
+      "properties": {
+        "late_event_grace_hours": {
+          "const": 72
+        },
+        "final_at": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "status": {
+          "enum": [
+            "preliminary",
+            "final"
+          ]
+        }
+      }
+    },
+    "agents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agent_key",
+          "qualified_events",
+          "late_events",
+          "first_qualified_at",
+          "last_qualified_at",
+          "source_commitment"
+        ],
+        "properties": {
+          "agent_key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]{1,63}/[A-Za-z0-9._-]{1,63}$"
+          },
+          "qualified_events": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "late_events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "first_qualified_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "last_qualified_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "source_commitment": {
+            "$ref": "#/$defs/digest"
+          }
+        }
+      }
+    },
+    "base_active_agents": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "adjustments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "idempotency_key",
+          "kind",
+          "units_delta",
+          "reason",
+          "recorded_at",
+          "source_entry_id",
+          "source_entry_hash"
+        ],
+        "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "enum": [
+              "credit",
+              "correction"
+            ]
+          },
+          "units_delta": {
+            "type": "integer",
+            "minimum": -100000,
+            "maximum": 100000,
+            "not": {
+              "const": 0
+            }
+          },
+          "agent_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[A-Za-z0-9._-]{1,63}/[A-Za-z0-9._-]{1,63}$"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "recorded_at": {
+            "$ref": "#/$defs/timestamp"
+          },
+          "source_entry_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source_entry_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "net_active_agents": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "qualification",
+        "deduplication",
+        "qualified_event_count",
+        "late_event_count",
+        "event_commitment",
+        "adjustment_commitment",
+        "chain_length",
+        "chain_head"
+      ],
+      "properties": {
+        "qualification": {
+          "const": "authorized tool execution by exact tenant-qualified agent"
+        },
+        "deduplication": {
+          "const": "tenant+agent+stable-stage-identity"
+        },
+        "qualified_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "late_event_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "event_commitment": {
+          "$ref": "#/$defs/digest"
+        },
+        "adjustment_commitment": {
+          "$ref": "#/$defs/digest"
+        },
+        "chain_length": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "chain_head": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "invoice_sha256": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "label": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]{1,63}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

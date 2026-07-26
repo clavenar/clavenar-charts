@@ -1,0 +1,60 @@
+{
+  "contract": "clavenar.active-agent-meter/v1",
+  "meter_version": "1.0.0",
+  "tenant": "acme",
+  "window": {
+    "kind": "rolling",
+    "days": 30,
+    "from": "2026-06-26T00:00:00Z",
+    "to": "2026-07-26T00:00:00Z"
+  },
+  "observed_through": "2026-07-29T00:00:00Z",
+  "finalization": {
+    "late_event_grace_hours": 72,
+    "final_at": "2026-07-29T00:00:00Z",
+    "status": "final"
+  },
+  "agents": [
+    {
+      "agent_key": "acme/payments",
+      "qualified_events": 2,
+      "late_events": 1,
+      "first_qualified_at": "2026-07-01T10:00:00Z",
+      "last_qualified_at": "2026-07-25T23:59:59Z",
+      "source_commitment": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+    },
+    {
+      "agent_key": "acme/support",
+      "qualified_events": 1,
+      "late_events": 0,
+      "first_qualified_at": "2026-07-20T12:00:00Z",
+      "last_qualified_at": "2026-07-20T12:00:00Z",
+      "source_commitment": "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+    }
+  ],
+  "base_active_agents": 2,
+  "adjustments": [
+    {
+      "idempotency_key": "1f47cd45-0a51-4ef6-b127-836ef2c8cd53",
+      "kind": "credit",
+      "units_delta": -1,
+      "agent_key": "acme/support",
+      "reason": "contractual service credit",
+      "recorded_at": "2026-07-28T12:00:00Z",
+      "source_entry_id": "c113e78e-6937-4cc1-9c05-d2115549dd98",
+      "source_entry_hash": "3333333333333333333333333333333333333333333333333333333333333333"
+    }
+  ],
+  "net_active_agents": 1,
+  "source": {
+    "qualification": "authorized tool execution by exact tenant-qualified agent",
+    "deduplication": "tenant+agent+stable-stage-identity",
+    "qualified_event_count": 3,
+    "late_event_count": 1,
+    "event_commitment": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+    "adjustment_commitment": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+    "chain_length": 42,
+    "chain_head": "6666666666666666666666666666666666666666666666666666666666666666"
+  },
+  "invoice_sha256": "sha256:7777777777777777777777777777777777777777777777777777777777777777"
+}

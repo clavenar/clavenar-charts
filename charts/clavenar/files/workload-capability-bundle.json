@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.10.0",
+  "contractVersion": "1.11.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:379447f496a95064bab9e7d4d59c1053a7883299c43318689c67c826cef14359",
-  "matrixSha256": "sha256:dcd86ca50a771b9c740e6ece4ab392e7d7a4bb43f520f109b48586773b1945c4",
+  "listenerMatrixSha256": "sha256:c5b96577544c5164955edaf26a59f4af1e8f68a70421ba47e08ce1119ec1defd",
+  "matrixSha256": "sha256:61ece717b3f7d932d4a1425e44264084b1699804ca9591cfa56407cfa8e1fe91",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -938,6 +938,24 @@
         },
         {
           "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.active-agent.read",
+          "family": "ledger-active-agent-read",
+          "method": "GET",
+          "pathTemplate": "/finops/active-agents"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.active-agent.read",
+          "family": "ledger-active-agent-read",
+          "method": "GET",
+          "pathTemplate": "/finops/active-agents/export"
+        },
+        {
+          "allowedCallerIds": [
             "service-console",
             "service-deep-review",
             "service-proxy"
@@ -1069,6 +1087,15 @@
           "family": "ledger-regulatory-export",
           "method": "POST",
           "pathTemplate": "/export/regulatory"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
+          "capability": "ledger.active-agent.adjust",
+          "family": "ledger-active-agent-adjust",
+          "method": "POST",
+          "pathTemplate": "/finops/active-agents/adjustments"
         },
         {
           "allowedCallerIds": [

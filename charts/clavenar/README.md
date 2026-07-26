@@ -479,6 +479,9 @@ apply walkthrough.
   identity requires a distinct store; shared state is rejected at render time.
 - **Generated route capabilities** — the chart packages the canonical
   `workload-capability-bundle.json` byte-for-byte in an immutable ConfigMap.
+  The chart package also carries the strict
+  `active-agent-meter-v1.schema.json` and conformance fixture; the Ledger
+  workload template checksum binds both contract bytes to each rollout.
   Ledger, Policy Engine, HIL, and Identity mount the same file and receive its
   exact bundle and endpoint-matrix SHA-256 receipts. Any missing, stale, or
   substituted policy prevents the mTLS application listener from starting;

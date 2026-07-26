@@ -104,6 +104,10 @@ spec:
         checksum/hil-notification-lifecycle-schema: {{ $.Files.Get "files/hil-notification-lifecycle-v1.schema.json" | sha256sum }}
         checksum/hil-notification-lifecycle-fixture: {{ $.Files.Get "files/hil-notification-lifecycle-v1.fixture.json" | sha256sum }}
         {{- end }}
+        {{- if eq $name "ledger" }}
+        checksum/active-agent-meter-schema: {{ $.Files.Get "files/active-agent-meter-v1.schema.json" | sha256sum }}
+        checksum/active-agent-meter-fixture: {{ $.Files.Get "files/active-agent-meter-v1.fixture.json" | sha256sum }}
+        {{- end }}
         {{- if $mountsAttestationContract }}
         checksum/attestation-verifier-schema: {{ $.Files.Get "files/attestation-verifier-v1.schema.json" | sha256sum }}
         checksum/attestation-verifier-fixture: {{ $.Files.Get "files/attestation-verifier-v1.fixture.json" | sha256sum }}
