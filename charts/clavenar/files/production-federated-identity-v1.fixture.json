@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.production-federated-identity/v1",
+  "tenantMapping": {
+    "oidcClaim": "org_id",
+    "samlAttribute": "org_id",
+    "externalToCanonical": [
+      {"external": "acme-ext", "canonical": "acme"},
+      {"external": "other-ext", "canonical": "other"}
+    ],
+    "cardinality": "one-to-one",
+    "canonicalGrammar": "^[A-Za-z0-9._-]{1,63}$",
+    "normalization": "none",
+    "missingOrUnmapped": "deny"
+  },
+  "roleMapping": {
+    "oidcClaim": "groups",
+    "samlAttributes": ["Group", "groups", "http://schemas.xmlsoap.org/claims/Group", "memberOf"],
+    "priority": ["admin", "approver", "viewer"],
+    "groupsMustBeConfigured": true,
+    "groupsMustBeDisjoint": true,
+    "missingOrUnmapped": "deny"
+  },
+  "mfa": {
+    "oidcClaim": "amr",
+    "samlAttribute": "amr",
+    "acceptedEvidence": ["otp", "webauthn"],
+    "match": "at-least-one",
+    "missingOrUnmapped": "deny"
+  },
+  "principal": {
+    "format": "<protocol>:<canonical-tenant>:<issuer-sha256-64>:<subject-sha256-128>",
+    "protocols": ["oidc", "saml"],
+    "issuerCommitmentHexChars": 16,
+    "subjectCommitmentHexChars": 32,
+    "lengthPrefixInputs": true,
+    "rawSubjectPersisted": false
+  },
+  "oidc": {
+    "flow": "authorization-code",
+    "pkce": "S256",
+    "nonceRequired": true,
+    "issuerAudienceSignatureRequired": true,
+    "jwksRefreshAttemptsAfterVerifyFailure": 1,
+    "endSessionEndpointRequired": true,
+    "httpAllowedOnlyForLoopbackTests": true
+  },
+  "saml": {
+    "spInitiatedOnly": true,
+    "responseOrAssertionSignatureRequired": true,
+    "requestBindingRequired": true,
+    "audienceRequired": true,
+    "metadataSigningCertificateRequired": true,
+    "productionArtifactFeature": "saml"
+  },
+  "session": {
+    "tenantRequired": true,
+    "roleRequired": true,
+    "mfaRequired": true,
+    "ttlBoundedByProviderToken": true,
+    "providerLogoutRequiredForOidc": true
+  },
+  "audit": {
+    "events": ["federated_login", "federated_logout"],
+    "allowedFields": ["event", "protocol", "principal", "tenant", "role"],
+    "prohibitedFields": ["access_token", "id_token", "client_secret", "raw_subject", "assertion", "credential"]
+  },
+  "sourceChecks": [
+    {
+      "source": "clavenar-console/src/federated_identity.rs",
+      "contains": ["FederatedIdentityPolicy", "federated identity missing tenant", "federated identity has no accepted MFA evidence"]
+    },
+    {
+      "source": "clavenar-console/src/oidc.rs",
+      "contains": ["bounded JWKS refresh", "end_session_endpoint", "identity_policy.resolve"]
+    },
+    {
+      "source": "clavenar-console/src/saml.rs",
+      "contains": ["parse_base64_response", "SAML assertion missing tenant attribute", "identity_policy.resolve"]
+    },
+    {
+      "source": "clavenar-console/Dockerfile",
+      "contains": ["ARG CLAVENAR_CARGO_FEATURES=\"saml\""]
+    },
+    {
+      "source": "clavenar-e2e/STACK_BOM_POLICY.json",
+      "contains": ["\"consoleSaml\": true"]
+    }
+  ],
+  "negativeCases": [
+    "missing-tenant",
+    "unmapped-tenant",
+    "duplicate-external-tenant",
+    "duplicate-canonical-tenant",
+    "tenant-normalization-collision",
+    "empty-role-map",
+    "overlapping-role-group",
+    "unmapped-role",
+    "missing-mfa",
+    "unaccepted-mfa",
+    "wrong-issuer",
+    "wrong-audience",
+    "wrong-signing-key",
+    "stale-jwks-after-one-refresh",
+    "unsigned-saml",
+    "unknown-saml-request",
+    "saml-replay",
+    "idp-outage"
+  ]
+}

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/production-federated-identity-v1.schema.json",
+  "title": "Clavenar production federated identity v1 conformance vector",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contract", "tenantMapping", "roleMapping", "mfa", "principal", "oidc", "saml", "session", "audit", "sourceChecks", "negativeCases"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "contract": {"const": "clavenar.production-federated-identity/v1"},
+    "tenantMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oidcClaim", "samlAttribute", "externalToCanonical", "cardinality", "canonicalGrammar", "normalization", "missingOrUnmapped"],
+      "properties": {
+        "oidcClaim": {"type": "string", "minLength": 1},
+        "samlAttribute": {"type": "string", "minLength": 1},
+        "externalToCanonical": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["external", "canonical"],
+            "properties": {
+              "external": {"type": "string", "minLength": 1, "maxLength": 128},
+              "canonical": {"type": "string", "pattern": "^[A-Za-z0-9._-]{1,63}$"}
+            }
+          }
+        },
+        "cardinality": {"const": "one-to-one"},
+        "canonicalGrammar": {"const": "^[A-Za-z0-9._-]{1,63}$"},
+        "normalization": {"const": "none"},
+        "missingOrUnmapped": {"const": "deny"}
+      }
+    },
+    "roleMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oidcClaim", "samlAttributes", "priority", "groupsMustBeConfigured", "groupsMustBeDisjoint", "missingOrUnmapped"],
+      "properties": {
+        "oidcClaim": {"type": "string", "minLength": 1},
+        "samlAttributes": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+        "priority": {"type": "array", "prefixItems": [{"const": "admin"}, {"const": "approver"}, {"const": "viewer"}], "items": false},
+        "groupsMustBeConfigured": {"const": true},
+        "groupsMustBeDisjoint": {"const": true},
+        "missingOrUnmapped": {"const": "deny"}
+      }
+    },
+    "mfa": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["oidcClaim", "samlAttribute", "acceptedEvidence", "match", "missingOrUnmapped"],
+      "properties": {
+        "oidcClaim": {"type": "string", "minLength": 1},
+        "samlAttribute": {"type": "string", "minLength": 1},
+        "acceptedEvidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "match": {"const": "at-least-one"},
+        "missingOrUnmapped": {"const": "deny"}
+      }
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "protocols", "issuerCommitmentHexChars", "subjectCommitmentHexChars", "lengthPrefixInputs", "rawSubjectPersisted"],
+      "properties": {
+        "format": {"const": "<protocol>:<canonical-tenant>:<issuer-sha256-64>:<subject-sha256-128>"},
+        "protocols": {"type": "array", "prefixItems": [{"const": "oidc"}, {"const": "saml"}], "items": false},
+        "issuerCommitmentHexChars": {"const": 16},
+        "subjectCommitmentHexChars": {"const": 32},
+        "lengthPrefixInputs": {"const": true},
+        "rawSubjectPersisted": {"const": false}
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["flow", "pkce", "nonceRequired", "issuerAudienceSignatureRequired", "jwksRefreshAttemptsAfterVerifyFailure", "endSessionEndpointRequired", "httpAllowedOnlyForLoopbackTests"],
+      "properties": {
+        "flow": {"const": "authorization-code"},
+        "pkce": {"const": "S256"},
+        "nonceRequired": {"const": true},
+        "issuerAudienceSignatureRequired": {"const": true},
+        "jwksRefreshAttemptsAfterVerifyFailure": {"const": 1},
+        "endSessionEndpointRequired": {"const": true},
+        "httpAllowedOnlyForLoopbackTests": {"const": true}
+      }
+    },
+    "saml": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spInitiatedOnly", "responseOrAssertionSignatureRequired", "requestBindingRequired", "audienceRequired", "metadataSigningCertificateRequired", "productionArtifactFeature"],
+      "properties": {
+        "spInitiatedOnly": {"const": true},
+        "responseOrAssertionSignatureRequired": {"const": true},
+        "requestBindingRequired": {"const": true},
+        "audienceRequired": {"const": true},
+        "metadataSigningCertificateRequired": {"const": true},
+        "productionArtifactFeature": {"const": "saml"}
+      }
+    },
+    "session": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenantRequired", "roleRequired", "mfaRequired", "ttlBoundedByProviderToken", "providerLogoutRequiredForOidc"],
+      "properties": {
+        "tenantRequired": {"const": true},
+        "roleRequired": {"const": true},
+        "mfaRequired": {"const": true},
+        "ttlBoundedByProviderToken": {"const": true},
+        "providerLogoutRequiredForOidc": {"const": true}
+      }
+    },
+    "audit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events", "allowedFields", "prohibitedFields"],
+      "properties": {
+        "events": {"type": "array", "prefixItems": [{"const": "federated_login"}, {"const": "federated_logout"}], "items": false},
+        "allowedFields": {"type": "array", "prefixItems": [{"const": "event"}, {"const": "protocol"}, {"const": "principal"}, {"const": "tenant"}, {"const": "role"}], "items": false},
+        "prohibitedFields": {"type": "array", "minItems": 6, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "sourceChecks": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source", "contains"],
+        "properties": {
+          "source": {"type": "string", "minLength": 1},
+          "contains": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+        }
+      }
+    },
+    "negativeCases": {"type": "array", "minItems": 18, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  }
+}

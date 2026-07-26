@@ -17,6 +17,7 @@ inside the range is the iterated value.
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
 {{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
+{{- $mountsFederatedIdentityContract := eq $name "console" }}
 {{- $mountsControlState := eq $name "proxy" }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
@@ -78,6 +79,9 @@ spec:
         clavenar.io/auth-rotation-id: {{ required "authSecrets.rotationId is required" $.Values.authSecrets.rotationId | quote }}
         checksum/dependency-readiness-schema: {{ $.Files.Get "files/dependency-readiness-v1.schema.json" | sha256sum }}
         checksum/dependency-readiness-fixture: {{ $.Files.Get "files/dependency-readiness-v1.fixture.json" | sha256sum }}
+        {{- if $mountsFederatedIdentityContract }}
+        checksum/production-federated-identity: {{ $.Files.Get "files/production-federated-identity-v1.fixture.json" | sha256sum }}
+        {{- end }}
         {{- include "clavenar.metricsAnnotations" (dict "ctx" $ "svcCfg" $cfg) | trim | nindent 8 }}
         {{- if and $mountsCert $.Values.tlsBundle.autoMint }}
         # The rotation hook temporarily advances this annotation through
@@ -340,7 +344,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsVaultToken $mountsTsaTrust (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -370,6 +374,11 @@ spec:
             {{- if $mountsAttestationContract }}
             - name: attestation-verifier-contract
               mountPath: /etc/clavenar/attestation
+              readOnly: true
+            {{- end }}
+            {{- if $mountsFederatedIdentityContract }}
+            - name: federated-identity-contract
+              mountPath: /etc/clavenar/federated-identity
               readOnly: true
             {{- end }}
             {{- if $mountsControlState }}
@@ -499,6 +508,16 @@ spec:
                 path: attestation-verifier-v1.schema.json
               - key: attestation-verifier-v1.fixture.json
                 path: attestation-verifier-v1.fixture.json
+        {{- end }}
+        {{- if $mountsFederatedIdentityContract }}
+        - name: federated-identity-contract
+          configMap:
+            name: {{ include "clavenar.fullname" $ }}-federated-identity-contract
+            items:
+              - key: production-federated-identity-v1.schema.json
+                path: production-federated-identity-v1.schema.json
+              - key: production-federated-identity-v1.fixture.json
+                path: production-federated-identity-v1.fixture.json
         {{- end }}
         {{- if $mountsControlState }}
         - name: distributed-control-state

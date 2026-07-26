@@ -489,6 +489,11 @@ apply walkthrough.
   `/etc/clavenar/attestation` projection and roll only when either governed
   file changes. This packages the verifier boundary; it does not enable a
   mock provider as a production verifier.
+- **Federated identity contract** — the chart packages the exact strict OIDC
+  and signed-SAML schema and fixture in an immutable ConfigMap. Console mounts
+  it read-only at `/etc/clavenar/federated-identity` and rolls when the
+  governed fixture changes. Provider credentials and tenant/group mappings
+  remain external Secret-backed runtime configuration.
 - **Distributed control-state contract** — an immutable ConfigMap preserves
   the seven-row public authority/classification/replication inventory. Proxy
   and Identity receive the same validated `controlState.replicas` value; six
