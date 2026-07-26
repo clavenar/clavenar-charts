@@ -887,6 +887,16 @@ configuration is weekly (604,800 seconds), so it does not meet the
 create a newer point. Drill measurements are observations, not a zero-downtime
 SLO.
 
+## Residual product dispositions
+
+The immutable `residual-product-disposition` ConfigMap packages the exact
+`clavenar.residual-product-disposition/v1` schema and fixture. It fixes all nine
+remaining product claims at one shipped static sandbox-annotation corpus and
+eight explicitly deferred capabilities. The chart does not enable a deferred
+capability: global notification routing is not tenant-selectable routing,
+quorum is not named-group authorization, and a selectable WebAuthn auth mode is
+not per-decision OIDC step-up.
+
 ## Verify locally
 
 ```bash

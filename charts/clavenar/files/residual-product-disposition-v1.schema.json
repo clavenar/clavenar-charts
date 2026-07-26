@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/residual-product-disposition-v1.schema.json",
+  "title": "Clavenar residual product disposition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "feature",
+    "gap",
+    "status",
+    "unknownRowsRejected",
+    "shippedCount",
+    "deferredCount",
+    "dispositions",
+    "bindings",
+    "nonEquivalences"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "contract": {
+      "const": "clavenar.residual-product-disposition/v1"
+    },
+    "feature": {
+      "const": "WP-12.9"
+    },
+    "gap": {
+      "const": "G-20"
+    },
+    "status": {
+      "const": "bounded-supported-scope"
+    },
+    "unknownRowsRejected": {
+      "const": true
+    },
+    "shippedCount": {
+      "const": 1
+    },
+    "deferredCount": {
+      "const": 8
+    },
+    "dispositions": {
+      "type": "array",
+      "minItems": 9,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/disposition"
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sandboxAdversarialCorpus"
+      ],
+      "properties": {
+        "sandboxAdversarialCorpus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract",
+            "repository",
+            "path",
+            "commit",
+            "sha256",
+            "caseCount",
+            "staticAnnotationOnly",
+            "authorizationBoundary",
+            "executionIsolation",
+            "tenantAuthorityEnforcedByAnalyzer"
+          ],
+          "properties": {
+            "contract": {
+              "const": "clavenar.sandbox-adversarial-corpus/v1"
+            },
+            "repository": {
+              "const": "clavenar-sandbox"
+            },
+            "path": {
+              "const": "benchmark/adversarial-cases.json"
+            },
+            "commit": {
+              "pattern": "^[a-f0-9]{7,40}$"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "caseCount": {
+              "const": 40
+            },
+            "staticAnnotationOnly": {
+              "const": true
+            },
+            "authorizationBoundary": {
+              "const": false
+            },
+            "executionIsolation": {
+              "const": false
+            },
+            "tenantAuthorityEnforcedByAnalyzer": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "nonEquivalences": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "global-notification-lifecycle-is-not-per-tenant-channel-selection",
+          "oidc-provenance-and-issuer-signing-are-not-approver-webauthn-signatures",
+          "single-replica-policy-durability-is-not-multi-replica-consistency",
+          "cli-test-learn-library-and-exchange-are-not-policy-crud",
+          "hermetic-mock-corpus-is-not-a-real-provider-benchmark",
+          "quorum-and-advisory-escalation-are-not-approver-group-authorization"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "disposition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "publicPosture",
+        "runtimePosture",
+        "tenantScope",
+        "evidence",
+        "promotionRequirements"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "per-tenant-notification-channel-selection",
+            "hil-transition-webauthn-signatures",
+            "high-impact-webauthn-step-up",
+            "multi-replica-policy-rule-consistency",
+            "cli-policy-crud-parity",
+            "real-provider-deep-review-benchmark",
+            "sandbox-severity-adversarial-corpus",
+            "biometric-mobile-push-approval",
+            "hard-gated-approver-group-routing"
+          ]
+        },
+        "status": {
+          "enum": [
+            "shipped",
+            "deferred"
+          ]
+        },
+        "publicPosture": {
+          "type": "string",
+          "minLength": 16
+        },
+        "runtimePosture": {
+          "type": "string",
+          "minLength": 16
+        },
+        "tenantScope": {
+          "type": "string",
+          "minLength": 16
+        },
+        "evidence": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/evidence"
+          }
+        },
+        "promotionRequirements": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 12
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "shipped"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "evidence": {
+                "minItems": 1
+              },
+              "promotionRequirements": {
+                "maxItems": 0
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "evidence": {
+                "maxItems": 0
+              },
+              "promotionRequirements": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "repository",
+        "path",
+        "commit",
+        "sha256",
+        "caseCount"
+      ],
+      "properties": {
+        "kind": {
+          "const": "reviewed-adversarial-corpus"
+        },
+        "repository": {
+          "const": "clavenar-sandbox"
+        },
+        "path": {
+          "const": "benchmark/adversarial-cases.json"
+        },
+        "commit": {
+          "pattern": "^[a-f0-9]{7,40}$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "caseCount": {
+          "const": 40
+        }
+      }
+    }
+  }
+}

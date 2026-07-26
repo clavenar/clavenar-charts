@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.residual-product-disposition/v1",
+  "feature": "WP-12.9",
+  "gap": "G-20",
+  "status": "bounded-supported-scope",
+  "unknownRowsRejected": true,
+  "shippedCount": 1,
+  "deferredCount": 8,
+  "dispositions": [
+    {
+      "id": "per-tenant-notification-channel-selection",
+      "status": "deferred",
+      "publicPosture": "Global notification delivery lifecycle is shipped; tenant-selected channel configuration is not.",
+      "runtimePosture": "Notification channels remain deployment-configured and are not tenant-selectable.",
+      "tenantScope": "No tenant may select or mutate its own notification-channel set.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Tenant-owned channel configuration, route authorization, isolation, and integration evidence."
+      ]
+    },
+    {
+      "id": "hil-transition-webauthn-signatures",
+      "status": "deferred",
+      "publicPosture": "Approver identity provenance is recorded, but HIL transitions do not carry approver WebAuthn signatures.",
+      "runtimePosture": "Transition events use current authenticated provenance and issuer custody without a passkey signature.",
+      "tenantScope": "No tenant receives a cryptographic approver-signature claim over a transition.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Versioned transition-signature envelope, verified credential binding, chain commitment, and tenant-isolation evidence."
+      ]
+    },
+    {
+      "id": "high-impact-webauthn-step-up",
+      "status": "deferred",
+      "publicPosture": "OIDC and role authorization are shipped; per-decision and agent-lifecycle WebAuthn step-up is not.",
+      "runtimePosture": "High-impact decide and lifecycle routes do not require a new WebAuthn ceremony.",
+      "tenantScope": "No tenant may rely on per-operation passkey step-up as an authorization boundary.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Typed operation challenge, fresh ceremony enforcement, replay protection, tenant binding, and live negative evidence."
+      ]
+    },
+    {
+      "id": "multi-replica-policy-rule-consistency",
+      "status": "deferred",
+      "publicPosture": "Single-replica policy durability is shipped; multi-replica compiled-rule consistency is not.",
+      "runtimePosture": "The supported policy-engine posture remains one replica without a replicated rule-set agreement protocol.",
+      "tenantScope": "No tenant receives a multi-replica policy consistency or availability guarantee.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Authoritative replicated state, ordered activation, fail-closed readiness, partition tests, and tenant-isolated convergence evidence."
+      ]
+    },
+    {
+      "id": "cli-policy-crud-parity",
+      "status": "deferred",
+      "publicPosture": "CLI policy test, learn, scaffold, library, and exchange workflows are shipped; exact CRUD parity is not.",
+      "runtimePosture": "Policy create, read, update, activate, deactivate, and delete are not exposed as one complete CLI surface.",
+      "tenantScope": "No tenant receives a claim that the CLI covers the full policy administration API.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Complete typed CLI CRUD commands, device-authorized tenant confinement, audit evidence, and parity tests."
+      ]
+    },
+    {
+      "id": "real-provider-deep-review-benchmark",
+      "status": "deferred",
+      "publicPosture": "The 25-case hermetic mock corpus is shipped; a pinned real-provider accuracy result is not published.",
+      "runtimePosture": "CI remains deterministic and does not call a paid external model to produce an accuracy claim.",
+      "tenantScope": "No tenant or provider workload is represented by a published real-provider accuracy claim.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Pinned provider and model, reviewed dataset, reproducible operator run, cost receipt, and published accuracy methodology."
+      ]
+    },
+    {
+      "id": "sandbox-severity-adversarial-corpus",
+      "status": "shipped",
+      "publicPosture": "Sandbox severity is a reviewed static annotation over the pinned corpus, not execution isolation or authorization.",
+      "runtimePosture": "The pure analyzer deterministically classifies 40 reviewed filesystem, shell, HTTP, SQL, malformed, and unknown cases.",
+      "tenantScope": "Analysis is tenant-agnostic and carries no authority; callers enforce tenant identity and authorization outside the analyzer.",
+      "evidence": [
+        {
+          "kind": "reviewed-adversarial-corpus",
+          "repository": "clavenar-sandbox",
+          "path": "benchmark/adversarial-cases.json",
+          "commit": "0559953",
+          "sha256": "0c350e1ceb1404a5a57e17f5657ef7cbe97090e1fbdf349309ee339796f62565",
+          "caseCount": 40
+        }
+      ],
+      "promotionRequirements": []
+    },
+    {
+      "id": "biometric-mobile-push-approval",
+      "status": "deferred",
+      "publicPosture": "Biometric mobile-push approval is not a shipped Clavenar channel.",
+      "runtimePosture": "No mobile push provider, device enrollment, biometric assertion, or mobile callback route is enabled.",
+      "tenantScope": "No tenant may configure or rely on biometric mobile-push approval.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Provider integration, tenant device enrollment, signed callback binding, revocation, replay defense, and live evidence."
+      ]
+    },
+    {
+      "id": "hard-gated-approver-group-routing",
+      "status": "deferred",
+      "publicPosture": "Quorum and advisory escalation are shipped; named approver-group authorization is not.",
+      "runtimePosture": "Eligible approvers may satisfy quorum without a pending-specific named-group authorization gate.",
+      "tenantScope": "No tenant may rely on a pending being decidable only by one configured approver group.",
+      "evidence": [],
+      "promotionRequirements": [
+        "Tenant-owned group membership, pending-to-group binding, deny-unknown authorization, lifecycle handling, and live negative evidence."
+      ]
+    }
+  ],
+  "bindings": {
+    "sandboxAdversarialCorpus": {
+      "contract": "clavenar.sandbox-adversarial-corpus/v1",
+      "repository": "clavenar-sandbox",
+      "path": "benchmark/adversarial-cases.json",
+      "commit": "0559953",
+      "sha256": "0c350e1ceb1404a5a57e17f5657ef7cbe97090e1fbdf349309ee339796f62565",
+      "caseCount": 40,
+      "staticAnnotationOnly": true,
+      "authorizationBoundary": false,
+      "executionIsolation": false,
+      "tenantAuthorityEnforcedByAnalyzer": false
+    }
+  },
+  "nonEquivalences": [
+    "global-notification-lifecycle-is-not-per-tenant-channel-selection",
+    "oidc-provenance-and-issuer-signing-are-not-approver-webauthn-signatures",
+    "single-replica-policy-durability-is-not-multi-replica-consistency",
+    "cli-test-learn-library-and-exchange-are-not-policy-crud",
+    "hermetic-mock-corpus-is-not-a-real-provider-benchmark",
+    "quorum-and-advisory-escalation-are-not-approver-group-authorization"
+  ]
+}
