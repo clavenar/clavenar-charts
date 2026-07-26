@@ -1,0 +1,354 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://specs.clavenar.com/contracts/supported-failure-model-v1.schema.json",
+  "title": "Clavenar supported failure model",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "status",
+    "topologies",
+    "objectives",
+    "drillEvidence",
+    "failureModes",
+    "bindings",
+    "nonClaims"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "contract": {
+      "const": "clavenar.supported-failure-model/v1"
+    },
+    "status": {
+      "const": "supported-recovery-with-unmet-critical-rpo"
+    },
+    "topologies": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/topology"
+      }
+    },
+    "objectives": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "criticalStateRpoObjectiveSeconds",
+        "configuredBackupIntervalSeconds",
+        "acceptedPointAgeCeilingSeconds",
+        "passiveReverificationIntervalSeconds",
+        "passiveReverificationCreatesRecoveryPoint",
+        "configuredCadenceMeetsCriticalRpo",
+        "zeroDowntimeGuaranteed"
+      ],
+      "properties": {
+        "criticalStateRpoObjectiveSeconds": {
+          "const": 300
+        },
+        "configuredBackupIntervalSeconds": {
+          "const": 604800
+        },
+        "acceptedPointAgeCeilingSeconds": {
+          "const": 612000
+        },
+        "passiveReverificationIntervalSeconds": {
+          "const": 300
+        },
+        "passiveReverificationCreatesRecoveryPoint": {
+          "const": false
+        },
+        "configuredCadenceMeetsCriticalRpo": {
+          "const": false
+        },
+        "zeroDowntimeGuaranteed": {
+          "const": false
+        }
+      }
+    },
+    "drillEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "drillId",
+        "evidenceOnly",
+        "guaranteedSlo",
+        "failover",
+        "failback"
+      ],
+      "properties": {
+        "contract": {
+          "const": "clavenar.passive-dr-receipt/v1"
+        },
+        "drillId": {
+          "const": "dr-20260724T073139Z-e0ebd25e2cf0"
+        },
+        "evidenceOnly": {
+          "const": true
+        },
+        "guaranteedSlo": {
+          "const": false
+        },
+        "failover": {
+          "$ref": "#/$defs/drillPhase"
+        },
+        "failback": {
+          "$ref": "#/$defs/drillPhase"
+        }
+      }
+    },
+    "failureModes": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/failureMode"
+      }
+    },
+    "bindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stateInventory",
+        "scheduledBackupPlan",
+        "passiveRecoveryPlan",
+        "postgresLedgerTopology",
+        "writerFence"
+      ],
+      "properties": {
+        "stateInventory": {
+          "$ref": "#/$defs/digestBinding"
+        },
+        "scheduledBackupPlan": {
+          "$ref": "#/$defs/digestBinding"
+        },
+        "passiveRecoveryPlan": {
+          "$ref": "#/$defs/digestBinding"
+        },
+        "postgresLedgerTopology": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contract",
+            "schemaSha256",
+            "fixtureSha256"
+          ],
+          "properties": {
+            "contract": {
+              "const": "clavenar.postgres-ledger-topology/v1"
+            },
+            "schemaSha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "fixtureSha256": {
+              "$ref": "#/$defs/sha256"
+            }
+          }
+        },
+        "writerFence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "renewalIntervalSeconds",
+            "maximumGrantAgeSeconds",
+            "dnsIsFence"
+          ],
+          "properties": {
+            "mode": {
+              "const": "one-authenticated-monotonic-fence"
+            },
+            "renewalIntervalSeconds": {
+              "const": 60
+            },
+            "maximumGrantAgeSeconds": {
+              "const": 180
+            },
+            "dnsIsFence": {
+              "const": false
+            }
+          }
+        }
+      }
+    },
+    "nonClaims": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "active-active-sqlite",
+          "automatic-failover",
+          "partitioned-promotion-without-external-infrastructure-fencing",
+          "multi-replica-identity-hil-policy-nats-vault-guarantee",
+          "whole-stack-high-availability",
+          "postgresql-promotion-beyond-staged-single-replica-path"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "digestBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contract",
+        "sha256"
+      ],
+      "properties": {
+        "contract": {
+          "type": "string",
+          "pattern": "^clavenar\\.[a-z0-9-]+/v1$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "topology": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "supportLevel",
+        "writerCount",
+        "promotion",
+        "stateCoverage",
+        "failClosedCondition",
+        "recoveryAction"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "compose-cold-active-passive",
+            "helm-single-writer",
+            "staged-postgres-ledger"
+          ]
+        },
+        "supportLevel": {
+          "enum": [
+            "tested-manual-cold-recovery",
+            "supported-single-writer-deployment",
+            "staged-ledger-path-only"
+          ]
+        },
+        "writerCount": {
+          "const": 1
+        },
+        "promotion": {
+          "enum": [
+            "external-fence-then-manual",
+            "operator-managed-no-automatic-failover",
+            "none"
+          ]
+        },
+        "stateCoverage": {
+          "enum": [
+            "all-20-scheduled-backup-partitions",
+            "all-20-with-operator-supplied-durability",
+            "ledger-evidence-only"
+          ]
+        },
+        "failClosedCondition": {
+          "enum": [
+            "writer-not-fenced-or-point-not-exact-and-verified",
+            "required-state-or-external-durability-unavailable",
+            "postgres-or-supported-ledger-path-unavailable"
+          ]
+        },
+        "recoveryAction": {
+          "enum": [
+            "restore-exact-release-from-verified-encrypted-point",
+            "operator-restores-single-writer-and-dependencies",
+            "restore-external-postgres-and-restart-one-ledger"
+          ]
+        }
+      }
+    },
+    "drillPhase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lossWindowSeconds",
+        "readinessSeconds"
+      ],
+      "properties": {
+        "lossWindowSeconds": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "readinessSeconds": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "failureMode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "behavior",
+        "failClosed",
+        "recoveryAction"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "primary-host-loss",
+            "network-partition",
+            "stale-recovery-point",
+            "wrong-release-recovery-point",
+            "partial-or-substituted-recovery-point",
+            "writer-fence-authority-loss",
+            "ledger-process-loss",
+            "ledger-sqlite-store-loss",
+            "postgres-loss",
+            "identity-loss",
+            "hil-loss",
+            "policy-loss",
+            "proxy-execution-state-loss",
+            "nats-jetstream-loss",
+            "vault-loss",
+            "workload-identity-loss",
+            "operator-custody-loss"
+          ]
+        },
+        "behavior": {
+          "enum": [
+            "retain-outage",
+            "refuse-promotion",
+            "reject-recovery-point",
+            "service-unavailable",
+            "dependent-readiness-unavailable",
+            "governed-execution-unavailable",
+            "durable-delivery-unavailable",
+            "credential-issuance-unavailable",
+            "reissue-required",
+            "recovery-blocked"
+          ]
+        },
+        "failClosed": {
+          "type": "boolean"
+        },
+        "recoveryAction": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 160,
+          "pattern": "^[a-z0-9][a-z0-9 -]+$"
+        }
+      }
+    }
+  }
+}

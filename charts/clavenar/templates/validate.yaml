@@ -121,7 +121,7 @@
 {{- fail "services.ledger.postgres.enabled=true requires persistence.ledger.enabled=false; the staged topology must not mount the SQLite PVC" }}
 {{- end }}
 {{- if ne (int $ledger.replicas) 1 }}
-{{- fail "services.ledger.postgres.enabled=true requires services.ledger.replicas=1 until the supported HA failure model is promoted" }}
+{{- fail "services.ledger.postgres.enabled=true requires services.ledger.replicas=1; the supported failure model retains one staged Ledger writer and no promotion claim" }}
 {{- end }}
 {{- if empty (trim $ledgerPostgres.dsnSecretName) }}
 {{- fail "services.ledger.postgres.enabled=true requires services.ledger.postgres.dsnSecretName" }}

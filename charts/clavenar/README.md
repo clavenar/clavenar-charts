@@ -869,6 +869,24 @@ export are among the 21 stable-503 routes, with no SQLite fallback. Database
 failover, multiple Ledger replicas, overlapping writers, and failback remain
 outside this staged topology.
 
+## Supported failure model
+
+The chart packages the exact immutable
+`clavenar.supported-failure-model/v1` schema and fixture. Its default is a
+single-writer deployment boundary: each SQLite authority uses one writer, and
+durability and restore of external NATS, Vault, secrets, and persistent volumes
+remain operator-owned. The staged PostgreSQL option still renders exactly one
+Ledger process; it is a Ledger path contract, not PostgreSQL promotion or
+whole-stack HA.
+
+The separately tested Compose topology is manual cold recovery after external
+infrastructure fencing and exact-release recovery-point verification. It is
+not an automatic-failover mode for this chart. The current Compose backup
+configuration is weekly (604,800 seconds), so it does not meet the
+300-second critical-state RPO; five-minute passive re-verification does not
+create a newer point. Drill measurements are observations, not a zero-downtime
+SLO.
+
 ## Verify locally
 
 ```bash

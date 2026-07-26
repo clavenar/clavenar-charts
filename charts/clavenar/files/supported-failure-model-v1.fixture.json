@@ -1,0 +1,194 @@
+{
+  "schemaVersion": 1,
+  "contract": "clavenar.supported-failure-model/v1",
+  "status": "supported-recovery-with-unmet-critical-rpo",
+  "topologies": [
+    {
+      "id": "compose-cold-active-passive",
+      "supportLevel": "tested-manual-cold-recovery",
+      "writerCount": 1,
+      "promotion": "external-fence-then-manual",
+      "stateCoverage": "all-20-scheduled-backup-partitions",
+      "failClosedCondition": "writer-not-fenced-or-point-not-exact-and-verified",
+      "recoveryAction": "restore-exact-release-from-verified-encrypted-point"
+    },
+    {
+      "id": "helm-single-writer",
+      "supportLevel": "supported-single-writer-deployment",
+      "writerCount": 1,
+      "promotion": "operator-managed-no-automatic-failover",
+      "stateCoverage": "all-20-with-operator-supplied-durability",
+      "failClosedCondition": "required-state-or-external-durability-unavailable",
+      "recoveryAction": "operator-restores-single-writer-and-dependencies"
+    },
+    {
+      "id": "staged-postgres-ledger",
+      "supportLevel": "staged-ledger-path-only",
+      "writerCount": 1,
+      "promotion": "none",
+      "stateCoverage": "ledger-evidence-only",
+      "failClosedCondition": "postgres-or-supported-ledger-path-unavailable",
+      "recoveryAction": "restore-external-postgres-and-restart-one-ledger"
+    }
+  ],
+  "objectives": {
+    "criticalStateRpoObjectiveSeconds": 300,
+    "configuredBackupIntervalSeconds": 604800,
+    "acceptedPointAgeCeilingSeconds": 612000,
+    "passiveReverificationIntervalSeconds": 300,
+    "passiveReverificationCreatesRecoveryPoint": false,
+    "configuredCadenceMeetsCriticalRpo": false,
+    "zeroDowntimeGuaranteed": false
+  },
+  "drillEvidence": {
+    "contract": "clavenar.passive-dr-receipt/v1",
+    "drillId": "dr-20260724T073139Z-e0ebd25e2cf0",
+    "evidenceOnly": true,
+    "guaranteedSlo": false,
+    "failover": {
+      "lossWindowSeconds": 46,
+      "readinessSeconds": 970
+    },
+    "failback": {
+      "lossWindowSeconds": 20,
+      "readinessSeconds": 148
+    }
+  },
+  "failureModes": [
+    {
+      "id": "primary-host-loss",
+      "behavior": "retain-outage",
+      "failClosed": true,
+      "recoveryAction": "externally fence the prior writer then restore the exact verified point"
+    },
+    {
+      "id": "network-partition",
+      "behavior": "refuse-promotion",
+      "failClosed": true,
+      "recoveryAction": "restore connectivity or prove infrastructure fencing before promotion"
+    },
+    {
+      "id": "stale-recovery-point",
+      "behavior": "reject-recovery-point",
+      "failClosed": true,
+      "recoveryAction": "create and verify a point within the accepted age ceiling"
+    },
+    {
+      "id": "wrong-release-recovery-point",
+      "behavior": "reject-recovery-point",
+      "failClosed": true,
+      "recoveryAction": "select a point bound to the exact immutable release"
+    },
+    {
+      "id": "partial-or-substituted-recovery-point",
+      "behavior": "reject-recovery-point",
+      "failClosed": true,
+      "recoveryAction": "reconstruct and verify every encrypted content addressed object"
+    },
+    {
+      "id": "writer-fence-authority-loss",
+      "behavior": "refuse-promotion",
+      "failClosed": true,
+      "recoveryAction": "restore separately custodied fence authority before writer transition"
+    },
+    {
+      "id": "ledger-process-loss",
+      "behavior": "service-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restart one ledger against its retained verified store"
+    },
+    {
+      "id": "ledger-sqlite-store-loss",
+      "behavior": "dependent-readiness-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore ledger evidence from the selected complete recovery point"
+    },
+    {
+      "id": "postgres-loss",
+      "behavior": "service-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore the external database then restart the staged single ledger"
+    },
+    {
+      "id": "identity-loss",
+      "behavior": "dependent-readiness-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore identity authority and verify issuer continuity"
+    },
+    {
+      "id": "hil-loss",
+      "behavior": "governed-execution-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore decisions and approval authority before reviewed execution"
+    },
+    {
+      "id": "policy-loss",
+      "behavior": "governed-execution-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore governance state before policy evaluated execution"
+    },
+    {
+      "id": "proxy-execution-state-loss",
+      "behavior": "governed-execution-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore durable execution state before accepting governed calls"
+    },
+    {
+      "id": "nats-jetstream-loss",
+      "behavior": "durable-delivery-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore streams consumers and key value sequences before readiness"
+    },
+    {
+      "id": "vault-loss",
+      "behavior": "credential-issuance-unavailable",
+      "failClosed": true,
+      "recoveryAction": "restore vault storage and separately custodied recovery material"
+    },
+    {
+      "id": "workload-identity-loss",
+      "behavior": "reissue-required",
+      "failClosed": true,
+      "recoveryAction": "use signed one use recovery and reissue without copying private leaves"
+    },
+    {
+      "id": "operator-custody-loss",
+      "behavior": "recovery-blocked",
+      "failClosed": true,
+      "recoveryAction": "restore separately held operator custody through its external procedure"
+    }
+  ],
+  "bindings": {
+    "stateInventory": {
+      "contract": "clavenar.state-recovery-inventory/v1",
+      "sha256": "0188d2400ca88efa6651ddf4f30c3d7aa3a6f17b7301f264ca96aa5ce8df554d"
+    },
+    "scheduledBackupPlan": {
+      "contract": "clavenar.scheduled-backup-plan/v1",
+      "sha256": "a05e4fce6f30778c0eb076e77e5b5c3f62f24c07430b30be1945b35aa6c17867"
+    },
+    "passiveRecoveryPlan": {
+      "contract": "clavenar.passive-recovery-plan/v1",
+      "sha256": "5a4fe2365712108d70fe8d14ad1a6cd66d6881b4395aeb8bdbe8680299ca04d6"
+    },
+    "postgresLedgerTopology": {
+      "contract": "clavenar.postgres-ledger-topology/v1",
+      "schemaSha256": "441ece4ae075dd992cf1b2cf825c31c613dce80a3a33509dba05110646a91615",
+      "fixtureSha256": "8a4b445f39d317e259c03bc14f04e1f1a51eddb2e6ce73dd12d93af6c5c78989"
+    },
+    "writerFence": {
+      "mode": "one-authenticated-monotonic-fence",
+      "renewalIntervalSeconds": 60,
+      "maximumGrantAgeSeconds": 180,
+      "dnsIsFence": false
+    }
+  },
+  "nonClaims": [
+    "active-active-sqlite",
+    "automatic-failover",
+    "partitioned-promotion-without-external-infrastructure-fencing",
+    "multi-replica-identity-hil-policy-nats-vault-guarantee",
+    "whole-stack-high-availability",
+    "postgresql-promotion-beyond-staged-single-replica-path"
+  ]
+}
