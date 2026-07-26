@@ -3,10 +3,10 @@ import copy
 import hashlib
 import json
 import subprocess
+import unittest
 from pathlib import Path
 
 import jsonschema
-import pytest
 import yaml
 
 
@@ -38,7 +38,7 @@ def test_contract_is_strict_and_rendered_byte_exact():
 
     weakened = copy.deepcopy(fixture)
     weakened["process"]["shell"] = True
-    with pytest.raises(jsonschema.ValidationError):
+    with unittest.TestCase().assertRaises(jsonschema.ValidationError):
         jsonschema.Draft7Validator(schema).validate(weakened)
 
     config_map = next(
@@ -151,9 +151,8 @@ def test_exec_egress_is_default_deny_with_only_dns_and_fallback():
     ]
 
 
-@pytest.mark.parametrize(
-    ("arguments", "message"),
-    [
+def test_mutable_or_weakened_exec_values_fail():
+    cases = [
         (
             [
                 "-f",
@@ -181,14 +180,27 @@ def test_exec_egress_is_default_deny_with_only_dns_and_fallback():
             ],
             "Additional property tag is not allowed",
         ),
-    ],
-)
-def test_mutable_or_weakened_exec_values_fail(arguments, message):
-    result = subprocess.run(
-        ["helm", "template", "structured", str(CHART), *arguments],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
-    assert message in result.stderr
+    ]
+    for arguments, message in cases:
+        result = subprocess.run(
+            ["helm", "template", "structured", str(CHART), *arguments],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert result.returncode != 0
+        assert message in result.stderr
+
+
+class StructuredExecutionTests(unittest.TestCase):
+    def test_contract_is_strict_and_rendered_byte_exact(self):
+        test_contract_is_strict_and_rendered_byte_exact()
+
+    def test_exec_binds_digest_policy_and_real_container_isolation(self):
+        test_exec_binds_digest_policy_and_real_container_isolation()
+
+    def test_exec_egress_is_default_deny_with_only_dns_and_fallback(self):
+        test_exec_egress_is_default_deny_with_only_dns_and_fallback()
+
+    def test_mutable_or_weakened_exec_values_fail(self):
+        test_mutable_or_weakened_exec_values_fail()
