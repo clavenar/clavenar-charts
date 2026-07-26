@@ -61,8 +61,8 @@ class ScheduledBackupChartTests(unittest.TestCase):
 
     def test_production_operator_contract_is_exact(self) -> None:
         self.assertTrue(self.plan["enabled"])
-        self.assertEqual("*/5 * * * *", self.plan["schedule"])
-        self.assertEqual(420, self.plan["maximumAgeSeconds"])
+        self.assertEqual("0 8 * * 0", self.plan["schedule"])
+        self.assertEqual(612000, self.plan["maximumAgeSeconds"])
         self.assertEqual("restic-repository-v2", self.plan["encryptionFormat"])
         self.assertEqual(
             "content-addressed-or-versioned", self.plan["offsiteClass"]

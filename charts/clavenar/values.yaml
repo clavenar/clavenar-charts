@@ -829,8 +829,8 @@ statefulUpgrade:
 scheduledBackup:
   enabled: false
   operator: ""
-  schedule: "*/5 * * * *"
-  maximumAgeSeconds: 420
+  schedule: "0 8 * * 0"
+  maximumAgeSeconds: 612000
   repositorySecretName: ""
   receiptSecretName: ""
   encryptionFormat: restic-repository-v2

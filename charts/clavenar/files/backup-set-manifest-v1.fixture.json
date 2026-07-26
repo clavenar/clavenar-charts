@@ -12,8 +12,8 @@
   "startedAt": "2026-07-23T12:00:00Z",
   "finishedAt": "2026-07-23T12:02:00Z",
   "schedule": {
-    "intervalSeconds": 300,
-    "maximumAgeSeconds": 420,
+    "intervalSeconds": 604800,
+    "maximumAgeSeconds": 612000,
     "persistent": true,
     "overlapPolicy": "exclusive-nonblocking"
   },

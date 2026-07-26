@@ -127,7 +127,7 @@ recovery, and runtime behavior in the target cluster.
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
 | State durability | Vault loses state on pod restart (re-bootstrapped) | Whatever your external Vault does |
-| Scheduled backup | Disabled; no backup claim | Required operator-owned five-minute application-consistent capture with external repository credentials and sanitized receipt |
+| Scheduled backup | Disabled; no backup claim | Required operator-owned weekly application-consistent capture with external repository credentials and sanitized receipt |
 | Deployment profile | `evaluation` | Explicit `production` fail-closed render gate |
 
 ### Scheduled encrypted backup contract
@@ -149,15 +149,15 @@ backup content.
 Helm does not embed an object-store credential or pretend one generic CronJob
 can snapshot arbitrary CSI, external NATS, and external Vault backends
 consistently. Production requires `scheduledBackup.enabled=true`, a named
-operator, the exact five-minute schedule, a credential Secret owned outside
+operator, the exact weekly schedule, a credential Secret owned outside
 this chart, and a different Secret containing the sanitized live receipt:
 
 ```yaml
 scheduledBackup:
   enabled: true
   operator: platform-backup-controller
-  schedule: "*/5 * * * *"
-  maximumAgeSeconds: 420
+  schedule: "0 8 * * 0"
+  maximumAgeSeconds: 612000
   repositorySecretName: clavenar-backup-repository
   receiptSecretName: clavenar-backup-receipt
   encryptionFormat: restic-repository-v2

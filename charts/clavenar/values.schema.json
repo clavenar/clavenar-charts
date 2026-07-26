@@ -57,12 +57,11 @@
         },
         "schedule": {
           "type": "string",
-          "const": "*/5 * * * *"
+          "const": "0 8 * * 0"
         },
         "maximumAgeSeconds": {
           "type": "integer",
-          "minimum": 300,
-          "maximum": 420
+          "const": 612000
         },
         "repositorySecretName": {
           "type": "string",

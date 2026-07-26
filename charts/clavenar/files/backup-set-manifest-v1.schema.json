@@ -61,12 +61,12 @@
         "intervalSeconds": {
           "type": "integer",
           "minimum": 60,
-          "maximum": 86400
+          "maximum": 604800
         },
         "maximumAgeSeconds": {
           "type": "integer",
           "minimum": 60,
-          "maximum": 172800
+          "maximum": 612000
         },
         "persistent": {"const": true},
         "overlapPolicy": {"const": "exclusive-nonblocking"}
