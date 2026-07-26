@@ -122,7 +122,7 @@ recovery, and runtime behavior in the target cluster.
 | HIL exact-payload encryption key | Operator pre-creates the Secret selected by `hilPayloadProtection`; only HIL receives its mode-0440 file projection | Operator or secret-store controller owns the same dedicated 32-byte key and its rotation |
 | Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
-| Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes 7 Claude-Code-built-in-parity tools (`bash`, `read_file`, …) so an agent whose built-ins are denylisted still has a shell, but every call lands in the ledger | Lab-only; production still routes to a real MCP via `CLAVENAR_UPSTREAM_URL` |
+| Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes `execute_command` plus six governed file/fetch tools. Process calls select only the immutable structured allowlist; no shell string exists, and every call lands in the ledger | Evaluation-only; production rejects opt-in |
 | Agent Vault credential | Stub `secret/data/agents/_legacy_unqualified/agent-001` seeded by post-install Job when `agentVaultSeed.enabled=true` | Operator seeds tenant-qualified per-agent entries against their own Vault |
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
@@ -515,17 +515,22 @@ apply walkthrough.
   cap, not the pods).
 - **Execution gateway** (opt-in via `exec.enabled=true`) —
   `clavenar-exec` becomes the proxy's upstream, exposes seven tools
-  (`bash`, `read_file`, `write_file`, `edit_file`, `list_directory`,
-  `search_files`, `fetch_url`) that mirror Claude Code's built-ins,
+  (`execute_command`, `read_file`, `write_file`, `edit_file`,
+  `list_directory`, `search_files`, `fetch_url`),
   and forwards anything else (initialize, `resources/*`,
   `tools/list` discovery for non-exec tools) to the upstream-stub.
   Pairs with the lab pod's `permissions.deny` posture so an agent
-  cannot reach a shell except through the clavenar pipeline. Single
+  cannot reach a process except through the clavenar pipeline. The process
+  tool accepts only the byte-exact `clavenar.structured-execution/v1`
+  identifier, ordered named slots, and environment allowlist; it invokes an
+  absolute executable directly with no shell or `PATH`. Single
   replica because the workspace PVC is shared RW with the lab
-  agent pod. Egress for `fetch_url` defaults to deny-all until
-  `exec.fetchAllowlist` names a host. Sandboxing is pod-level
-  (`readOnlyRootFilesystem`, capability drop, RuntimeDefault
-  seccomp) — gVisor / Kata is v2. This path is evaluation-only:
+  agent pod. The image is digest-pinned, the policy is immutable/read-only,
+  scratch is a 64 MiB memory volume, and egress defaults denied except exact
+  cluster DNS and upstream-stub peers. Sandboxing is container-runtime
+  isolation (`readOnlyRootFilesystem`, nonroot UID/GID 65532, no privilege
+  escalation, capability drop, RuntimeDefault seccomp). This path is
+  evaluation-only:
   production rejects opt-in. Proxy reaches the published authority port over
   mutual TLS, Exec accepts only the exact Proxy SPIFFE identity, and the
   separate plain health-only port is not Service-published.

@@ -8,6 +8,64 @@
       "type": "string",
       "enum": ["evaluation", "production"]
     },
+    "exec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "port",
+        "healthPort",
+        "workspaceSize",
+        "timeoutSecs",
+        "scratchSizeLimit",
+        "fetchAllowlist",
+        "resources"
+      ],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "image": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "digest", "pullPolicy"],
+          "properties": {
+            "repository": {
+              "type": "string",
+              "pattern": "^[a-z0-9./_-]+$"
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "pullPolicy": {
+              "enum": ["Always", "IfNotPresent", "Never"]
+            }
+          }
+        },
+        "port": { "const": 9001 },
+        "healthPort": { "const": 9002 },
+        "workspaceSize": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+        },
+        "timeoutSecs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300
+        },
+        "scratchSizeLimit": { "const": "64Mi" },
+        "fetchAllowlist": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 253
+          }
+        },
+        "resources": { "type": "object" }
+      }
+    },
     "statefulUpgrade": {
       "type": "object",
       "additionalProperties": false,

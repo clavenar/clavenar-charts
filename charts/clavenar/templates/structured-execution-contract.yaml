@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-structured-execution
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "structured-execution") | nindent 4 }}
+immutable: true
+data:
+  structured-execution-v1.schema.json: |
+{{ .Files.Get "files/structured-execution-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  structured-execution-v1.fixture.json: |
+{{ .Files.Get "files/structured-execution-v1.fixture.json" | trimSuffix "\n" | indent 4 }}

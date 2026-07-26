@@ -2,6 +2,8 @@ upstreamStub:
   enabled: true
 exec:
   enabled: true
+  image:
+    digest: sha256:6bcabdcf6f211299a38a786e7f3e11eede1b92ccb31dfb38f0323fe35b0592ff
 proxyAlias:
   enabled: true
 tlsBundle:

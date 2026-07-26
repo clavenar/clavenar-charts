@@ -1,8 +1,9 @@
 {{/*
-clavenar-exec — execution-gateway MCP server. Sits between the proxy
-and the upstream MCP (the bundled stub or a real backend), exposing
-seven tools that mirror Claude Code's built-ins. Gated on
-`exec.enabled`. Single replica because the workspace PVC is shared
+clavenar-exec — evaluation-only execution-gateway MCP server. Sits between
+the proxy and the upstream MCP (the bundled stub or a real backend), exposing
+seven governed tools. Process execution uses the immutable structured-command
+policy and never a shell string. Gated on `exec.enabled`. Single replica
+because the workspace PVC is shared
 RW with the lab agent pod; multi-replica would race writes.
 
 Composition:
@@ -22,8 +23,6 @@ will refuse to handshake.
 {{- if .Values.exec.enabled }}
 {{- $name := "exec" }}
 {{- $fullname := printf "%s-%s" .Release.Name $name }}
-{{- $tag := default .Values.imageTag .Values.exec.image.tag }}
-{{- if not $tag }}{{ $tag = .Chart.AppVersion }}{{ end }}
 {{- $stubFullname := printf "%s-upstream-stub" .Release.Name }}
 apiVersion: apps/v1
 kind: Deployment
@@ -40,8 +39,9 @@ spec:
     metadata:
       labels:
         {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
-      {{- if .Values.tlsBundle.autoMint }}
       annotations:
+        clavenar.io/structured-execution-sha256: {{ .Files.Get "files/structured-execution-v1.fixture.json" | sha256sum | quote }}
+      {{- if .Values.tlsBundle.autoMint }}
         clavenar.io/tls-generation: {{ .Values.tlsBundle.rotation.generation | quote }}
       {{- end }}
     spec:
@@ -79,7 +79,7 @@ spec:
               mountPath: /projected
       containers:
         - name: {{ $name }}
-          image: "{{ .Values.exec.image.repository }}:{{ $tag }}"
+          image: "{{ .Values.exec.image.repository }}@{{ .Values.exec.image.digest }}"
           imagePullPolicy: {{ .Values.exec.image.pullPolicy }}
           ports:
             - name: mtls
@@ -97,6 +97,10 @@ spec:
               value: /certs
             - name: CLAVENAR_EXEC_WORKSPACE
               value: /workspace
+            - name: CLAVENAR_EXEC_STRUCTURED_POLICY_FILE
+              value: /etc/clavenar/structured-execution/structured-execution-v1.fixture.json
+            - name: TMPDIR
+              value: /scratch
             - name: CLAVENAR_EXEC_TIMEOUT_SECS
               value: {{ .Values.exec.timeoutSecs | quote }}
             {{- if .Values.upstreamStub.enabled }}
@@ -107,8 +111,8 @@ spec:
             - name: CLAVENAR_EXEC_NETPOLICY_ALLOWLIST
               value: {{ join "," . | quote }}
             {{- end }}
-          # readOnlyRootFilesystem keeps every writable surface
-          # explicit; workspace + tmp ride dedicated mounts.
+          # readOnlyRootFilesystem keeps every writable surface explicit;
+          # workspace + bounded memory scratch ride dedicated mounts.
           securityContext:
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
@@ -135,8 +139,11 @@ spec:
           volumeMounts:
             - name: workspace
               mountPath: /workspace
-            - name: tmp
-              mountPath: /tmp
+            - name: scratch
+              mountPath: /scratch
+            - name: structured-execution
+              mountPath: /etc/clavenar/structured-execution
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -144,8 +151,16 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: {{ $fullname }}-workspace
-        - name: tmp
-          emptyDir: {}
+        - name: scratch
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.exec.scratchSizeLimit }}
+        - name: structured-execution
+          configMap:
+            name: {{ include "clavenar.fullname" . }}-structured-execution
+            items:
+              - key: structured-execution-v1.fixture.json
+                path: structured-execution-v1.fixture.json
         - name: certs
           emptyDir:
             medium: Memory

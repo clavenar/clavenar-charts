@@ -78,14 +78,16 @@ tlsBundle:
 upstreamStub:
   enabled: true
 
-# clavenar-exec sits between the proxy and the upstream-stub: it runs
-# the seven Claude-Code-built-in-parity tools (bash, read_file, …)
-# locally and forwards every other MCP frame to the stub. The lab
+# clavenar-exec sits between the proxy and the upstream-stub: it runs the
+# structured command plus governed file/fetch tools locally and forwards every
+# other MCP frame to the stub. The lab
 # Claude Code pod (lab/manifests/) has its built-ins denylisted, so
-# the only path to a shell or file op runs through clavenar-exec, which
+# the only path to a process or file op runs through clavenar-exec, which
 # means through the full clavenar security pipeline.
 exec:
   enabled: true
+  image:
+    digest: sha256:6bcabdcf6f211299a38a786e7f3e11eede1b92ccb31dfb38f0323fe35b0592ff
 
 # Seed Vault with a stub api_key for the auto-mint starter cert's
 # CN (`agent-001`). Required for the proxy to accept agent traffic

@@ -320,7 +320,7 @@ class ListenerMatrixTest(unittest.TestCase):
             if doc.get("kind") == "NetworkPolicy"
             and doc["metadata"]["name"] == "smoke-exec"
         )
-        self.assertEqual(["Ingress"], policy["spec"]["policyTypes"])
+        self.assertEqual(["Ingress", "Egress"], policy["spec"]["policyTypes"])
         self.assertEqual([9001], [rule["ports"][0]["port"] for rule in policy["spec"]["ingress"]])
         self.assertEqual(
             "proxy",

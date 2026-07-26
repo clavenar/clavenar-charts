@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "1.0",
+  "contract": "clavenar.structured-execution/v1",
+  "feature": "WP-13.2",
+  "status": "evaluation-only",
+  "tool": {
+    "name": "execute_command",
+    "legacyNamesForbidden": [
+      "bash"
+    ],
+    "request": {
+      "additionalProperties": false,
+      "required": [
+        "command",
+        "arguments",
+        "environment"
+      ],
+      "arguments": "ordered-named-slots",
+      "environment": "exact-allowlist"
+    }
+  },
+  "commands": [
+    {
+      "id": "render_text",
+      "executable": "/usr/bin/printf",
+      "arguments": [
+        {
+          "name": "format",
+          "kind": "literal",
+          "value": "%s\n"
+        },
+        {
+          "name": "text",
+          "kind": "text",
+          "maxBytes": 4096
+        }
+      ],
+      "environment": {
+        "fixed": {
+          "LANG": "C.UTF-8",
+          "LC_ALL": "C.UTF-8"
+        },
+        "allowed": {
+          "TERM": [
+            "dumb"
+          ]
+        }
+      }
+    }
+  ],
+  "process": {
+    "shell": false,
+    "pathLookup": false,
+    "inheritEnvironment": false,
+    "workingDirectory": "agent-workspace-root"
+  },
+  "isolation": {
+    "image": "digest-pinned",
+    "runAsNonRoot": true,
+    "runAsUser": 65532,
+    "runAsGroup": 65532,
+    "rootFilesystem": "read-only",
+    "writableMounts": [
+      {
+        "path": "/workspace",
+        "purpose": "agent-workspace"
+      },
+      {
+        "path": "/scratch",
+        "purpose": "bounded-ephemeral-scratch",
+        "medium": "Memory",
+        "sizeLimit": "64Mi"
+      }
+    ],
+    "seccompProfile": "RuntimeDefault",
+    "allowPrivilegeEscalation": false,
+    "capabilitiesDrop": [
+      "ALL"
+    ],
+    "egress": {
+      "defaultDeny": true,
+      "allowedPeers": [
+        "cluster-dns:53",
+        "upstream-stub:9000"
+      ]
+    }
+  },
+  "production": {
+    "included": false,
+    "optInAllowed": false
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://specs.clavenar.com/contracts/structured-execution-v1.schema.json",
+  "title": "Clavenar structured execution v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "feature",
+    "status",
+    "tool",
+    "commands",
+    "process",
+    "isolation",
+    "production"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "contract": { "const": "clavenar.structured-execution/v1" },
+    "feature": { "const": "WP-13.2" },
+    "status": { "const": "evaluation-only" },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "legacyNamesForbidden", "request"],
+      "properties": {
+        "name": { "const": "execute_command" },
+        "legacyNamesForbidden": { "const": ["bash"] },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "additionalProperties",
+            "required",
+            "arguments",
+            "environment"
+          ],
+          "properties": {
+            "additionalProperties": { "const": false },
+            "required": {
+              "const": ["command", "arguments", "environment"]
+            },
+            "arguments": { "const": "ordered-named-slots" },
+            "environment": { "const": "exact-allowlist" }
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "executable", "arguments", "environment"],
+        "properties": {
+          "id": { "const": "render_text" },
+          "executable": { "const": "/usr/bin/printf" },
+          "arguments": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "kind", "value"],
+                "properties": {
+                  "name": { "const": "format" },
+                  "kind": { "const": "literal" },
+                  "value": { "const": "%s\n" }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["name", "kind", "maxBytes"],
+                "properties": {
+                  "name": { "const": "text" },
+                  "kind": { "const": "text" },
+                  "maxBytes": { "const": 4096 }
+                }
+              }
+            ],
+            "additionalItems": false
+          },
+          "environment": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fixed", "allowed"],
+            "properties": {
+              "fixed": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["LANG", "LC_ALL"],
+                "properties": {
+                  "LANG": { "const": "C.UTF-8" },
+                  "LC_ALL": { "const": "C.UTF-8" }
+                }
+              },
+              "allowed": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["TERM"],
+                "properties": {
+                  "TERM": { "const": ["dumb"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "shell",
+        "pathLookup",
+        "inheritEnvironment",
+        "workingDirectory"
+      ],
+      "properties": {
+        "shell": { "const": false },
+        "pathLookup": { "const": false },
+        "inheritEnvironment": { "const": false },
+        "workingDirectory": { "const": "agent-workspace-root" }
+      }
+    },
+    "isolation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image",
+        "runAsNonRoot",
+        "runAsUser",
+        "runAsGroup",
+        "rootFilesystem",
+        "writableMounts",
+        "seccompProfile",
+        "allowPrivilegeEscalation",
+        "capabilitiesDrop",
+        "egress"
+      ],
+      "properties": {
+        "image": { "const": "digest-pinned" },
+        "runAsNonRoot": { "const": true },
+        "runAsUser": { "const": 65532 },
+        "runAsGroup": { "const": 65532 },
+        "rootFilesystem": { "const": "read-only" },
+        "writableMounts": {
+          "const": [
+            {
+              "path": "/workspace",
+              "purpose": "agent-workspace"
+            },
+            {
+              "path": "/scratch",
+              "purpose": "bounded-ephemeral-scratch",
+              "medium": "Memory",
+              "sizeLimit": "64Mi"
+            }
+          ]
+        },
+        "seccompProfile": { "const": "RuntimeDefault" },
+        "allowPrivilegeEscalation": { "const": false },
+        "capabilitiesDrop": { "const": ["ALL"] },
+        "egress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["defaultDeny", "allowedPeers"],
+          "properties": {
+            "defaultDeny": { "const": true },
+            "allowedPeers": {
+              "const": ["cluster-dns:53", "upstream-stub:9000"]
+            }
+          }
+        }
+      }
+    },
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included", "optInAllowed"],
+      "properties": {
+        "included": { "const": false },
+        "optInAllowed": { "const": false }
+      }
+    }
+  }
+}

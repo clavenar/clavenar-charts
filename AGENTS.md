@@ -57,7 +57,7 @@ charts/clavenar/
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
     services.yaml       # the 9 Deployments + Services
     configmap.yaml workload-capability-bundle.yaml attestation-verifier-contract.yaml
-    dependency-readiness-contract.yaml
+    dependency-readiness-contract.yaml structured-execution-contract.yaml
     shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
@@ -104,6 +104,8 @@ health.
   `VERSION` and `appVersion` are frozen at the last legacy image set. The local
   publisher is a fail-closed tombstone; protected releases stage digest-only
   component artifacts and one signed stack-BOM reference from clavenar-e2e.
+  The evaluation-only Exec workload is deliberately stricter:
+  `exec.image.digest` is mandatory when enabled and has no tag fallback.
 - **tlsBundle drives mTLS.** Empty `tlsBundle.secretName` → no `/certs` mount →
   proxy + identity panic at boot. When set, backend services flip their app port
   to rustls; Ledger, Policy Engine, HIL, and Identity then require the packaged
@@ -126,6 +128,13 @@ health.
   dependency URLs, internal diagnostics Service ports, and exact
   NetworkPolicy callers. Update the contract mirror and verifier together;
   never replace readiness with process-only or TCP-only gating.
+- **Exec process calls are structured and evaluation-only.** The exact
+  `structured-execution-v1` schema/fixture is mounted immutable and read-only.
+  Exec requires a digest image, nonroot/read-only container, 64 MiB memory
+  scratch, RuntimeDefault seccomp, dropped capabilities, no privilege
+  escalation, and default-deny egress admitting only cluster DNS plus the exact
+  upstream-stub peer. Do not restore `bash`, `cmd`, tag fallback, writable root,
+  or unrestricted egress.
 - **Bundled-NATS + tlsBundle coupling:** if `tlsBundle.secretName` is set you
   must also enable TLS on the bundled NATS subchart — the `clavenar.natsUrl`
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =

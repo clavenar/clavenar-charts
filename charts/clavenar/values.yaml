@@ -212,26 +212,25 @@ upstreamStub:
 # Execution-gateway MCP server. When `exec.enabled=true`, the chart
 # emits a Deployment + Service + workspace PVC for `clavenar-exec` and
 # the proxy points CLAVENAR_UPSTREAM_URL at it instead of the
-# upstream-stub. clavenar-exec implements the seven Claude-Code-built-in-
-# parity tools (bash, read_file, write_file, edit_file,
-# list_directory, search_files, fetch_url) and forwards everything
+# upstream-stub. clavenar-exec implements structured `execute_command`
+# plus read_file, write_file, edit_file, list_directory, search_files,
+# and fetch_url, and forwards everything
 # else to the upstream-stub via CLAVENAR_EXEC_FALLBACK_URL — tools/list
 # returns the union of both catalogs.
 #
-# Pairs with the lab pod's `permissions.deny` posture (see lab/) so
-# the only execution surface an agent can reach is one that flows
-# through the clavenar security pipeline. Lab-only in v1: the sandbox
-# is pod-level securityContext, not gVisor.
+# Pairs with the lab pod's `permissions.deny` posture (see lab/) so the only
+# process surface an agent can reach flows through the clavenar security
+# pipeline. The structured-command policy is mounted immutable and read-only.
 #
-# `fetchAllowlist` is the v1 egress gate for `fetch_url` — default
-# empty denies every external HTTP call. Add hosts an operator
-# trusts (e.g. ["api.anthropic.com", "api.openai.com"]).
+# `fetchAllowlist` remains the application gate for `fetch_url`. WP-13.2
+# NetworkPolicy also denies external egress regardless of this list; later
+# target/DNS closure slices must land before external fetch can be enabled.
 exec:
   enabled: false
   image:
     repository: ghcr.io/clavenar/clavenar-exec
-    # Empty → falls back to .Values.imageTag → Chart.appVersion.
-    tag: ""
+    # Required when enabled. Tags and mutable fallbacks are forbidden.
+    digest: ""
     pullPolicy: IfNotPresent
   port: 9001
   # Plain health-only listener. It never serves MCP or tool routes.
@@ -240,9 +239,10 @@ exec:
   # (when the lab pod is enabled) inside the agent pod RW so
   # `kubectl exec -- ls /workspace` works for operators.
   workspaceSize: 2Gi
-  # Default bash / fetch_url timeout in seconds. Per-call override
-  # via the tool's `timeout_seconds` argument.
+  # Default structured-command / fetch_url timeout in seconds.
   timeoutSecs: 30
+  # The exact structured-execution/v1 bounded ephemeral mount.
+  scratchSizeLimit: 64Mi
   fetchAllowlist: []
   resources:
     requests: { cpu: 50m, memory: 64Mi }

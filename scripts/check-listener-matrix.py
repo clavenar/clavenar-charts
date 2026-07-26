@@ -217,11 +217,36 @@ def expected_policies(matrix, values, release):
                     else:
                         sources.append(peer(release, token))
             rules.append(rule(listener["containerPort"], sources))
-        policies[f"{release}-{service}"] = {
+        egress = []
+        for governed_rule in contract.get("egressRules", []):
+            destinations = []
+            for token in governed_rule["peers"]:
+                if token == "cluster-dns":
+                    destinations.append(
+                        {
+                            "namespaceSelector": {
+                                "matchLabels": {
+                                    "kubernetes.io/metadata.name": "kube-system"
+                                }
+                            }
+                        }
+                    )
+                else:
+                    destinations.append(peer(release, token))
+            egress.append(
+                {
+                    "to": destinations,
+                    "ports": copy.deepcopy(governed_rule["ports"]),
+                }
+            )
+        policy = {
             "podSelector": {"matchLabels": target},
-            "policyTypes": ["Ingress"],
+            "policyTypes": ["Ingress"] + (["Egress"] if egress else []),
             "ingress": rules,
         }
+        if egress:
+            policy["egress"] = egress
+        policies[f"{release}-{service}"] = policy
     return policies
 
 

@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "2f667c75962db0d589ac56c998ddb97e74b08ed43af823f8bf4896b98427e502"
+reviewedContractSha256: "f712f8a9d16e77bb17f5309203dc5d8574ace4b8e434cdc0b2ac780a15045b52"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -26,6 +26,8 @@ peerSelectors:
 # unless they are a dynamic or exact peer token. The checker derives its
 # complete expected NetworkPolicy set from this section.
 # `allowedPeers` on each listener is the exact union of its peer tokens here.
+# Optional egress rules are exact peer/port lists; `cluster-dns` resolves to the
+# kube-system namespace while component tokens remain release-scoped selectors.
 # Kubelet/node traffic is authorized metadata but is omitted from policy tokens
 # because Kubernetes NetworkPolicy does not block traffic to/from a pod's node.
 networkPolicies:
@@ -99,6 +101,9 @@ networkPolicies:
     enabledWhen: "exec.enabled"
     rules:
       - { listenerId: mcp, peers: [proxy] }
+    egressRules:
+      - { peers: [cluster-dns], ports: [{ protocol: UDP, port: 53 }, { protocol: TCP, port: 53 }] }
+      - { peers: [upstream-stub], ports: [{ protocol: TCP, port: 9000 }] }
   - service: upstream-stub
     owner: optional
     enabledWhen: "upstreamStub.enabled"

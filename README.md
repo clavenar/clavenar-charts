@@ -33,7 +33,10 @@ The optional execution gateway is excluded from default renders and explicitly
 forbidden by `deploymentProfile=production` until WP-13 closes. Evaluation
 opt-in requires workload TLS and NetworkPolicy: Proxy reaches Exec only over
 mutual TLS as the exact `service/proxy` SPIFFE identity, the Service publishes
-only the authority port, and probes use a separate health-only listener.
+only the authority port, and probes use a separate health-only listener. Its
+image must be digest-pinned; the byte-exact structured-command policy is
+mounted read-only, shell strings are absent, scratch is bounded, and egress
+defaults denied except cluster DNS and the exact in-cluster fallback peer.
 
 The default Proxy PVC retains the durable server-execution intent, exact
 result, and forensic outbox across pod restarts. Because that store is SQLite,
