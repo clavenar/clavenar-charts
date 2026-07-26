@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://specs.clavenar.com/contracts/execution-ceilings-v1.schema.json",
+  "title": "Clavenar execution ceilings v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "contract",
+    "feature",
+    "status",
+    "serverOwned",
+    "request",
+    "process",
+    "output",
+    "tools",
+    "production"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "1.0" },
+    "contract": { "const": "clavenar.execution-ceilings/v1" },
+    "feature": { "const": "WP-13.3" },
+    "status": { "const": "evaluation-only" },
+    "serverOwned": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "callerOverrides",
+        "runtimeOverrides",
+        "forbiddenEnvironment"
+      ],
+      "properties": {
+        "callerOverrides": { "const": false },
+        "runtimeOverrides": { "const": false },
+        "forbiddenEnvironment": {
+          "const": ["CLAVENAR_EXEC_TIMEOUT_SECS"]
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["jsonRpcBodyBytes", "overflow"],
+      "properties": {
+        "jsonRpcBodyBytes": { "const": 4194304 },
+        "overflow": { "const": "reject-before-json-parse" }
+      }
+    },
+    "process": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "wallClockMillis",
+        "cpuSeconds",
+        "addressSpaceBytes",
+        "processes",
+        "fileSizeBytes",
+        "openFiles",
+        "processGroup",
+        "timeoutAction"
+      ],
+      "properties": {
+        "wallClockMillis": { "const": 30000 },
+        "cpuSeconds": { "const": 10 },
+        "addressSpaceBytes": { "const": 268435456 },
+        "processes": { "const": 16 },
+        "fileSizeBytes": { "const": 8388608 },
+        "openFiles": { "const": 64 },
+        "processGroup": { "const": "new-per-execution" },
+        "timeoutAction": {
+          "const": ["kill-process-group", "reap-direct-child"]
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stdoutBytes",
+        "stderrBytes",
+        "drainAfterLimit",
+        "truncationMarker"
+      ],
+      "properties": {
+        "stdoutBytes": { "const": 262144 },
+        "stderrBytes": { "const": 262144 },
+        "drainAfterLimit": { "const": true },
+        "truncationMarker": { "const": "\n...[truncated at ceiling]" }
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileContentBytes",
+        "directoryEntries",
+        "searchOutputBytes",
+        "fetchRequestBodyBytes",
+        "fetchResponseBodyBytes"
+      ],
+      "properties": {
+        "fileContentBytes": { "const": 8388608 },
+        "directoryEntries": { "const": 4096 },
+        "searchOutputBytes": { "const": 1048576 },
+        "fetchRequestBodyBytes": { "const": 1048576 },
+        "fetchResponseBodyBytes": { "const": 1048576 }
+      }
+    },
+    "production": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["included", "optInAllowed"],
+      "properties": {
+        "included": { "const": false },
+        "optInAllowed": { "const": false }
+      }
+    }
+  }
+}

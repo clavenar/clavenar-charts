@@ -83,6 +83,7 @@ def test_exec_binds_digest_policy_and_real_container_isolation():
     }
 
     env = {item["name"]: item["value"] for item in container["env"]}
+    assert "CLAVENAR_EXEC_TIMEOUT_SECS" not in env
     assert env["CLAVENAR_EXEC_STRUCTURED_POLICY_FILE"] == (
         "/etc/clavenar/structured-execution/"
         "structured-execution-v1.fixture.json"

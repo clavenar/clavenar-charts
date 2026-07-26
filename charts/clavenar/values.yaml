@@ -239,8 +239,6 @@ exec:
   # (when the lab pod is enabled) inside the agent pod RW so
   # `kubectl exec -- ls /workspace` works for operators.
   workspaceSize: 2Gi
-  # Default structured-command / fetch_url timeout in seconds.
-  timeoutSecs: 30
   # The exact structured-execution/v1 bounded ephemeral mount.
   scratchSizeLimit: 64Mi
   fetchAllowlist: []

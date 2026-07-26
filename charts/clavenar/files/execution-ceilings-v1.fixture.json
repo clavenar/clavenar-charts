@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "contract": "clavenar.execution-ceilings/v1",
+  "feature": "WP-13.3",
+  "status": "evaluation-only",
+  "serverOwned": {
+    "callerOverrides": false,
+    "runtimeOverrides": false,
+    "forbiddenEnvironment": [
+      "CLAVENAR_EXEC_TIMEOUT_SECS"
+    ]
+  },
+  "request": {
+    "jsonRpcBodyBytes": 4194304,
+    "overflow": "reject-before-json-parse"
+  },
+  "process": {
+    "wallClockMillis": 30000,
+    "cpuSeconds": 10,
+    "addressSpaceBytes": 268435456,
+    "processes": 16,
+    "fileSizeBytes": 8388608,
+    "openFiles": 64,
+    "processGroup": "new-per-execution",
+    "timeoutAction": [
+      "kill-process-group",
+      "reap-direct-child"
+    ]
+  },
+  "output": {
+    "stdoutBytes": 262144,
+    "stderrBytes": 262144,
+    "drainAfterLimit": true,
+    "truncationMarker": "\n...[truncated at ceiling]"
+  },
+  "tools": {
+    "fileContentBytes": 8388608,
+    "directoryEntries": 4096,
+    "searchOutputBytes": 1048576,
+    "fetchRequestBodyBytes": 1048576,
+    "fetchResponseBodyBytes": 1048576
+  },
+  "production": {
+    "included": false,
+    "optInAllowed": false
+  }
+}

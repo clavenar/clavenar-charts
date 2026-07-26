@@ -41,6 +41,7 @@ spec:
         {{- include "clavenar.selectorLabels" (dict "ctx" . "service" $name) | nindent 8 }}
       annotations:
         clavenar.io/structured-execution-sha256: {{ .Files.Get "files/structured-execution-v1.fixture.json" | sha256sum | quote }}
+        clavenar.io/execution-ceilings-sha256: {{ .Files.Get "files/execution-ceilings-v1.fixture.json" | sha256sum | quote }}
       {{- if .Values.tlsBundle.autoMint }}
         clavenar.io/tls-generation: {{ .Values.tlsBundle.rotation.generation | quote }}
       {{- end }}
@@ -101,8 +102,6 @@ spec:
               value: /etc/clavenar/structured-execution/structured-execution-v1.fixture.json
             - name: TMPDIR
               value: /scratch
-            - name: CLAVENAR_EXEC_TIMEOUT_SECS
-              value: {{ .Values.exec.timeoutSecs | quote }}
             {{- if .Values.upstreamStub.enabled }}
             - name: CLAVENAR_EXEC_FALLBACK_URL
               value: "http://{{ $stubFullname }}:{{ .Values.upstreamStub.port }}/mcp"
@@ -144,6 +143,9 @@ spec:
             - name: structured-execution
               mountPath: /etc/clavenar/structured-execution
               readOnly: true
+            - name: execution-ceilings
+              mountPath: /etc/clavenar/execution-ceilings
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -161,6 +163,12 @@ spec:
             items:
               - key: structured-execution-v1.fixture.json
                 path: structured-execution-v1.fixture.json
+        - name: execution-ceilings
+          configMap:
+            name: {{ include "clavenar.fullname" . }}-execution-ceilings
+            items:
+              - key: execution-ceilings-v1.fixture.json
+                path: execution-ceilings-v1.fixture.json
         - name: certs
           emptyDir:
             medium: Memory

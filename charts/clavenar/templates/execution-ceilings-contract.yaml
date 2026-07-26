@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-execution-ceilings
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "execution-ceilings") | nindent 4 }}
+immutable: true
+data:
+  execution-ceilings-v1.schema.json: |
+{{ .Files.Get "files/execution-ceilings-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+  execution-ceilings-v1.fixture.json: |
+{{ .Files.Get "files/execution-ceilings-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
