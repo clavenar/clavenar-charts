@@ -42,6 +42,8 @@ jobs:
           values="dist/clavenar-images-$RELEASE_VERSION.yaml"
           printf '%s' "$IMAGE_VALUES_B64" | base64 -d > "$values"
           test "$(grep -c 'digest: sha256:' "$values")" -eq 10
+          helm repo add nats https://nats-io.github.io/k8s/helm/charts/
+          helm repo add hashicorp https://helm.releases.hashicorp.com
           helm dependency build charts/clavenar
           helm lint charts/clavenar
           helm template publication charts/clavenar -f "$values" \
