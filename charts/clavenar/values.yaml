@@ -199,6 +199,7 @@ upstreamStub:
     # binary alongside the main simulator. Same image, command override
     # in templates/upstream-stub.yaml selects the stub binary.
     repository: ghcr.io/clavenar/clavenar-simulator
+    digest: ""
     # Empty → falls back to .Values.imageTag → Chart.appVersion. Safe
     # to track appVersion now that every published clavenar-simulator
     # image ships the MCP-protocol-compliant upstream-stub binary
@@ -368,6 +369,7 @@ services:
     grantJwksFetchTimeoutSeconds: 5  # valid range 1..30
     image:
       repository: clavenar-proxy
+      digest: ""
       tag: ""
     port: 8443        # mTLS surface — Service exposes this for agents
     healthPort: 8080  # plain-HTTP /health + /readyz — kubelet probes this
@@ -395,6 +397,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-brain
+      digest: ""
       tag: ""
     # Application port. Without tlsBundle.secretName the binary keeps its
     # compatibility listener on pod loopback, so the Service cannot turn it
@@ -444,6 +447,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-policy-engine
+      digest: ""
       tag: ""
     # Application port. Plain HTTP without tlsBundle.secretName set;
     # rustls + SPIFFE-allowlist on the same port when the bundle is
@@ -481,6 +485,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-ledger
+      digest: ""
       tag: ""
     # Plain HTTP listener — serves Caddy / Ingress for the public
     # `/verify` + `/audit/{agent_id}*` browser surface, kubelet probes
@@ -537,6 +542,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-hil
+      digest: ""
       tag: ""
     port: 8084
     # Plain-HTTP /health + /readyz + /metrics under mTLS receive
@@ -598,6 +604,7 @@ services:
     replayReplicas: 1
     image:
       repository: clavenar-identity
+      digest: ""
       tag: ""
     port: 8086
     # Dual-listener under mTLS receive (session 6). Plain HTTP on
@@ -638,6 +645,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-deep-review
+      digest: ""
       tag: ""
     # /metrics + /health scrape port. 8087 because identity owns 8086.
     port: 8087
@@ -675,6 +683,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-chaos-monkey
+      digest: ""
       tag: ""
     # mTLS control plane (/status, /running, /run-now).
     port: 8088
@@ -725,6 +734,7 @@ services:
     replicas: 1
     image:
       repository: clavenar-console
+      digest: ""
       tag: ""
     # Primary listener. In the default demo-only posture this is plain
     # HTTP with the curated demo surface. With operatorMtls.enabled=true

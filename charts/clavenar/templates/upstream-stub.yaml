@@ -17,8 +17,12 @@ CLAVENAR_UPSTREAM_URL via services.proxy.extraEnv.
 {{- if .Values.upstreamStub.enabled }}
 {{- $name := "upstream-stub" }}
 {{- $fullname := printf "%s-%s" .Release.Name $name }}
+{{- $digest := default "" .Values.upstreamStub.image.digest }}
 {{- $tag := default .Values.imageTag .Values.upstreamStub.image.tag }}
 {{- if not $tag }}{{ $tag = .Chart.AppVersion }}{{ end }}
+{{- if and $digest (not (regexMatch "^sha256:[a-f0-9]{64}$" $digest)) }}
+{{- fail (printf "upstream-stub image digest must be sha256:<64 lowercase hex>, got %q" $digest) }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -49,7 +53,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ $name }}
-          image: "{{ .Values.upstreamStub.image.repository }}:{{ $tag }}"
+          image: "{{ .Values.upstreamStub.image.repository }}{{ if $digest }}@{{ $digest }}{{ else }}:{{ $tag }}{{ end }}"
           imagePullPolicy: {{ .Values.upstreamStub.image.pullPolicy }}
           # The simulator image bundles three binaries; select the
           # upstream-stub explicitly. Keeps us from shipping a second

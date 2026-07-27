@@ -1,0 +1,99 @@
+name: release
+run-name: publish ${{ github.event.client_payload.publication_id }}
+
+on:
+  repository_dispatch:
+    types: [clavenar-protected-publication]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+        with:
+          ref: ${{ github.event.client_payload.source_sha }}
+
+      - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
+        with:
+          version: v3.16.3
+
+      - name: Verify protected publication input
+        env:
+          COMPONENT_VERSION: ${{ github.event.client_payload.component_version }}
+          RELEASE_REFERENCE: ${{ github.event.client_payload.release_reference }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+        run: |
+          test "$GITHUB_ACTOR" = "vanteguardlabs"
+          [[ "$RELEASE_REFERENCE" =~ ^ghcr\.io/clavenar/clavenar-stack-release@sha256:[0-9a-f]{64}$ ]]
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          version="$(sed -n 's/^version: \\(.*\\)/\\1/p' charts/clavenar/Chart.yaml)"
+          test "$version" = "$COMPONENT_VERSION"
+
+      - name: Materialize and verify the exact protected image values
+        env:
+          IMAGE_VALUES_B64: ${{ github.event.client_payload.image_values_b64 }}
+          RELEASE_VERSION: ${{ github.event.client_payload.release_version }}
+        run: |
+          mkdir -p dist
+          values="dist/clavenar-images-$RELEASE_VERSION.yaml"
+          printf '%s' "$IMAGE_VALUES_B64" | base64 -d > "$values"
+          test "$(grep -c 'digest: sha256:' "$values")" -eq 10
+          helm dependency build charts/clavenar
+          helm lint charts/clavenar
+          helm template publication charts/clavenar -f "$values" \
+            > /tmp/publication.yaml
+          test "$(grep -cE 'image: .*@sha256:[a-f0-9]{64}$' \
+            /tmp/publication.yaml)" -eq 10
+
+      - name: Package the exact chart
+        run: |
+          helm package charts/clavenar --destination dist
+          sha256sum "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz" \
+            > "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz.sha256"
+
+      - name: Log in to the protected OCI registry
+        run: |
+          printf '%s' "${{ secrets.GITHUB_TOKEN }}" |
+            helm registry login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Check whether this exact chart version is already public
+        id: registry
+        run: |
+          if helm show chart oci://ghcr.io/clavenar/charts/clavenar \
+            --version "${{ github.event.client_payload.component_version }}" \
+            >/tmp/chart-metadata.yaml 2>/tmp/chart-error.txt; then
+            grep -q '^version: ${{ github.event.client_payload.component_version }}$' \
+              /tmp/chart-metadata.yaml
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish to the GitHub OCI Helm registry
+        if: steps.registry.outputs.exists == 'false'
+        run: >
+          helm push
+          "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz"
+          oci://ghcr.io/clavenar/charts
+
+      - name: Publish the exact source tag and release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.event.client_payload.component_version }}
+          SOURCE_SHA: ${{ github.event.client_payload.source_sha }}
+        run: |
+          tag="v$VERSION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" \
+              --jq '.object.sha')" = "$SOURCE_SHA"
+            gh release upload "$tag" dist/* --clobber
+          else
+            gh release create "$tag" --target "$SOURCE_SHA" \
+              --title "$tag — Clavenar Helm chart" \
+              --notes "Published with exact protected-release image digests." \
+              dist/*
+          fi

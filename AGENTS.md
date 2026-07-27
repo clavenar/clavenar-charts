@@ -100,11 +100,14 @@ health.
   stable-503 paths. Regulatory and compliance handlers are supported;
   SQLite-direct analytics, cases, replay, allowlists, and cold-tier export are
   unavailable. Do not add a chart-side SQLite fallback or an insecure TLS env.
-- **Image tag fallback:** `services.<svc>.image.tag → .Values.imageTag →
-  .Chart.AppVersion` remains a legacy install boundary until WP-14.5. Root
-  `VERSION` and `appVersion` are frozen at the last legacy image set. The local
-  publisher is a fail-closed tombstone; protected releases stage digest-only
-  component artifacts and one signed stack-BOM reference from clavenar-e2e.
+- **Image identity:** `services.<svc>.image.digest` selects the exact protected
+  release image and takes precedence over the legacy
+  `services.<svc>.image.tag → .Values.imageTag → .Chart.AppVersion` fallback.
+  Publication emits an exact digest values file; use it for any supported
+  install. Root `VERSION` and `appVersion` remain frozen at the last legacy
+  image set. The local publisher is a fail-closed tombstone; protected releases
+  stage digest-only component artifacts and one signed stack-BOM reference
+  from clavenar-e2e.
   The evaluation-only Exec workload is deliberately stricter:
   `exec.image.digest` is mandatory when enabled and has no tag fallback.
 - **tlsBundle drives mTLS.** Empty `tlsBundle.secretName` → no `/certs` mount →

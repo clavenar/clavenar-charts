@@ -51,12 +51,24 @@ app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
 {{- $svcCfg := .svcCfg -}}
 {{- $registry := $ctx.Values.imageRegistry -}}
 {{- $repo := $svcCfg.image.repository -}}
+{{- $digest := default "" $svcCfg.image.digest -}}
+{{- if $digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail (printf "service image digest must be sha256:<64 lowercase hex>, got %q" $digest) -}}
+{{- end -}}
+{{- if $registry -}}
+{{- printf "%s/%s@%s" $registry $repo $digest -}}
+{{- else -}}
+{{- printf "%s@%s" $repo $digest -}}
+{{- end -}}
+{{- else -}}
 {{- $tag := default $ctx.Values.imageTag $svcCfg.image.tag -}}
 {{- if not $tag -}}{{- $tag = $ctx.Chart.AppVersion -}}{{- end -}}
 {{- if $registry -}}
 {{- printf "%s/%s:%s" $registry $repo $tag -}}
 {{- else -}}
 {{- printf "%s:%s" $repo $tag -}}
+{{- end -}}
 {{- end -}}
 {{- end -}}
 

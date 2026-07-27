@@ -146,7 +146,11 @@ production render, copy and customize `tests/values-production.yaml`; it is
 also exercised by CI as the canonical fail-closed profile.
 
 ```bash
-helm install my-clavenar charts/clavenar \
+curl -fsSLO \
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.34.0/clavenar-images-1.240.0.yaml
+helm install my-clavenar oci://ghcr.io/clavenar/charts/clavenar \
+  --version 0.34.0 \
+  -f clavenar-images-1.240.0.yaml \
   --namespace clavenar --create-namespace \
   --set nats.url=nats://my-nats:4222 \
   --set vault.addr=https://vault.internal:8200 \
@@ -210,10 +214,18 @@ BOM, then creates one semantic stack-release reference. It never creates
 component semantic or `latest` tags, and refuses to overwrite the stack
 reference.
 
+After acceptance, **Protected public distribution** publishes this exact chart
+and a matching `clavenar-images-<stack-version>.yaml` values file. The values
+file contains all ten unique immutable image digests from the signed 11-subject
+graph (Simulator and upstream-stub intentionally share one image). The chart,
+values file, and exact images are anonymously readable; supported installs use
+the versioned OCI chart plus its matching digest values file.
+
 `VERSION` and `Chart.appVersion` remain frozen at the last legacy chart image
-set until WP-14.5 changes installation, upgrade, rollback, and recovery to
-consume image digests from the signed BOM. Do not advance either value merely
-because a protected artifact graph was staged.
+set for tag-only compatibility. Supported publication, install, upgrade,
+rollback, and recovery consume exact digests from the signed BOM through the
+release-specific values file. Do not advance either value merely because a
+protected artifact graph was staged.
 
 Images are built for `linux/amd64` only in v1; multi-arch via
 `docker buildx` is a deferred follow-up.
