@@ -30,7 +30,7 @@ jobs:
           test "$GITHUB_ACTOR" = "vanteguardlabs"
           [[ "$RELEASE_REFERENCE" =~ ^ghcr\.io/clavenar/clavenar-stack-release@sha256:[0-9a-f]{64}$ ]]
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          version="$(sed -n 's/^version: \\(.*\\)/\\1/p' charts/clavenar/Chart.yaml)"
+          version="$(sed -n 's/^version: \(.*\)/\1/p' charts/clavenar/Chart.yaml)"
           test "$version" = "$COMPONENT_VERSION"
 
       - name: Materialize and verify the exact protected image values
