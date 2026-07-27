@@ -37,6 +37,9 @@ only the authority port, and probes use a separate health-only listener. Its
 image must be digest-pinned; the byte-exact structured-command policy is
 mounted read-only, shell strings are absent, scratch is bounded, and egress
 defaults denied except cluster DNS and the exact in-cluster fallback peer.
+Fetch connections validate the complete DNS answer set, pin one deterministic
+public address while retaining hostname identity, and repeat the exact
+allowlist/resolve/validate/pin sequence for at most five manual redirects.
 
 The default Proxy PVC retains the durable server-execution intent, exact
 result, and forensic outbox across pod restarts. Because that store is SQLite,

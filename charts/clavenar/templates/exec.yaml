@@ -43,6 +43,7 @@ spec:
         clavenar.io/structured-execution-sha256: {{ .Files.Get "files/structured-execution-v1.fixture.json" | sha256sum | quote }}
         clavenar.io/execution-ceilings-sha256: {{ .Files.Get "files/execution-ceilings-v1.fixture.json" | sha256sum | quote }}
         clavenar.io/rooted-path-target-validation-sha256: {{ .Files.Get "files/rooted-path-target-validation-v1.fixture.json" | sha256sum | quote }}
+        clavenar.io/outbound-resolution-pinning-sha256: {{ .Files.Get "files/outbound-resolution-pinning-v1.fixture.json" | sha256sum | quote }}
       {{- if .Values.tlsBundle.autoMint }}
         clavenar.io/tls-generation: {{ .Values.tlsBundle.rotation.generation | quote }}
       {{- end }}
@@ -150,6 +151,9 @@ spec:
             - name: rooted-path-target-validation
               mountPath: /etc/clavenar/rooted-path-target-validation
               readOnly: true
+            - name: outbound-resolution-pinning
+              mountPath: /etc/clavenar/outbound-resolution-pinning
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -179,6 +183,12 @@ spec:
             items:
               - key: rooted-path-target-validation-v1.fixture.json
                 path: rooted-path-target-validation-v1.fixture.json
+        - name: outbound-resolution-pinning
+          configMap:
+            name: {{ include "clavenar.fullname" . }}-outbound-resolution-pinning
+            items:
+              - key: outbound-resolution-pinning-v1.fixture.json
+                path: outbound-resolution-pinning-v1.fixture.json
         - name: certs
           emptyDir:
             medium: Memory

@@ -527,7 +527,10 @@ apply walkthrough.
   replica because the workspace PVC is shared RW with the lab
   agent pod. The image is digest-pinned, the policy is immutable/read-only,
   scratch is a 64 MiB memory volume, and egress defaults denied except exact
-  cluster DNS and upstream-stub peers. Sandboxing is container-runtime
+  cluster DNS and upstream-stub peers. Fetches validate the complete bounded
+  DNS set, pin one deterministic public answer while retaining Host/SNI
+  identity, and repeat the exact allowlist/resolve/validate/pin sequence for at
+  most five manual redirects. Sandboxing is container-runtime
   isolation (`readOnlyRootFilesystem`, nonroot UID/GID 65532, no privilege
   escalation, capability drop, RuntimeDefault seccomp). This path is
   evaluation-only:

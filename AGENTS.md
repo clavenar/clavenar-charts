@@ -58,7 +58,7 @@ charts/clavenar/
     services.yaml       # the 9 Deployments + Services
     configmap.yaml workload-capability-bundle.yaml attestation-verifier-contract.yaml
     dependency-readiness-contract.yaml structured-execution-contract.yaml
-    execution-ceilings-contract.yaml
+    execution-ceilings-contract.yaml outbound-resolution-pinning-contract.yaml
     shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
@@ -140,6 +140,12 @@ health.
   immutable in the chart and compiled into Exec. Do not restore
   `timeoutSecs`/`CLAVENAR_EXEC_TIMEOUT_SECS`, arbitrary Exec resources,
   direct-child-only timeout handling, or unbounded file/fetch/output paths.
+- **Outbound addresses are pinned.** The exact
+  `outbound-resolution-pinning-v1` contract is immutable in the chart and
+  compiled into Exec. Each connection validates the complete bounded DNS set,
+  pins one deterministic public answer without changing hostname identity, and
+  repeats normalization, allowlisting, resolution, and pinning for at most five
+  manual redirect hops. Production Exec absence remains unchanged.
 - **Bundled-NATS + tlsBundle coupling:** if `tlsBundle.secretName` is set you
   must also enable TLS on the bundled NATS subchart — the `clavenar.natsUrl`
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =
