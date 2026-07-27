@@ -13,7 +13,7 @@ does not deploy this pod.
 **No Kubernetes handy?** The same end-to-end pipeline runs as a
 docker-compose stack under [`clavenar-e2e`](https://github.com/clavenar/clavenar-e2e) —
 `cd prod && docker compose --profile stack up -d --build` (or
-`cd dev`) boots all eight services on a single host with the
+`cd dev`) boots all nine governed services on a single host with the
 same wire contracts. The compose stack does not stand up a real
 Claude Code agent pod; for that scenario this lab is the
 canonical path.
