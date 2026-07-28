@@ -155,13 +155,13 @@ also exercised by CI as the canonical fail-closed profile.
 
 ```bash
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.35.4 --untar
+  --version 0.35.5 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.35.4/clavenar-images-1.241.4.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.35.5/clavenar-images-1.241.5.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.241.4.yaml
+  -f ./clavenar-images-1.241.5.yaml
 ```
 
 This evaluation-only path bundles NATS, dev-mode Vault, and auto-minted
