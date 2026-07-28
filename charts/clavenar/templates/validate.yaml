@@ -45,6 +45,28 @@
 {{- if not (has $deploymentProfile (list "evaluation" "production")) }}
 {{- fail "deploymentProfile must be exactly evaluation or production" }}
 {{- end }}
+{{- if .Values.hilPayloadProtection.managedEvaluation }}
+{{- if ne $deploymentProfile "evaluation" }}
+{{- fail "hilPayloadProtection.managedEvaluation=true is evaluation-only; production requires an operator-owned dedicated Secret" }}
+{{- end }}
+{{- if not (empty .Values.authSecrets.existingSecretName) }}
+{{- fail "hilPayloadProtection.managedEvaluation=true requires chart-managed authSecrets so the upgrade-stable key can be created" }}
+{{- end }}
+{{- if ne .Values.hilPayloadProtection.key "hil-payload-key" }}
+{{- fail "hilPayloadProtection.managedEvaluation=true requires key=hil-payload-key" }}
+{{- end }}
+{{- end }}
+{{- if .Values.evaluationPublicTrust.enabled }}
+{{- if ne $deploymentProfile "evaluation" }}
+{{- fail "evaluationPublicTrust.enabled=true is evaluation-only; production requires operator-owned public trust" }}
+{{- end }}
+{{- if not (empty .Values.attestationTrustAnchors.secretName) }}
+{{- fail "evaluationPublicTrust.enabled=true cannot be combined with attestationTrustAnchors.secretName" }}
+{{- end }}
+{{- end }}
+{{- if and (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled (not .Values.identityAlias.enabled) }}
+{{- fail "workloadIdentity.enabled with workload TLS requires identityAlias.enabled=true so renewed DNS:identity certificates match the authority URL" }}
+{{- end }}
 {{- if .Values.exec.enabled }}
 {{- if eq $deploymentProfile "production" }}
 {{- fail "deploymentProfile=production forbids exec.enabled=true until WP-13 closes" }}

@@ -20,9 +20,12 @@ canonical path.
 
 ## Lab posture vs. clavenar-exec
 
-As of chart 0.2.x, `exec.enabled=true` in `tests/values-bundled.yaml`
-puts `clavenar-exec` between the proxy and the upstream-stub. Two lab
-manifests together close the agent's escape hatches:
+The public bundled values deliberately keep `exec.enabled=false` because the
+optional evaluation gateway has a separate image lifecycle. To exercise it,
+build `clavenar-exec` from source and supply `exec.enabled=true` plus its exact
+private digest in a separate local overlay. With that overlay, Exec sits
+between the proxy and the upstream-stub. Two lab manifests together close the
+agent's escape hatches:
 
 - `mcp-config-cm.yaml` (mounted at `~/.claude.json`) registers the
   `clavenar` MCP server — the only MCP path out of the pod.
@@ -58,7 +61,7 @@ among many), set `exec.enabled=false` and skip applying
 1. **A clavenar release with the bundled upstream stub.** The chart must
    be installed with `upstreamStub.enabled=true` and
    `agentVaultSeed.enabled=true` (both are flipped on automatically in
-   `tests/values-bundled.yaml`). Without these, the proxy forwards to
+   the bundled values). Without these, the proxy forwards to
    a non-existent `localhost:9000/mcp` and returns 500 on every tool
    call. Verify with:
    ```bash
@@ -97,7 +100,7 @@ so the bridge has to present `proxy` as the TLS SNI for the handshake
 to validate. The `proxyAlias.enabled=true` flag in the chart emits an
 ExternalName Service named `proxy` that CNAMEs to the real
 `<release>-proxy` — DNS resolves, SNI matches, handshake passes.
-`tests/values-bundled.yaml` ships with this flag on.
+The bundled values ship with this flag on.
 
 ```bash
 # Only edit manifests/agent-pod.yaml if your release set a different

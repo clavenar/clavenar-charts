@@ -89,7 +89,12 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
                 }
                 self.assertEqual(expected_env, env)
                 self.assertFalse(
-                    any(item["name"].endswith("_ALLOWED_CALLERS") for item in container["env"])
+                    any(
+                        item["name"].endswith("_ALLOWED_CALLERS")
+                        and item["name"]
+                        != "CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS"
+                        for item in container["env"]
+                    )
                 )
                 mount = next(
                     item

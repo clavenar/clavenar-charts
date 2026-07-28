@@ -156,7 +156,7 @@ Bundled Vault (DEV MODE): the upstream hashicorp/vault subchart is
 installed at `{{ .Release.Name }}-vault` with a known root token
 ({{ .Values.vault.bundled.devToken }}) and no persistence. A
 post-install hook Job enables the transit engine and creates the
-`{{ .Values.vault.bundled.transit.keyName }}` key. Dev-mode Vault
+Ed25519 `{{ .Values.vault.bundled.transit.keyName }}` key. Dev-mode Vault
 loses state on pod restart; the hook re-runs on every chart upgrade
 and re-provisions the key. Do not use this configuration for
 production — flip `vault.bundled.enabled=false` and supply your own

@@ -3,6 +3,8 @@
 # namespace; the chart never mints production trust. Keep that namespace
 # distinct from both the Helm release and Prometheus namespaces.
 deploymentProfile: production
+identityAlias:
+  enabled: true
 exec:
   enabled: false
 
@@ -35,11 +37,15 @@ authSecrets:
   rotationId: prod-20260715-01
 
 hilPayloadProtection:
+  managedEvaluation: false
   secretName: clavenar-hil-payload
   key: hil-payload-key
 
 attestationTrustAnchors:
   secretName: clavenar-attestation-trust
+
+evaluationPublicTrust:
+  enabled: false
 
 vault:
   addr: https://vault.internal:8200

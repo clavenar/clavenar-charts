@@ -83,6 +83,14 @@ manager instead. `authSecrets.rotationId` is the non-secret rollout generation:
 the same value preserves chart-managed keys, while a new value rotates those
 keys and rolls every consumer. External-secret operators update the complete
 Secret first and advance the identifier in the controlled release.
+The packaged bundled evaluation values also generate HIL's dedicated payload
+encryption key in that shared Secret so a fresh cluster needs no operator
+bootstrap. Production forbids this evaluation convenience and keeps the HIL
+key in its separately managed Secret.
+They additionally mount public evaluation-only OIDC and attestation
+verification keys, create an Ed25519 Vault Transit authority, and use the
+stable `identity` DNS alias required by renewed workload certificates. No
+private OIDC or attestation signing key is packaged.
 
 NATS and Vault are not bundled by default. Operators can bring their own or
 enable the evaluation-only subcharts. Bundled NATS uses durable file-backed
@@ -146,21 +154,20 @@ production render, copy and customize `tests/values-production.yaml`; it is
 also exercised by CI as the canonical fail-closed profile.
 
 ```bash
+helm pull oci://ghcr.io/clavenar/charts/clavenar \
+  --version 0.35.0 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.34.0/clavenar-images-1.240.0.yaml
-helm install my-clavenar oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.34.0 \
-  -f clavenar-images-1.240.0.yaml \
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.35.0/clavenar-images-1.241.0.yaml
+helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
-  --set nats.url=nats://my-nats:4222 \
-  --set vault.addr=https://vault.internal:8200 \
-  --set vault.tokenSecretName=clavenar-vault-token \
-  --set vault.identityTokenKey=identity-token \
-  --set vault.proxyTokenKey=proxy-token \
-  --set authSecrets.existingSecretName=clavenar-runtime-auth \
-  --set attestationTrustAnchors.secretName=clavenar-attestation-trust \
-  --set tlsBundle.secretName=clavenar-certs
+  -f ./clavenar/examples/values-bundled.yaml \
+  -f ./clavenar-images-1.241.0.yaml
 ```
+
+This evaluation-only path bundles NATS, dev-mode Vault, and auto-minted
+workload TLS. The published values file disables the separately built optional
+execution gateway, so every referenced Clavenar image belongs to the exact
+protected public release.
 
 The selected authentication Secret must already contain `hil-session-key` and
 `hil-decide-token`. Omit `authSecrets.existingSecretName` to retain the

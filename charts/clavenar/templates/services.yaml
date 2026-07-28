@@ -19,7 +19,7 @@ inside the range is the iterated value.
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
 {{- $mountsFederatedIdentityContract := eq $name "console" }}
 {{- $mountsControlState := eq $name "proxy" }}
-{{- $mountsAttestationTrust := and (eq $name "identity") (not (empty $.Values.attestationTrustAnchors.secretName)) }}
+{{- $mountsAttestationTrust := and (eq $name "identity") (or $.Values.evaluationPublicTrust.enabled (not (empty $.Values.attestationTrustAnchors.secretName))) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $mountsHilPayloadKey := eq $name "hil" }}
 {{- $mountsHilNotificationToken := and (eq $name "hil") (not (empty $cfg.notifications.webhook.tokenSecretName)) }}
@@ -362,7 +362,17 @@ spec:
             {{- end }}
             {{- if $mountsAttestationTrust }}
             - name: CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE
-              value: /etc/clavenar/attestation/k8s-trust-anchors.json
+              value: /etc/clavenar/public-trust/k8s-trust-anchors.json
+            {{- if $.Values.evaluationPublicTrust.enabled }}
+            - name: CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_ISSUER
+              value: https://evaluation.invalid/
+            - name: CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_AUDIENCE
+              value: clavenar-identity
+            - name: CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_RS256_JWKS_FILE
+              value: /etc/clavenar/public-trust/evaluation-oidc-jwks.json
+            - name: CLAVENAR_IDENTITY_REQUIRE_ASYMMETRIC_OIDC
+              value: "true"
+            {{- end }}
             {{- end }}
           livenessProbe:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "liveness") | nindent 12 }}
@@ -414,8 +424,7 @@ spec:
             {{- end }}
             {{- if $mountsAttestationTrust }}
             - name: attestation-trust-anchors
-              mountPath: /etc/clavenar/attestation/k8s-trust-anchors.json
-              subPath: k8s-trust-anchors.json
+              mountPath: /etc/clavenar/public-trust
               readOnly: true
             {{- end }}
             {{- if $mountsBrainCacheKey }}
@@ -589,12 +598,23 @@ spec:
         {{- end }}
         {{- if $mountsAttestationTrust }}
         - name: attestation-trust-anchors
+          {{- if $.Values.evaluationPublicTrust.enabled }}
+          configMap:
+            name: {{ include "clavenar.evaluationPublicTrustName" $ }}
+            defaultMode: 0444
+            items:
+              - key: k8s-trust-anchors.json
+                path: k8s-trust-anchors.json
+              - key: evaluation-oidc-jwks.json
+                path: evaluation-oidc-jwks.json
+          {{- else }}
           secret:
             secretName: {{ $.Values.attestationTrustAnchors.secretName }}
             defaultMode: 0444
             items:
               - key: {{ $.Values.attestationTrustAnchors.key }}
                 path: k8s-trust-anchors.json
+          {{- end }}
         {{- end }}
         {{- if $mountsBrainCacheKey }}
         - name: brain-cache-hmac-key
@@ -608,7 +628,7 @@ spec:
         {{- if $mountsHilPayloadKey }}
         - name: {{ include "clavenar.hilPayloadKeyVolume" $ }}
           secret:
-            secretName: {{ required "hilPayloadProtection.secretName is required" $.Values.hilPayloadProtection.secretName }}
+            secretName: {{ include "clavenar.hilPayloadSecretName" $ }}
             defaultMode: 0440
             items:
               - key: {{ required "hilPayloadProtection.key is required" $.Values.hilPayloadProtection.key }}

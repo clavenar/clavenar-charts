@@ -20,6 +20,29 @@ reference a Secret managed outside this release. */}}
 {{- default (printf "%s-shared-tokens" .Release.Name) .Values.authSecrets.existingSecretName -}}
 {{- end -}}
 
+{{/* HIL exact-payload encryption remains a dedicated operator-owned Secret
+unless the bundled evaluation recipe explicitly opts into the upgrade-stable
+chart-managed key. Production validation forbids the managed form. */}}
+{{- define "clavenar.hilPayloadSecretName" -}}
+{{- if .Values.hilPayloadProtection.managedEvaluation -}}
+{{- include "clavenar.authSecretName" . -}}
+{{- else -}}
+{{- required "hilPayloadProtection.secretName is required" .Values.hilPayloadProtection.secretName -}}
+{{- end -}}
+{{- end -}}
+
+{{/* Chart-owned public verification material for the evaluation quickstart.
+No private signing key is present in this ConfigMap. */}}
+{{- define "clavenar.evaluationPublicTrustName" -}}
+{{- printf "%s-evaluation-public-trust" .Release.Name -}}
+{{- end -}}
+
+{{/* Stable TLS hostname for the workload-SVID authority. Renewed Identity
+certificates deliberately carry DNS:identity, independent of release name. */}}
+{{- define "clavenar.identityHost" -}}
+{{- if and .Values.identityAlias.enabled (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled -}}identity{{- else -}}{{ .Release.Name }}-identity{{- end -}}
+{{- end -}}
+
 {{/* Per-service fullname: <release>-<service>. The values key is
 camelCase to form a valid Go-template path; k8s object names need
 RFC-1123 lowercase, so we kebabcase here. */}}
@@ -332,6 +355,7 @@ per environment variable.
         "CLAVENAR_IDENTITY_MTLS_ADDR"
         "CLAVENAR_IDENTITY_CA_DIR"
         "CLAVENAR_IDENTITY_REPLAY_REPLICAS"
+        "CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS"
         "CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
@@ -404,6 +428,13 @@ per environment variable.
 {{- if and (eq $service "proxy") (or $ctx.Values.exec.enabled $ctx.Values.upstreamStub.enabled) -}}
 {{- $governed = append $governed "CLAVENAR_UPSTREAM_URL" -}}
 {{- end -}}
+{{- if and (eq $service "identity") $ctx.Values.evaluationPublicTrust.enabled -}}
+{{- $governed = concat $governed (list
+      "CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_ISSUER"
+      "CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_AUDIENCE"
+      "CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_RS256_JWKS_FILE"
+      "CLAVENAR_IDENTITY_REQUIRE_ASYMMETRIC_OIDC") -}}
+{{- end -}}
 {{- $seen := dict -}}
 {{- range $index, $entry := default (list) .svcCfg.extraEnv -}}
 {{- $name := default "" $entry.name -}}
@@ -457,6 +488,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $tls := .ctx.Values.tlsBundle.secretName -}}
 {{- $mount := .ctx.Values.tlsBundle.mountPath -}}
 {{- $tlsOn := not (empty $tls) -}}
+{{- $identityHost := include "clavenar.identityHost" .ctx -}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- $policyScheme := ternary "https" "http" $tlsOn -}}
 {{- $managedWorkload := and $tlsOn .ctx.Values.workloadIdentity.enabled (has $name (list "proxy" "brain" "policyEngine" "ledger" "hil" "identity" "console")) -}}
@@ -477,11 +509,18 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # and strict peer SPIFFE verification. The Identity Service publishes not-ready
 # endpoints so its first self-enrollment cannot deadlock on readiness.
 - name: {{ printf "CLAVENAR_%s_WORKLOAD_REFRESH_URL" $prefix }}
-  value: "https://{{ $rel }}-identity:8186/workload-svid"
+  value: "https://{{ $identityHost }}:8186/workload-svid"
 - name: {{ printf "CLAVENAR_%s_WORKLOAD_STATE_DIR" $prefix }}
   value: "/var/lib/clavenar-workload-identity"
 - name: {{ printf "CLAVENAR_%s_EXPECTED_PEER_SPIFFE" $prefix }}
   value: {{ $expected | quote }}
+{{- if eq $name "identity" }}
+# Identity is the workload-SVID authority for every chart-managed caller.
+# This exact allowlist is chart-owned so a fresh install can perform the
+# first self-enrollment without an unsafe wildcard.
+- name: CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS
+  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/brain,spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/ledger,spiffe://clavenar.local/service/hil,spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/console"
+{{- end }}
 {{ end }}{{ "\n" -}}
 {{- if has $name (list "proxy" "identity") }}
 # Attestation provider posture is chart-owned. Evaluation may explicitly use
@@ -524,7 +563,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_LEDGER_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
 - name: CLAVENAR_IDENTITY_URL
-  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ ternary $identityHost (printf "%s-identity" $rel) $tlsOn }}:{{ ternary "8186" "8086" $tlsOn }}"
 - name: CLAVENAR_BRAIN_READINESS_URL
   value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "brain") | quote }}
 - name: CLAVENAR_POLICY_READINESS_URL
@@ -745,7 +784,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_LEDGER_ANCHOR_TSA_URL
   value: {{ .ctx.Values.ledgerCryptographicVerification.tsaUrl | quote }}
 - name: CLAVENAR_IDENTITY_URL
-  value: "https://{{ $rel }}-identity:8186"
+  value: "https://{{ $identityHost }}:8186"
 - name: CLAVENAR_LEDGER_SPIFFE
   value: "spiffe://{{ .ctx.Values.tlsBundle.spiffeTrustDomain }}/service/ledger"
 {{- end }}
@@ -799,7 +838,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_CONSOLE_POLICY_ENGINE_URL
   value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082"
 - name: CLAVENAR_CONSOLE_IDENTITY_URL
-  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-identity:{{ ternary "8186" "8086" $tlsOn }}"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ ternary $identityHost (printf "%s-identity" $rel) $tlsOn }}:{{ ternary "8186" "8086" $tlsOn }}"
 # Narration and model-snapshot reads never use Brain's plaintext diagnostics
 # listener. Without workload TLS these optional operations fail soft.
 - name: CLAVENAR_CONSOLE_BRAIN_URL

@@ -72,7 +72,11 @@ spec:
               # tolerate both via `|| true` and verify the
               # post-condition (key exists) at the end.
               vault secrets enable -path=transit transit 2>/dev/null || true
-              vault write -f transit/keys/${TRANSIT_KEY_NAME} >/dev/null 2>&1 || true
+              # Identity publishes JWKS and verifies historical signing keys,
+              # so its Transit key must have an asymmetric public half. Vault
+              # key types are immutable after creation; always request
+              # Ed25519 on the first idempotent write.
+              vault write transit/keys/${TRANSIT_KEY_NAME} type=ed25519 >/dev/null 2>&1 || true
 
               # Post-condition: the clavenar-identity key must be readable.
               # If both ops failed silently, this surfaces the issue.

@@ -1350,7 +1350,12 @@ def validate(
     for listener in active_listeners:
         if listener["servicePublished"]:
             publications.setdefault(listener["service"], set()).add(int(listener["servicePort"]))
-    aliases = {"proxy-alias": "proxy", "nats-headless": "nats", "vault-internal": "vault"}
+    aliases = {
+        "proxy-alias": "proxy",
+        "identity-alias": "identity",
+        "nats-headless": "nats",
+        "vault-internal": "vault",
+    }
     published_by_objects = set()
     tls = bool(value_at(values, "tlsBundle.secretName"))
     for obj in matrix["serviceObjects"]:

@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "f712f8a9d16e77bb17f5309203dc5d8574ace4b8e434cdc0b2ac780a15045b52"
+reviewedContractSha256: "20e8d3eff96a6c629c5c9deddf25d6aeffde3e24688f423b4832964124c421f8"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -413,6 +413,7 @@ serviceObjects:
   - { id: exec, selectorOwner: core, enabledWhen: "exec.enabled", name: "{release}-exec", type: ClusterIP, ports: [{ name: mtls, port: 9001, targetPort: mtls, protocol: TCP }] }
   - { id: upstream-stub, selectorOwner: core, enabledWhen: "upstreamStub.enabled", name: "{release}-upstream-stub", type: ClusterIP, ports: [{ name: http, port: 9000, targetPort: http, protocol: TCP }] }
   - { id: proxy-alias, selectorOwner: none, enabledWhen: "proxyAlias.enabled", name: proxy, type: ExternalName, externalName: "{release}-proxy.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8443, targetPort: 8443, protocol: TCP }] }
+  - { id: identity-alias, selectorOwner: none, enabledWhen: "identityAlias.enabled and tlsBundle.secretName and workloadIdentity.enabled", name: identity, type: ExternalName, externalName: "{release}-identity.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8186, targetPort: 8186, protocol: TCP }] }
   - { id: nats, selectorOwner: nats, enabledWhen: "nats.bundled.enabled", name: "{release}-nats", type: ClusterIP, ports: [{ name: nats, port: 4222, targetPort: nats, protocol: TCP, appProtocol: tlsWhenTlsElseTcp }, { name: monitor, port: 8222, targetPort: monitor, protocol: TCP, appProtocol: http }] }
   - { id: nats-headless, selectorOwner: nats, enabledWhen: "nats.bundled.enabled", name: "{release}-nats-headless", type: ClusterIP, headless: true, publishNotReadyAddresses: true, ports: [{ name: nats, port: 4222, targetPort: nats, protocol: TCP, appProtocol: tlsWhenTlsElseTcp }, { name: monitor, port: 8222, targetPort: monitor, protocol: TCP, appProtocol: http }] }
   - { id: vault, selectorOwner: vault, enabledWhen: "vault.bundled.enabled", name: "{release}-vault", type: ClusterIP, publishNotReadyAddresses: true, ports: [{ name: http, port: 8200, targetPort: 8200, protocol: TCP }, { name: https-internal, port: 8201, targetPort: 8201, protocol: TCP }] }

@@ -8,6 +8,16 @@
       "type": "string",
       "enum": ["evaluation", "production"]
     },
+    "identityAlias": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
     "exec": {
       "type": "object",
       "additionalProperties": false,
@@ -178,8 +188,11 @@
     "hilPayloadProtection": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["secretName", "key"],
+      "required": ["managedEvaluation", "secretName", "key"],
       "properties": {
+        "managedEvaluation": {
+          "type": "boolean"
+        },
         "secretName": {
           "type": "string",
           "minLength": 1,
@@ -209,6 +222,16 @@
           "minLength": 1,
           "maxLength": 253,
           "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "evaluationPublicTrust": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
         }
       }
     },
@@ -543,6 +566,7 @@
                         "CLAVENAR_IDENTITY_MTLS_ADDR",
                         "CLAVENAR_IDENTITY_CA_DIR",
                         "CLAVENAR_IDENTITY_REPLAY_REPLICAS",
+                        "CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS",
                         "CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",

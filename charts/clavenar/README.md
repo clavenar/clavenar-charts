@@ -23,7 +23,7 @@ Two paths — pick by what's already in your cluster.
 ### Bundled (evaluation / kind / dev cluster)
 
 One `helm install` brings the clavenar stack **plus** NATS + Vault +
-auto-minted mTLS bundle:
+auto-minted mTLS bundle. From a source checkout:
 
 ```bash
 # From the repo root
@@ -36,6 +36,21 @@ helm install my-clavenar charts/clavenar \
 `tests/values-bundled.yaml` enables `nats.bundled` + `vault.bundled`
 (dev-mode) + `tlsBundle.autoMint`. Reasonable for an evaluation
 cluster; **not** for production.
+
+The published OCI chart packages the byte-identical values file. A clean
+external install uses the chart and protected digest values from release
+`v0.35.0`:
+
+```bash
+helm pull oci://ghcr.io/clavenar/charts/clavenar \
+  --version 0.35.0 --untar
+curl -fsSLO \
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.35.0/clavenar-images-1.241.0.yaml
+helm install my-clavenar ./clavenar \
+  --namespace clavenar --create-namespace \
+  -f ./clavenar/examples/values-bundled.yaml \
+  -f ./clavenar-images-1.241.0.yaml
+```
 
 ### BYO (production)
 
@@ -116,10 +131,12 @@ recovery, and runtime behavior in the target cluster.
 | NATS deployment | Subchart `nats-io/nats` installed by the release with exact certificate-to-user authorization | External, operator-managed; production requires an explicit owner and v1 authorization declaration |
 | JetStream persistence | 10Gi PVC by default (configure under `nats.config.jetstream.fileStore.pvc.size`) | Operator must explicitly declare durable JetStream storage in production |
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
-| Transit engine | Auto-provisioned by post-install Job | Operator runs `vault secrets enable transit && vault write -f transit/keys/<name>` |
+| Transit engine | Auto-provisioned by post-install Job with an Ed25519 key for signing and JWKS | Operator runs `vault secrets enable transit && vault write transit/keys/<name> type=ed25519` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
 | HIL and Brain cache keys | Chart creates and upgrade-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret containing all governed keys |
-| HIL exact-payload encryption key | Operator pre-creates the Secret selected by `hilPayloadProtection`; only HIL receives its mode-0440 file projection | Operator or secret-store controller owns the same dedicated 32-byte key and its rotation |
+| HIL exact-payload encryption key | Packaged evaluation values generate and upgrade-preserve the key in `<release>-shared-tokens`; only HIL receives its mode-0440 file projection | Operator or secret-store controller owns the dedicated 32-byte key and its rotation; production forbids chart management |
+| Identity verification trust | Packaged public OIDC JWKS and attestation anchors only; no private signing authority | Operator-owned public JWKS and attestation-anchor Secret; production forbids packaged evaluation trust |
+| Identity authority DNS | Stable `identity` ExternalName alias matches renewed workload-SVID certificates across release names | The same alias is required while managed workload renewal is enabled |
 | Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
 | Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes `execute_command` plus six governed file/fetch tools. Process calls select only the immutable structured allowlist; no shell string exists, and every call lands in the ledger | Evaluation-only; production rejects opt-in |
@@ -205,10 +222,15 @@ The default remains backwards compatible: the chart generates
 `<release>-shared-tokens`, keeps its data stable across upgrades, and injects
 the HIL session and console-to-HIL decision credentials only through
 `secretKeyRef`; Brain receives its cache HMAC key only through a mode-0440 file
-projection. Exact pending-request payloads use a separate operator-owned
-XChaCha20-Poly1305 key that is mounted only into HIL. Generate 32 random bytes
-as 64 lowercase hexadecimal characters, store them in a file readable by the
-Secret creation command, and never put the key in chart values:
+projection. Exact pending-request payloads use a dedicated XChaCha20-Poly1305
+key that is mounted only into HIL. The packaged bundled evaluation values opt
+into `hilPayloadProtection.managedEvaluation`; this adds an upgrade-stable
+generated key to `<release>-shared-tokens` so a clean-cluster quickstart needs
+no pre-created Secret. Production rejects that option.
+
+For any operator-owned deployment, generate 32 random bytes as 64 lowercase
+hexadecimal characters, store them in a file readable by the Secret creation
+command, and never put the key in chart values:
 
 ```bash
 openssl rand -hex 32 > /secure/path/hil-payload-key
@@ -221,6 +243,13 @@ Select a different Secret or data key with
 only through an operational migration that keeps existing ciphertext
 decryptable; HIL deliberately refuses malformed, missing, inline, or
 unexpectedly permissive key material before opening SQLite.
+
+The packaged bundled values also enable `evaluationPublicTrust`, which mounts
+public OIDC and attestation verification keys only. It cannot mint an operator
+identity or an attestation and is rejected by the production profile. Managed
+workload renewal uses the stable `identity` ExternalName alias because renewed
+authority certificates carry `DNS:identity`, independent of the Helm release
+name.
 
 For production, pre-provision a separate Opaque Secret containing
 `hil-session-key`, `hil-decide-token`, `hil-bootstrap-token`, and

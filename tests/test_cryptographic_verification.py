@@ -45,7 +45,7 @@ class CryptographicVerificationChartTests(unittest.TestCase):
         ledger_container = ledger_template["spec"]["containers"][0]
         env = {item["name"]: item.get("value") for item in ledger_container["env"]}
         self.assertEqual(
-            env["CLAVENAR_IDENTITY_URL"], "https://smoke-identity:8186"
+            env["CLAVENAR_IDENTITY_URL"], "https://identity:8186"
         )
         self.assertEqual(
             env["CLAVENAR_LEDGER_SPIFFE"],

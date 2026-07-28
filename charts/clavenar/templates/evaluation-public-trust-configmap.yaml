@@ -1,0 +1,18 @@
+{{/*
+Public verification material for the self-contained evaluation quickstart.
+There is deliberately no private OIDC or attestation signing key in this
+ConfigMap. Production validation forbids the entire managed evaluation form.
+*/}}
+{{- if .Values.evaluationPublicTrust.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.evaluationPublicTrustName" . }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "evaluation-public-trust") | nindent 4 }}
+data:
+  k8s-trust-anchors.json: |
+    {"anchors":[{"keyId":"clavenar-dev-k8s-v1","platformIssuer":"k8s-cluster:dev-primary","publicKeyPem":"-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA0of8J1FXZJkm2/8ssYkNoxJNpFT6H8AdHcZLs0G5MeE=\n-----END PUBLIC KEY-----\n","trustAnchorId":"sha256:0e0b744c94fcdf4371b242bd338e33f6dc433f5e4ebbe9c8aefc2d84321e0381"}],"schemaVersion":1}
+  evaluation-oidc-jwks.json: |
+    {"keys":[{"alg":"RS256","e":"AQAB","kid":"clavenar-dev-oidc-v1","kty":"RSA","n":"5aM1W2Y9lnRMSWRhEHSUwurRP2k_foR3hcw93CacCSaoP1pLIuxcWGGjTMvDUOJrTQmn-IPOWn7u8ZEHGNOqjHdpRIe3qKYfbnPVq4l82dij-hGuspGZnSuxp0WTPNQI2taKrP3jA0Vt3KT0h3bIx7BWkik_v0JPWWEDqc8-jvHkWsT4Uudzjt1brTEhuO_8zREsWOiTwjzR6E_9KSpjMe1GlgzSdOF0GnSjQ7kQyeJif9XS4zGSjQW8FEes_t9W1iDnGDqLrpIZSP27CLnSRRKsVnmHIVDgIn25ydDjIlTWc-iToXR3VaBL1NwvSZS6XoTuk-SlxHfBQFF3VaxjYG4PjU9jnXAbdrbLzb54U7-7jWzG6opDkjY59CPhxNKOFGktQyCqir-gzTYuK9fIKh_Gx1uIpY75rzK2vAAoxIdapNZlA0Ku_234cqPVJK_UpnsmUbGHQFYuWp8ObV5UPsLR3pjWj4mUxchaTZMXi4E9BGdUh5IJbZPci4fM3Nnl","use":"sig"}]}
+{{- end }}

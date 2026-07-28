@@ -47,12 +47,15 @@ authSecrets:
   # is a no-op that preserves the current Secret data.
   rotationId: bootstrap-v1
 
-# Dedicated HIL exact-payload encryption key. This Secret is operator-owned
-# in every profile and must contain 64 hexadecimal characters (32 random
-# bytes) at `key`; HIL rejects inline key material and fails before opening
-# SQLite if the mounted file is absent or malformed. Advance
-# authSecrets.rotationId when rotating this Secret so the HIL pod rolls.
+# Dedicated HIL exact-payload encryption key. Production operators own this
+# Secret and provide 64 hexadecimal characters (32 random bytes) at `key`;
+# HIL rejects inline key material and fails before opening SQLite if the
+# mounted file is absent or malformed. The public bundled evaluation recipe
+# opts into a chart-managed, upgrade-stable key in `<release>-shared-tokens`.
+# Advance authSecrets.rotationId when rotating either form so the HIL pod
+# rolls.
 hilPayloadProtection:
+  managedEvaluation: false
   secretName: clavenar-hil-payload
   key: hil-payload-key
 
@@ -64,6 +67,13 @@ hilPayloadProtection:
 attestationTrustAnchors:
   secretName: ""
   key: k8s-trust-anchors.json
+
+# Public verification material for the self-contained evaluation quickstart.
+# This contains no private key or signing authority. The packaged bundled
+# values enable it so Identity can prove its fail-closed OIDC and attestation
+# wiring on a clean cluster; production validation forbids it.
+evaluationPublicTrust:
+  enabled: false
 
 # NATS + Vault default to BYO (bring-your-own). Flip `bundled.enabled`
 # to have the chart install the upstream subcharts alongside the
@@ -286,6 +296,14 @@ agentVaultSeed:
 # Service already exists in the namespace.
 proxyAlias:
   enabled: false
+
+# Bare-name authority DNS alias from `identity` to
+# `<release>-identity.<namespace>.svc.cluster.local`. Managed workload SVIDs
+# carry the stable `DNS:identity` name so their renewed server certificate
+# remains valid across Helm release names. Required whenever workloadIdentity
+# and workload TLS are both enabled.
+identityAlias:
+  enabled: true
 
 # Drain cap in seconds. Set as CLAVENAR_GRACEFUL_DRAIN_SECS;
 # terminationGracePeriodSeconds = drainCapSecs + 5 so kubelet SIGKILL

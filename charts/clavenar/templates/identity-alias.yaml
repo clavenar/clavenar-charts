@@ -1,0 +1,21 @@
+{{/*
+Bare-name TLS authority alias. Identity's renewed workload certificate carries
+the stable DNS:identity SAN, so every managed workload dials this name instead
+of coupling certificate validity to a Helm release name.
+*/}}
+{{- if and .Values.identityAlias.enabled (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: identity
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "identity-alias") | nindent 4 }}
+spec:
+  type: ExternalName
+  externalName: {{ printf "%s-identity.%s.svc.cluster.local" .Release.Name .Release.Namespace }}
+  ports:
+    - name: mtls
+      port: {{ .Values.services.identity.mtlsPort }}
+      targetPort: {{ .Values.services.identity.mtlsPort }}
+      protocol: TCP
+{{- end }}

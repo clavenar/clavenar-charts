@@ -58,7 +58,7 @@ jobs:
       - name: Package the exact chart
         run: |
           helm package charts/clavenar --destination dist
-          sha256sum "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz" \
+          (cd dist && sha256sum "clavenar-${{ github.event.client_payload.component_version }}.tgz") \
             > "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz.sha256"
 
       - name: Log in to the protected OCI registry

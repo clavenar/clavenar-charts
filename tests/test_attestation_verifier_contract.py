@@ -55,7 +55,7 @@ class AttestationVerifierContractChartTests(unittest.TestCase):
         }
         self.assertEqual(
             identity_env["CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE"],
-            "/etc/clavenar/attestation/k8s-trust-anchors.json",
+            "/etc/clavenar/public-trust/k8s-trust-anchors.json",
         )
 
     def test_evaluation_mock_is_explicit_and_proxy_only(self) -> None:
