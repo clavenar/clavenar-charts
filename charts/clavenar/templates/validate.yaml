@@ -154,6 +154,7 @@
 {{- $requireTrustedProxy := $ledger.requireTrustedProxy }}
 {{- $trustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
 {{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
+{{- $simulatorPeers := .Values.networkPolicy.simulator.allowedPeers }}
 {{- $canonicalTrustedProxy := "spiffe://clavenar.local/service/website" }}
 {{- $ledgerCrypto := .Values.ledgerCryptographicVerification }}
 {{- if ne (int $ledger.port) 8083 }}
@@ -205,6 +206,21 @@
 {{- end }}
 {{- if and $requireTrustedProxy (ne (len $trustedProxyPeers) 1) }}
 {{- fail "services.ledger.requireTrustedProxy=true requires exactly one networkPolicy.ledger.trustedProxy.allowedPeers selector" }}
+{{- end }}
+{{- if and (not (empty $simulatorPeers)) (empty .Values.tlsBundle.secretName) }}
+{{- fail "networkPolicy.simulator.allowedPeers requires tlsBundle.secretName for the Simulator workload identity" }}
+{{- end }}
+{{- if and (not (empty $simulatorPeers)) (not .Values.networkPolicy.enabled) }}
+{{- fail "networkPolicy.simulator.allowedPeers requires networkPolicy.enabled=true" }}
+{{- end }}
+{{- range $peer := $simulatorPeers }}
+{{- $namespace := index $peer.namespaceSelector.matchLabels "kubernetes.io/metadata.name" }}
+{{- if eq $namespace $.Release.Namespace }}
+{{- fail "networkPolicy.simulator.allowedPeers must select a namespace distinct from the chart release" }}
+{{- end }}
+{{- if and $.Values.networkPolicy.prometheusNamespaceLabel (eq $namespace $.Values.networkPolicy.prometheusNamespaceLabel) }}
+{{- fail "networkPolicy.simulator.allowedPeers must not overlap the Prometheus namespace" }}
+{{- end }}
 {{- end }}
 {{- if eq $deploymentProfile "production" }}
 {{- if empty .Values.authSecrets.existingSecretName }}

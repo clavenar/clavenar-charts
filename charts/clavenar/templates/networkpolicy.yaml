@@ -6,18 +6,19 @@
 {{- $matrixDigest := sha256sum (toJson $matrix) }}
 {{- $ledgerTrustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
 {{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
+{{- $simulatorPeers := .Values.networkPolicy.simulator.allowedPeers }}
 {{- $callers := dict
       "policyEngine" (list "proxy" "console")
       "ledger" (list "console" "deepReview")
       "hil" (list "proxy" "console" "simulator")
       "assurance" (list "console") -}}
 {{- $readinessCallers := dict
-      "identity" (list "brain" "policyEngine" "ledger" "hil" "proxy" "console")
+      "identity" (list "brain" "policyEngine" "ledger" "hil" "proxy" "console" "simulator")
       "brain" (list "proxy" "console")
       "policyEngine" (list "proxy" "console")
       "ledger" (list "proxy" "console")
-      "hil" (list "proxy" "console")
-      "proxy" (list "assurance")
+      "hil" (list "proxy" "console" "simulator")
+      "proxy" (list "assurance" "simulator")
       "assurance" (list "console") -}}
 {{- range $name, $cfg := .Values.services }}
 {{- if $cfg.enabled }}
@@ -90,11 +91,15 @@ spec:
         {{- toYaml $rule.configuredPeers | nindent 8 }}
         {{- else }}
         {{- range $caller := $rule.callers }}
+        {{- if and (eq ($caller | kebabcase) "simulator") (not (empty $simulatorPeers)) }}
+        {{- toYaml $simulatorPeers | nindent 8 }}
+        {{- else }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: {{ $ctx.Chart.Name }}
               app.kubernetes.io/instance: {{ $ctx.Release.Name }}
               app.kubernetes.io/component: {{ $caller | kebabcase }}
+        {{- end }}
         {{- end }}
         {{- end }}
       {{- end }}
@@ -114,11 +119,15 @@ spec:
     {{- end }}
     - from:
         {{- range $caller := index $readinessCallers $name }}
+        {{- if and (eq ($caller | kebabcase) "simulator") (not (empty $simulatorPeers)) }}
+        {{- toYaml $simulatorPeers | nindent 8 }}
+        {{- else }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: {{ $ctx.Chart.Name }}
               app.kubernetes.io/instance: {{ $ctx.Release.Name }}
               app.kubernetes.io/component: {{ $caller | kebabcase }}
+        {{- end }}
         {{- end }}
       ports:
         - { protocol: TCP, port: {{ $readinessPort }} }
@@ -197,10 +206,19 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "proxy") | nindent 14 }}
-        {{- if .Values.exec.enabled }}
+      {{- if .Values.exec.enabled }}
         - podSelector:
             matchLabels:
               {{- include "clavenar.selectorLabels" (dict "ctx" . "service" "exec") | nindent 14 }}
+      {{- end }}
+        {{- if not (empty $simulatorPeers) }}
+        {{- toYaml $simulatorPeers | nindent 8 }}
+        {{- else }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ .Chart.Name }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: simulator
         {{- end }}
       ports:
         - { protocol: TCP, port: {{ .Values.upstreamStub.port }} }

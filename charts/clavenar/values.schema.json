@@ -1138,6 +1138,9 @@
             }
           }
         },
+        "simulator": {
+          "$ref": "#/definitions/simulatorPeerClass"
+        },
         "console": {
           "type": "object",
           "additionalProperties": false,
@@ -1394,6 +1397,65 @@
               }
             }
           }
+        }
+      }
+    },
+    "simulatorPeerClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedPeers"],
+      "properties": {
+        "allowedPeers": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["podSelector", "namespaceSelector"],
+            "properties": {
+              "podSelector": {
+                "$ref": "#/definitions/canonicalSimulatorPodSelector"
+              },
+              "namespaceSelector": {
+                "$ref": "#/definitions/externalSimulatorNamespaceSelector"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalSimulatorPodSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["app.kubernetes.io/name"],
+          "properties": {
+            "app.kubernetes.io/name": { "const": "clavenar-simulator" }
+          },
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "externalSimulatorNamespaceSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["kubernetes.io/metadata.name"],
+          "properties": {
+            "kubernetes.io/metadata.name": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": { "type": "string" }
         }
       }
     },

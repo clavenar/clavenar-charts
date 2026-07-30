@@ -1010,6 +1010,13 @@ networkPolicy:
       # explicit namespace distinct from the chart release and Prometheus
       # namespaces. Peers are rejected when bundled NATS is disabled.
       allowedPeers: []
+  # Optional separately deployed Simulator peer. The modern k3s topology
+  # installs Simulator in clavenar-demo, so its application and readiness
+  # calls must cross the namespace boundary without admitting arbitrary
+  # workloads. When empty, the legacy same-namespace simulator selectors
+  # remain in force.
+  simulator:
+    allowedPeers: []
   # Console trust classes are isolated by listener and port. Both peer
   # lists are empty by default, preserving an exact default-deny ingress
   # policy. Add explicit NetworkPolicyPeer objects only for the workload

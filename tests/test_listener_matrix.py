@@ -1512,6 +1512,142 @@ class ListenerMatrixTest(unittest.TestCase):
             [rule["ports"] for rule in demo_mint_rules],
         )
 
+    def test_external_simulator_peer_is_exact_and_reaches_only_governed_ports(self):
+        peer = {
+            "namespaceSelector": {
+                "matchLabels": {
+                    "kubernetes.io/metadata.name": "clavenar-demo"
+                }
+            },
+            "podSelector": {
+                "matchLabels": {
+                    "app.kubernetes.io/name": "clavenar-simulator"
+                }
+            },
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "simulator-peer.yaml"
+            fixture.write_text(
+                yaml.safe_dump(
+                    {"networkPolicy": {"simulator": {"allowedPeers": [peer]}}},
+                    sort_keys=False,
+                )
+            )
+            overlays = [ROOT / "tests/values-bundled.yaml", fixture]
+            command = [
+                "helm",
+                "template",
+                "smoke",
+                str(ROOT / "charts/clavenar"),
+                "--namespace",
+                "clavenar",
+            ]
+            for overlay in overlays:
+                command.extend(["-f", str(overlay)])
+            output = subprocess.run(
+                command, check=True, text=True, capture_output=True
+            ).stdout
+            documents = [
+                item
+                for item in yaml.safe_load_all(output)
+                if isinstance(item, dict)
+            ]
+            values = CHECKER.effective_values(
+                ROOT / "charts/clavenar", overlays
+            )
+            self.assertEqual(
+                [],
+                CHECKER.validate(
+                    self.matrix,
+                    values,
+                    documents,
+                    "smoke",
+                    "clavenar",
+                    chart_app_version=self.chart_app_version,
+                ),
+            )
+
+        expected = {
+            "smoke-proxy": {8080},
+            "smoke-hil": {8084, 9084},
+            "smoke-identity": {8086, 8186},
+            "smoke-ledger": {8183},
+            "smoke-upstream-stub": {9000},
+        }
+        actual = {}
+        for document in documents:
+            if document.get("kind") != "NetworkPolicy":
+                continue
+            ports = {
+                rule["ports"][0]["port"]
+                for rule in document["spec"].get("ingress", [])
+                if peer in (rule.get("from") or [])
+            }
+            if ports:
+                actual[document["metadata"]["name"]] = ports
+        self.assertEqual(expected, actual)
+
+        def changed(mutator):
+            value = {
+                "tlsBundle": {"secretName": "smoke-tls"},
+                "networkPolicy": {"simulator": {"allowedPeers": [copy.deepcopy(peer)]}},
+            }
+            mutator(value)
+            return value
+
+        cases = {
+            "network policy disabled": changed(
+                lambda value: value["networkPolicy"].update(enabled=False)
+            ),
+            "workload TLS disabled": changed(
+                lambda value: value["tlsBundle"].update(secretName="")
+            ),
+            "wrong simulator app": changed(
+                lambda value: value["networkPolicy"]["simulator"][
+                    "allowedPeers"
+                ][0]["podSelector"]["matchLabels"].update(
+                    {"app.kubernetes.io/name": "other-simulator"}
+                )
+            ),
+            "release namespace overlap": changed(
+                lambda value: value["networkPolicy"]["simulator"][
+                    "allowedPeers"
+                ][0]["namespaceSelector"]["matchLabels"].update(
+                    {"kubernetes.io/metadata.name": "clavenar"}
+                )
+            ),
+            "Prometheus namespace overlap": changed(
+                lambda value: value["networkPolicy"].update(
+                    prometheusNamespaceLabel="clavenar-demo"
+                )
+            ),
+            "multiple simulator selectors": changed(
+                lambda value: value["networkPolicy"]["simulator"].update(
+                    allowedPeers=[peer, copy.deepcopy(peer)]
+                )
+            ),
+        }
+        for name, values in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                fixture = Path(directory) / "values.yaml"
+                fixture.write_text(yaml.safe_dump(values, sort_keys=False))
+                result = subprocess.run(
+                    [
+                        "helm",
+                        "template",
+                        "smoke",
+                        str(ROOT / "charts/clavenar"),
+                        "--namespace",
+                        "clavenar",
+                        "-f",
+                        str(fixture),
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(0, result.returncode, name)
+
     def test_ledger_full_verify_limiter_inventory_is_complete(self):
         expected = {
             "public-read": (
@@ -2217,6 +2353,30 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertEqual(
             "clavenar-demo-mint",
             demo_mint_labels["properties"]["app.kubernetes.io/name"]["const"],
+        )
+        simulator_peer = schema["properties"]["networkPolicy"]["properties"][
+            "simulator"
+        ]
+        self.assertEqual(
+            "#/definitions/simulatorPeerClass",
+            simulator_peer["$ref"],
+        )
+        simulator_peers = schema["definitions"]["simulatorPeerClass"][
+            "properties"
+        ]["allowedPeers"]
+        self.assertEqual(1, simulator_peers["maxItems"])
+        self.assertEqual(
+            {"podSelector", "namespaceSelector"},
+            set(simulator_peers["items"]["required"]),
+        )
+        simulator_labels = schema["definitions"][
+            "canonicalSimulatorPodSelector"
+        ]["properties"]["matchLabels"]
+        self.assertEqual(
+            "clavenar-simulator",
+            simulator_labels["properties"][
+                "app.kubernetes.io/name"
+            ]["const"],
         )
 
         assurance = schema["properties"]["services"]["properties"]["assurance"]

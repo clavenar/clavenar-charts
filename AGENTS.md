@@ -161,7 +161,9 @@ health.
   classes default denied until their independent `allowedPeers` lists supply
   explicit selectors. The separately deployed demo-mint may reach bundled
   NATS `:4222` only through its canonical external-namespace selector; it never
-  reaches the unauthenticated monitor. Console probes/scrapes use
+  reaches the unauthenticated monitor. The optional separately deployed
+  Simulator peer substitutes one canonical external-namespace selector across
+  only its governed application and readiness ports. Console probes/scrapes use
   diagnostics-only 9185. Keep
   `listeners.yaml`, its checker, and policy templates in lockstep. **PDB** emits only where
   `replicas > 1` (SQLite singletons skip naturally; `minAvailable=ceil/2`).

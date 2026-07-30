@@ -461,7 +461,10 @@ apply walkthrough.
   unrestricted source only on agent mTLS port 8443. Console operator and
   demo ingress use independent, empty-by-default peer lists; the production
   example selects only the k3s Traefik pod for demo `:9085`. The external
-  website selector reaches only Ledger mTLS `:8183`. When bundled NATS is
+  website selector reaches only Ledger mTLS `:8183`. An optional canonical
+  external Simulator selector replaces the legacy same-namespace Simulator
+  peer on Identity, HIL, Ledger, Proxy-readiness, and upstream-readiness
+  ports; it requires workload TLS and a distinct namespace. When bundled NATS is
   enabled, `networkPolicy.nats.demoMint.allowedPeers` may select one canonical
   `clavenar-demo-mint` pod in an explicit external namespace for client
   `:4222`; that selector never reaches monitor `:8222`. Prometheus
