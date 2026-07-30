@@ -103,9 +103,11 @@ health.
 - **Image identity:** `services.<svc>.image.digest` selects the exact protected
   release image and takes precedence over the legacy
   `services.<svc>.image.tag → .Values.imageTag → .Chart.AppVersion` fallback.
-  Publication emits an exact digest values file; use it for any supported
-  install. Root `VERSION` and `appVersion` remain frozen at the last legacy
-  image set. The local publisher is a fail-closed tombstone; protected releases
+  Production refuses every enabled core service without a digest and also
+  requires one for the curated upstream when enabled. Publication emits an
+  exact digest values file; use it for any supported install. Root `VERSION`
+  and `appVersion` remain frozen at the last legacy image set. The local
+  publisher is a fail-closed tombstone; protected releases
   stage digest-only component artifacts and one signed stack-BOM reference
   from clavenar-e2e.
   The evaluation-only Exec workload accepts `exec.image.tag` for unique local

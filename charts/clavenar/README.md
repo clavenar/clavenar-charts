@@ -95,6 +95,9 @@ origins, namespaces, and exact workload labels over maintaining the long
 command above. The production profile refuses to render unless all of these
 boundaries are present together:
 
+- every enabled governed service has an exact `image.digest`; an enabled
+  curated upstream has one too, so production never falls back to a mutable
+  tag or the frozen chart `appVersion`;
 - `authSecrets.existingSecretName` selects operator-managed HIL credentials;
 - `authSecrets.rotationId` selects an explicit non-secret credential generation;
 - `attestationTrustAnchors.secretName` selects the public Kubernetes Ed25519
@@ -118,6 +121,8 @@ boundaries are present together:
 - that selector fixes `app.kubernetes.io/name=clavenar-website` in an explicit
   namespace distinct from the Helm release and Prometheus namespaces.
 
+The digests in `tests/values-production.yaml` are inert test stand-ins. A real
+install layers the verified protected-release digest values file instead.
 Passing this render gate is not production-readiness certification. It proves
 only that the chart's governed configuration boundary is present; operators
 remain responsible for validating matching service images and release

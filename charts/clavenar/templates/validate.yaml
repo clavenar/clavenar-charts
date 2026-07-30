@@ -230,6 +230,14 @@
 {{- fail "networkPolicy.demoReset.allowedPeers requires networkPolicy.enabled=true" }}
 {{- end }}
 {{- if eq $deploymentProfile "production" }}
+{{- range $name, $cfg := .Values.services }}
+{{- if and $cfg.enabled (or (empty $cfg.image.digest) (regexMatch "^sha256:0{64}$" $cfg.image.digest)) }}
+{{- fail (printf "deploymentProfile=production requires a non-zero services.%s.image.digest for every enabled governed service" $name) }}
+{{- end }}
+{{- end }}
+{{- if and .Values.upstreamStub.enabled (or (empty .Values.upstreamStub.image.digest) (regexMatch "^sha256:0{64}$" .Values.upstreamStub.image.digest)) }}
+{{- fail "deploymentProfile=production requires a non-zero upstreamStub.image.digest when the curated upstream is enabled" }}
+{{- end }}
 {{- if empty .Values.authSecrets.existingSecretName }}
 {{- fail "deploymentProfile=production requires authSecrets.existingSecretName from an operator-managed secret store" }}
 {{- end }}
