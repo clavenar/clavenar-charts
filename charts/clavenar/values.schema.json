@@ -36,7 +36,7 @@
         "image": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["repository", "digest", "pullPolicy"],
+          "required": ["repository", "digest", "tag", "pullPolicy"],
           "properties": {
             "repository": {
               "type": "string",
@@ -45,6 +45,10 @@
             "digest": {
               "type": "string",
               "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "tag": {
+              "type": "string",
+              "pattern": "^$|^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$"
             },
             "pullPolicy": {
               "enum": ["Always", "IfNotPresent", "Never"]

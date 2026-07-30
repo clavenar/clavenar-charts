@@ -82,7 +82,7 @@ spec:
               mountPath: /projected
       containers:
         - name: {{ $name }}
-          image: "{{ .Values.exec.image.repository }}@{{ .Values.exec.image.digest }}"
+          image: {{ include "clavenar.imageRef" (dict "ctx" . "svcCfg" .Values.exec) }}
           imagePullPolicy: {{ .Values.exec.image.pullPolicy }}
           ports:
             - name: mtls

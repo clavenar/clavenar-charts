@@ -108,8 +108,9 @@ health.
   image set. The local publisher is a fail-closed tombstone; protected releases
   stage digest-only component artifacts and one signed stack-BOM reference
   from clavenar-e2e.
-  The evaluation-only Exec workload is deliberately stricter:
-  `exec.image.digest` is mandatory when enabled and has no tag fallback.
+  The evaluation-only Exec workload accepts `exec.image.tag` for unique local
+  builds, with the same digest-wins behavior; `latest` is refused and the
+  production profile continues to forbid Exec.
 - **tlsBundle drives mTLS.** Empty `tlsBundle.secretName` → no `/certs` mount →
   proxy + identity panic at boot. When set, backend services flip their app port
   to rustls; Ledger, Policy Engine, HIL, and Identity then require the packaged
@@ -134,11 +135,11 @@ health.
   never replace readiness with process-only or TCP-only gating.
 - **Exec process calls are structured and evaluation-only.** The exact
   `structured-execution-v1` schema/fixture is mounted immutable and read-only.
-  Exec requires a digest image, nonroot/read-only container, 64 MiB memory
-  scratch, RuntimeDefault seccomp, dropped capabilities, no privilege
-  escalation, and default-deny egress admitting only cluster DNS plus the exact
-  upstream-stub peer. Do not restore `bash`, `cmd`, tag fallback, writable root,
-  or unrestricted egress.
+  Exec requires either a digest image or a unique non-`latest` evaluation tag,
+  nonroot/read-only container, 64 MiB memory scratch, RuntimeDefault seccomp,
+  dropped capabilities, no privilege escalation, and default-deny egress
+  admitting only cluster DNS plus the exact upstream-stub peer. Do not restore
+  `bash`, `cmd`, mutable fallback tags, writable root, or unrestricted egress.
 - **Exec ceilings are fixed.** The exact `execution-ceilings-v1` contract is
   immutable in the chart and compiled into Exec. Do not restore
   `timeoutSecs`/`CLAVENAR_EXEC_TIMEOUT_SECS`, arbitrary Exec resources,

@@ -240,9 +240,12 @@ upstreamStub:
 exec:
   enabled: false
   image:
-    repository: ghcr.io/clavenar/clavenar-exec
-    # Required when enabled. Tags and mutable fallbacks are forbidden.
+    repository: clavenar-exec
+    # Exact protected artifact identity; takes precedence over tag.
     digest: ""
+    # Evaluation/dev fallback for locally built images. Use a unique
+    # build-derived value; `latest` is rejected. Production forbids Exec.
+    tag: ""
     pullPolicy: IfNotPresent
   port: 9001
   # Plain health-only listener. It never serves MCP or tool routes.

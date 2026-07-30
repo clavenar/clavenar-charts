@@ -77,8 +77,11 @@
 {{- if not .Values.networkPolicy.enabled }}
 {{- fail "exec.enabled=true requires networkPolicy.enabled=true" }}
 {{- end }}
-{{- if empty .Values.exec.image.digest }}
-{{- fail "exec.enabled=true requires exec.image.digest for immutable execution" }}
+{{- if and (empty .Values.exec.image.digest) (empty .Values.exec.image.tag) }}
+{{- fail "exec.enabled=true requires exec.image.digest or an immutable exec.image.tag" }}
+{{- end }}
+{{- if and (empty .Values.exec.image.digest) (eq .Values.exec.image.tag "latest") }}
+{{- fail "exec.image.tag=latest is forbidden; use a unique evaluation build tag or an exact digest" }}
 {{- end }}
 {{- if ne .Values.exec.scratchSizeLimit "64Mi" }}
 {{- fail "exec.scratchSizeLimit must remain 64Mi for structured execution v1" }}

@@ -139,7 +139,7 @@ recovery, and runtime behavior in the target cluster.
 | Identity authority DNS | Stable `identity` ExternalName alias matches renewed workload-SVID certificates across release names | The same alias is required while managed workload renewal is enabled |
 | Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
-| Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes `execute_command` plus six governed file/fetch tools. Process calls select only the immutable structured allowlist; no shell string exists, and every call lands in the ledger | Evaluation-only; production rejects opt-in |
+| Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes `execute_command` plus six governed file/fetch tools. Process calls select only the immutable structured allowlist; no shell string exists, and every call lands in the ledger | Evaluation-only; exact digest or unique non-`latest` local-build tag, with digest taking precedence; production rejects opt-in |
 | Agent Vault credential | Stub `secret/data/agents/_legacy_unqualified/agent-001` seeded by post-install Job when `agentVaultSeed.enabled=true` | Operator seeds tenant-qualified per-agent entries against their own Vault |
 | Proxy DNS alias | ExternalName `proxy` → `<release>-proxy` (CNAME) emitted when `proxyAlias.enabled=true` so in-cluster clients can dial bare `https://proxy:8443/mcp` and match the cert SAN | Skip when an Ingress / Gateway terminates mTLS upstream (it'll send the right SNI on the agent's behalf) |
 | Audience | Evaluation / kind / single-tenant dev clusters | Production / multi-tenant clusters |
@@ -554,12 +554,13 @@ apply walkthrough.
   identifier, ordered named slots, and environment allowlist; it invokes an
   absolute executable directly with no shell or `PATH`. Single
   replica because the workspace PVC is shared RW with the lab
-  agent pod. The image is digest-pinned, the policy is immutable/read-only,
-  scratch is a 64 MiB memory volume, and egress defaults denied except exact
-  cluster DNS and upstream-stub peers. Fetches validate the complete bounded
-  DNS set, pin one deterministic public answer while retaining Host/SNI
-  identity, and repeat the exact allowlist/resolve/validate/pin sequence for at
-  most five manual redirects. Sandboxing is container-runtime
+  agent pod. The image uses an exact digest or a unique non-`latest`
+  evaluation build tag (digest takes precedence), the policy is
+  immutable/read-only, scratch is a 64 MiB memory volume, and egress defaults
+  denied except exact cluster DNS and upstream-stub peers. Fetches validate the
+  complete bounded DNS set, pin one deterministic public answer while retaining
+  Host/SNI identity, and repeat the exact allowlist/resolve/validate/pin
+  sequence for at most five manual redirects. Sandboxing is container-runtime
   isolation (`readOnlyRootFilesystem`, nonroot UID/GID 65532, no privilege
   escalation, capability drop, RuntimeDefault seccomp). This path is
   evaluation-only:

@@ -52,7 +52,7 @@ def test_contract_is_strict_and_rendered_byte_exact():
     assert json.loads(config_map["data"][FIXTURE_PATH.name]) == fixture
 
 
-def test_exec_binds_digest_policy_and_real_container_isolation():
+def test_exec_binds_image_policy_and_real_container_isolation():
     documents = render_optional()
     deployment = next(
         document
@@ -111,6 +111,81 @@ def test_exec_binds_digest_policy_and_real_container_isolation():
     }
 
 
+def test_exec_accepts_unique_evaluation_tag_and_digest_wins():
+    tag = "dev-0123456789abcdef-a1b2c3d4e5f6"
+    arguments = [
+        "-f",
+        str(OPTIONAL_VALUES),
+        "--set-string",
+        "imageRegistry=localhost:5000",
+        "--set-string",
+        "exec.image.digest=",
+        "--set-string",
+        f"exec.image.tag={tag}",
+    ]
+    output = subprocess.run(
+        ["helm", "template", "structured", str(CHART), *arguments],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    documents = [
+        document
+        for document in yaml.safe_load_all(output)
+        if isinstance(document, dict)
+    ]
+    deployment = next(
+        document
+        for document in documents
+        if document.get("kind") == "Deployment"
+        and document["metadata"]["name"] == "structured-exec"
+    )
+    container = next(
+        item
+        for item in deployment["spec"]["template"]["spec"]["containers"]
+        if item["name"] == "exec"
+    )
+    assert container["image"] == f"localhost:5000/clavenar-exec:{tag}"
+
+    digest_output = subprocess.run(
+        [
+            "helm",
+            "template",
+            "structured",
+            str(CHART),
+            "-f",
+            str(OPTIONAL_VALUES),
+            "--set-string",
+            "imageRegistry=localhost:5000",
+            "--set-string",
+            f"exec.image.tag={tag}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    digest_documents = [
+        document
+        for document in yaml.safe_load_all(digest_output)
+        if isinstance(document, dict)
+    ]
+    digest_deployment = next(
+        document
+        for document in digest_documents
+        if document.get("kind") == "Deployment"
+        and document["metadata"]["name"] == "structured-exec"
+    )
+    digest_container = next(
+        item
+        for item in digest_deployment["spec"]["template"]["spec"]["containers"]
+        if item["name"] == "exec"
+    )
+    assert digest_container["image"].startswith(
+        "localhost:5000/clavenar-exec@sha256:"
+    )
+    assert f":{tag}" not in digest_container["image"]
+
+
 def test_exec_egress_is_default_deny_with_only_dns_and_fallback():
     policy = next(
         document
@@ -152,7 +227,7 @@ def test_exec_egress_is_default_deny_with_only_dns_and_fallback():
     ]
 
 
-def test_mutable_or_weakened_exec_values_fail():
+def test_missing_mutable_or_weakened_exec_values_fail():
     cases = [
         (
             [
@@ -161,7 +236,7 @@ def test_mutable_or_weakened_exec_values_fail():
                 "--set-string",
                 "exec.image.digest=",
             ],
-            "requires exec.image.digest",
+            "requires exec.image.digest or an immutable exec.image.tag",
         ),
         (
             [
@@ -176,10 +251,12 @@ def test_mutable_or_weakened_exec_values_fail():
             [
                 "-f",
                 str(OPTIONAL_VALUES),
-                "--set",
+                "--set-string",
+                "exec.image.digest=",
+                "--set-string",
                 "exec.image.tag=latest",
             ],
-            "Additional property tag is not allowed",
+            "exec.image.tag=latest is forbidden",
         ),
     ]
     for arguments, message in cases:
@@ -197,11 +274,14 @@ class StructuredExecutionTests(unittest.TestCase):
     def test_contract_is_strict_and_rendered_byte_exact(self):
         test_contract_is_strict_and_rendered_byte_exact()
 
-    def test_exec_binds_digest_policy_and_real_container_isolation(self):
-        test_exec_binds_digest_policy_and_real_container_isolation()
+    def test_exec_binds_image_policy_and_real_container_isolation(self):
+        test_exec_binds_image_policy_and_real_container_isolation()
+
+    def test_exec_accepts_unique_evaluation_tag_and_digest_wins(self):
+        test_exec_accepts_unique_evaluation_tag_and_digest_wins()
 
     def test_exec_egress_is_default_deny_with_only_dns_and_fallback(self):
         test_exec_egress_is_default_deny_with_only_dns_and_fallback()
 
-    def test_mutable_or_weakened_exec_values_fail(self):
-        test_mutable_or_weakened_exec_values_fail()
+    def test_missing_mutable_or_weakened_exec_values_fail(self):
+        test_missing_mutable_or_weakened_exec_values_fail()

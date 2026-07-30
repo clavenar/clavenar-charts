@@ -26,6 +26,8 @@ class ProtectedImageValuesTests(unittest.TestCase):
         for service in services:
             self.assertEqual(values["services"][service]["image"]["digest"], "")
         self.assertEqual(values["upstreamStub"]["image"]["digest"], "")
+        self.assertEqual(values["exec"]["image"]["digest"], "")
+        self.assertEqual(values["exec"]["image"]["tag"], "")
 
     def test_digest_precedes_every_legacy_tag_fallback(self) -> None:
         helpers = (
@@ -47,6 +49,19 @@ class ProtectedImageValuesTests(unittest.TestCase):
         self.assertIn("$digest := default", template)
         self.assertIn("@{{ $digest }}", template)
         self.assertIn("^sha256:[a-f0-9]{64}$", template)
+
+    def test_exec_uses_the_shared_digest_precedence_helper(self) -> None:
+        template = (
+            ROOT / "charts/clavenar/templates/exec.yaml"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            'include "clavenar.imageRef" (dict "ctx" . "svcCfg" .Values.exec)',
+            template,
+        )
+        self.assertNotIn(
+            ".Values.exec.image.repository }}@{{ .Values.exec.image.digest",
+            template,
+        )
 
 
 if __name__ == "__main__":
