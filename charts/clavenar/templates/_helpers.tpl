@@ -146,12 +146,10 @@ mode autogenerates `<release>-vault-token`; BYO mode honors
 {{- end -}}
 {{- end -}}
 
-{{/* Workload names that need a per-service cert. Always includes
-the 9 in-chart clavenar services from .Values.tlsBundle.bundleServices;
-"nats" is appended when nats.bundled.enabled so the bundled NATS
-StatefulSet (which mounts the same Secret for TLS) finds its own
-keypair. Emits a space-separated list — consumed by the auto-mint
-Job's env. */}}
+{{/* Workload names that need a per-service cert. Values include the 9
+in-chart services and external website/demo-mint/simulator peers; "exec" and
+"nats" are appended when enabled. Emits a space-separated list consumed by
+the auto-mint Job. */}}
 {{- define "clavenar.bundleServices" -}}
 {{- $services := default (list) .Values.tlsBundle.bundleServices -}}
 {{- if .Values.exec.enabled -}}

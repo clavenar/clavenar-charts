@@ -61,7 +61,7 @@ charts/clavenar/
     execution-ceilings-contract.yaml outbound-resolution-pinning-contract.yaml
     shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
-    tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: self-signed CA + per-service workload certs
+    tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: CA + chart/peer workload certs
     vault-{bootstrap,seed}-job.yaml       # dev-mode transit engine + stub agent credential
     dashboards-configmap.yaml prometheus-rule.yaml alertmanager-config.yaml
   dashboards/ alerts/   # Grafana JSON + Prometheus rules, label-discovered by kube-prometheus-stack
@@ -120,7 +120,9 @@ health.
   owner-bound memory volume: private keys are mode 0600 and certificates 0444.
   Each pod sees only `ca.crt` + its own `service-<name>.{crt,key}`; Identity
   alone adds `ca.key`, and Proxy alone adds `server.{crt,key}`. Generic and peer
-  private keys stay absent. Don't collapse that isolation.
+  private keys stay absent. The bundle also mints website, demo-mint, and
+  simulator peer identities for separately deployed consumers; chart-managed
+  pods never receive those keys. Don't collapse that isolation.
 - **Brain provider operations never use diagnostics.** The chart renders
   strict exact callers and body/rate/spend/timeout controls for
   `/explain-pattern` and `/narrate-decision`; `:9081` is only `/`, `/health`,

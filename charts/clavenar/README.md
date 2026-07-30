@@ -491,7 +491,10 @@ apply walkthrough.
   (legacy starter-agent client); assurance also mounts that generic client
   pair for synthetic proxy attacks while its control listener uses only
   `service-assurance.{crt,key}`. No pod can read another service's
-  private key. Generate the bundle with
+  private key. Evaluation auto-mint also creates exact website, demo-mint,
+  and simulator peer identities for a deployment layer to project only into
+  those separately deployed workloads; chart-managed pods do not mount their
+  keys. Generate a production bundle with
   `clavenar-proxy/scripts/gen_certs.sh --env prod` then
   `kubectl create secret generic clavenar-tls --from-file=clavenar-proxy/certs/`.
 - **Persistent workload identity** — with TLS enabled,
@@ -733,6 +736,9 @@ The default `rotation.operation=reconcile` initializes an absent Secret,
 performs a metadata-only migration of a valid legacy Secret, or preserves a
 canonical stable Secret byte-for-byte. A generation change or membership
 change under `reconcile` fails closed instead of silently replacing trust.
+The default membership includes the chart-managed services plus the external
+website, demo-mint, and simulator peers. Adding those identities to an existing
+auto-minted Secret is a membership rotation, not an ordinary reconcile.
 
 To rotate, advance the generation and select exactly one governed reason:
 

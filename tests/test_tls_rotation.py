@@ -333,6 +333,25 @@ class TlsRotationRenderTests(unittest.TestCase):
         self.assertIn("clavenar.io/tls-secret-digest", apply_script)
         self.assertIn("clavenar.com/tls-rollback-available", apply_script)
 
+    def test_default_bundle_includes_external_peer_identities(self):
+        job = self.resource("Job", "smoke-tls-automint")
+        pod = job["spec"]["template"]["spec"]
+        mint = next(
+            container
+            for container in pod["initContainers"]
+            if container["name"] == "mint"
+        )
+        bundle_services = next(
+            item["value"]
+            for item in mint["env"]
+            if item["name"] == "BUNDLE_SERVICES"
+        ).split()
+
+        for service in ("website", "demo-mint", "simulator"):
+            with self.subTest(service=service):
+                self.assertIn(service, bundle_services)
+        self.assertEqual(len(bundle_services), len(set(bundle_services)))
+
     def test_invalid_rotation_policy_is_rejected(self):
         cases = (
             ["--set", "tlsBundle.rotation.reason=expiry"],

@@ -1239,6 +1239,9 @@ class ListenerMatrixTest(unittest.TestCase):
             if entry["name"] == "BUNDLE_SERVICES"
         ).split()
         self.assertIn("assurance", bundle_services)
+        self.assertTrue(
+            {"website", "demo-mint", "simulator"}.issubset(bundle_services)
+        )
 
     def test_console_peer_checker_rejects_broad_selectors(self):
         valid = {

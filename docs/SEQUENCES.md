@@ -268,7 +268,10 @@ the exact qualified layout label and complete existing Secret, an openssl
 `apply` container performs the transaction. The `/state` and `/work`
 emptyDirs are memory-backed. Ordinary `reconcile` upgrades preserve valid
 Secret bytes exactly; missing, foreign, partial, mismatched, or implicit trust
-changes fail closed. An explicit `rotate` advances a generation through
+changes fail closed. Default membership covers the nine chart-managed
+services plus website, demo-mint, and simulator peer identities; the product
+pods still project only their own keys. An explicit `rotate` advances a
+generation through
 old-leaf/dual-root, new-leaf/dual-root, and new-only phases, waiting for every
 TLS consumer to become Ready at each boundary. Failure restores the prior
 generation, while success retains only the old public CA in a history Secret.
