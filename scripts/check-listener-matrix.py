@@ -210,6 +210,10 @@ def expected_policies(matrix, values, release):
                         sources.extend(
                             value_at(values, "networkPolicy.ledger.trustedProxy.allowedPeers") or []
                         )
+                    elif token == "configured-nats-demo-mint-peers":
+                        sources.extend(
+                            value_at(values, "networkPolicy.nats.demoMint.allowedPeers") or []
+                        )
                     elif token == "vault":
                         sources.append({"podSelector": {"matchLabels": target}})
                     elif token in matrix.get("peerSelectors", {}):
@@ -339,6 +343,59 @@ def validate_ledger_trusted_proxy_peer(values, release_namespace, errors):
         if website_namespace == prometheus_namespace:
             errors.append(
                 f"website namespace {website_namespace} must differ from the Prometheus namespace"
+            )
+
+
+def validate_nats_demo_mint_peer(values, release_namespace, errors):
+    path = "networkPolicy.nats.demoMint.allowedPeers"
+    peers = value_at(values, path) or []
+    if peers and not value_at(values, "networkPolicy.enabled"):
+        errors.append(f"{path} requires networkPolicy.enabled=true")
+    if peers and not value_at(values, "nats.bundled.enabled"):
+        errors.append(f"{path} requires nats.bundled.enabled=true")
+    if len(peers) > 1:
+        errors.append(f"{path} accepts at most one exact selector")
+    prometheus_namespace = value_at(
+        values, "networkPolicy.prometheusNamespaceLabel"
+    ) or ""
+    for index, configured in enumerate(peers):
+        if not isinstance(configured, dict):
+            continue
+        pod_selector = configured.get("podSelector")
+        pod_labels = (
+            pod_selector.get("matchLabels")
+            if isinstance(pod_selector, dict)
+            else {}
+        )
+        if not isinstance(pod_labels, dict):
+            pod_labels = {}
+        if pod_labels.get("app.kubernetes.io/name") != "clavenar-demo-mint":
+            errors.append(
+                f"{path}[{index}] must include "
+                "podSelector.matchLabels[app.kubernetes.io/name]=clavenar-demo-mint"
+            )
+        namespace_selector = configured.get("namespaceSelector")
+        namespace_labels = (
+            namespace_selector.get("matchLabels")
+            if isinstance(namespace_selector, dict)
+            else {}
+        )
+        if not isinstance(namespace_labels, dict):
+            namespace_labels = {}
+        demo_namespace = namespace_labels.get("kubernetes.io/metadata.name")
+        if not isinstance(demo_namespace, str) or not demo_namespace:
+            errors.append(
+                f"{path}[{index}] must explicitly select a non-empty "
+                "namespaceSelector.matchLabels[kubernetes.io/metadata.name]"
+            )
+            continue
+        if demo_namespace == release_namespace:
+            errors.append(
+                f"demo-mint namespace {demo_namespace} must differ from the release namespace"
+            )
+        if demo_namespace == prometheus_namespace:
+            errors.append(
+                f"demo-mint namespace {demo_namespace} must differ from the Prometheus namespace"
             )
 
 
@@ -1313,10 +1370,12 @@ def validate(
             "networkPolicy.console.operatorMtls.allowedPeers",
             "networkPolicy.console.demo.allowedPeers",
             "networkPolicy.ledger.trustedProxy.allowedPeers",
+            "networkPolicy.nats.demoMint.allowedPeers",
         ),
         errors,
     )
     validate_ledger_trusted_proxy_peer(values, namespace, errors)
+    validate_nats_demo_mint_peer(values, namespace, errors)
     validate_deployment_profile(values, errors)
 
     active_listeners = [

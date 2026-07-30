@@ -1128,6 +1128,16 @@
             }
           }
         },
+        "nats": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["demoMint"],
+          "properties": {
+            "demoMint": {
+              "$ref": "#/definitions/natsDemoMintPeerClass"
+            }
+          }
+        },
         "console": {
           "type": "object",
           "additionalProperties": false,
@@ -1360,6 +1370,65 @@
               }
             }
           }
+        }
+      }
+    },
+    "natsDemoMintPeerClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedPeers"],
+      "properties": {
+        "allowedPeers": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["podSelector", "namespaceSelector"],
+            "properties": {
+              "podSelector": {
+                "$ref": "#/definitions/canonicalDemoMintPodSelector"
+              },
+              "namespaceSelector": {
+                "$ref": "#/definitions/externalDemoMintNamespaceSelector"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalDemoMintPodSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["app.kubernetes.io/name"],
+          "properties": {
+            "app.kubernetes.io/name": { "const": "clavenar-demo-mint" }
+          },
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "externalDemoMintNamespaceSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["kubernetes.io/metadata.name"],
+          "properties": {
+            "kubernetes.io/metadata.name": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": { "type": "string" }
         }
       }
     },

@@ -5,6 +5,7 @@
 {{- $_ := unset $matrix "reviewedContractSha256" }}
 {{- $matrixDigest := sha256sum (toJson $matrix) }}
 {{- $ledgerTrustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
+{{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
 {{- $callers := dict
       "policyEngine" (list "proxy" "console")
       "ledger" (list "console" "deepReview")
@@ -233,6 +234,12 @@ spec:
         {{- end }}
       ports:
         - { protocol: TCP, port: 4222 }
+    {{- if not (empty $natsDemoMintPeers) }}
+    - from:
+        {{- toYaml $natsDemoMintPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: 4222 }
+    {{- end }}
     - from:
         {{- range $caller := list "proxy" "policy-engine" "ledger" "hil" "identity" "deep-review" "assurance" }}
         - podSelector:

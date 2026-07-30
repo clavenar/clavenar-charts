@@ -1285,6 +1285,68 @@ class ListenerMatrixTest(unittest.TestCase):
                 )
                 self.assertTrue(errors)
 
+    def test_nats_demo_mint_peer_mutations_fail_closed(self):
+        base = yaml.safe_load(
+            (ROOT / "tests/values-bundled.yaml").read_text(encoding="utf-8")
+        )
+
+        def changed(mutator):
+            candidate = copy.deepcopy(base)
+            mutator(candidate)
+            return candidate
+
+        peer = base["networkPolicy"]["nats"]["demoMint"]["allowedPeers"][0]
+        cases = {
+            "network policy disabled": changed(
+                lambda value: value["networkPolicy"].update(enabled=False)
+            ),
+            "bundled NATS disabled": changed(
+                lambda value: value["nats"]["bundled"].update(enabled=False)
+            ),
+            "wrong demo-mint app": changed(
+                lambda value: value["networkPolicy"]["nats"]["demoMint"][
+                    "allowedPeers"
+                ][0]["podSelector"]["matchLabels"].update(
+                    {"app.kubernetes.io/name": "other-mint"}
+                )
+            ),
+            "release namespace overlap": changed(
+                lambda value: value["networkPolicy"]["nats"]["demoMint"][
+                    "allowedPeers"
+                ][0]["namespaceSelector"]["matchLabels"].update(
+                    {"kubernetes.io/metadata.name": "default"}
+                )
+            ),
+            "Prometheus namespace overlap": changed(
+                lambda value: value["networkPolicy"].update(
+                    prometheusNamespaceLabel="clavenar-demo"
+                )
+            ),
+            "multiple demo-mint selectors": changed(
+                lambda value: value["networkPolicy"]["nats"]["demoMint"].update(
+                    allowedPeers=[peer, copy.deepcopy(peer)]
+                )
+            ),
+        }
+        for name, values in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                fixture = Path(directory) / "values.yaml"
+                fixture.write_text(yaml.safe_dump(values, sort_keys=False))
+                result = subprocess.run(
+                    [
+                        "helm",
+                        "template",
+                        "smoke",
+                        str(ROOT / "charts/clavenar"),
+                        "-f",
+                        str(fixture),
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(0, result.returncode, name)
+
     def test_production_profile_renders_exact_ledger_trusted_proxy_boundary(self):
         values = CHECKER.effective_values(
             ROOT / "charts/clavenar", self.scenarios["production"]
@@ -1385,6 +1447,70 @@ class ListenerMatrixTest(unittest.TestCase):
         }
         self.assertEqual("false", default_env["CLAVENAR_LEDGER_REQUIRE_TRUSTED_PROXY"])
         self.assertNotIn("CLAVENAR_LEDGER_TRUSTED_PROXY_SPIFFE", default_env)
+
+    def test_modern_deployment_external_peers_are_exact_and_port_scoped(self):
+        production_values = CHECKER.effective_values(
+            ROOT / "charts/clavenar", self.scenarios["production"]
+        )
+        traefik_peers = production_values["networkPolicy"]["console"]["demo"][
+            "allowedPeers"
+        ]
+        self.assertEqual(
+            [{
+                "namespaceSelector": {
+                    "matchLabels": {"kubernetes.io/metadata.name": "kube-system"}
+                },
+                "podSelector": {
+                    "matchLabels": {"app.kubernetes.io/name": "traefik"}
+                },
+            }],
+            traefik_peers,
+        )
+        console_policy = next(
+            doc for doc in self.rendered["production"]
+            if doc.get("kind") == "NetworkPolicy"
+            and doc.get("metadata", {}).get("name") == "smoke-console"
+        )
+        traefik_rules = [
+            rule for rule in console_policy["spec"]["ingress"]
+            if rule.get("from") == traefik_peers
+        ]
+        self.assertEqual(
+            [[{"protocol": "TCP", "port": 9085}]],
+            [rule["ports"] for rule in traefik_rules],
+        )
+
+        bundled_values = CHECKER.effective_values(
+            ROOT / "charts/clavenar", self.scenarios["bundled"]
+        )
+        demo_mint_peers = bundled_values["networkPolicy"]["nats"]["demoMint"][
+            "allowedPeers"
+        ]
+        self.assertEqual(
+            "clavenar-demo-mint",
+            demo_mint_peers[0]["podSelector"]["matchLabels"][
+                "app.kubernetes.io/name"
+            ],
+        )
+        self.assertEqual(
+            "clavenar-demo",
+            demo_mint_peers[0]["namespaceSelector"]["matchLabels"][
+                "kubernetes.io/metadata.name"
+            ],
+        )
+        nats_policy = next(
+            doc for doc in self.rendered["bundled"]
+            if doc.get("kind") == "NetworkPolicy"
+            and doc.get("metadata", {}).get("name") == "smoke-nats"
+        )
+        demo_mint_rules = [
+            rule for rule in nats_policy["spec"]["ingress"]
+            if rule.get("from") == demo_mint_peers
+        ]
+        self.assertEqual(
+            [[{"protocol": "TCP", "port": 4222}]],
+            [rule["ports"] for rule in demo_mint_rules],
+        )
 
     def test_ledger_full_verify_limiter_inventory_is_complete(self):
         expected = {
@@ -2070,6 +2196,27 @@ class ListenerMatrixTest(unittest.TestCase):
             website_namespace_labels["properties"][
                 "kubernetes.io/metadata.name"
             ]["minLength"],
+        )
+        nats_peer = schema["properties"]["networkPolicy"]["properties"]["nats"]
+        self.assertFalse(nats_peer["additionalProperties"])
+        self.assertEqual(
+            "#/definitions/natsDemoMintPeerClass",
+            nats_peer["properties"]["demoMint"]["$ref"],
+        )
+        demo_mint_peers = schema["definitions"]["natsDemoMintPeerClass"][
+            "properties"
+        ]["allowedPeers"]
+        self.assertEqual(1, demo_mint_peers["maxItems"])
+        self.assertEqual(
+            {"podSelector", "namespaceSelector"},
+            set(demo_mint_peers["items"]["required"]),
+        )
+        demo_mint_labels = schema["definitions"]["canonicalDemoMintPodSelector"][
+            "properties"
+        ]["matchLabels"]
+        self.assertEqual(
+            "clavenar-demo-mint",
+            demo_mint_labels["properties"]["app.kubernetes.io/name"]["const"],
         )
 
         assurance = schema["properties"]["services"]["properties"]["assurance"]

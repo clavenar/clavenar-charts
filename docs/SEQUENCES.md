@@ -213,6 +213,13 @@ sequenceDiagram
 
 ## 6. NetworkPolicy perimeter — sidecar tries to reach `brain`
 
+The same destination/port model governs deployment-overlay peers: a selected
+Traefik pod reaches only the Console demo listener, the canonical website pod
+reaches only Ledger mTLS `:8183`, and the canonical demo-mint pod may reach
+bundled NATS only on `:4222`. On k3s this assumes the embedded kube-router
+NetworkPolicy controller remains enabled; `--disable-network-policy` is not a
+supported install posture.
+
 The proxy agent listener is the only core rule admitting arbitrary sources.
 Console ingress is default-deny until an operator supplies an exact peer for
 its operator or demo trust class. Backends restrict each destination port to

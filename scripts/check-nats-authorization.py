@@ -237,24 +237,46 @@ def check_repository(
         and item.get("metadata", {}).get("name") == "smoke-nats"
     )
     ingress = network_policy["spec"].get("ingress", [])
-    broker_rule = next(
-        (
-            rule
-            for rule in ingress
-            if rule.get("ports") == [{"protocol": "TCP", "port": 4222}]
-        ),
-        None,
-    )
-    if broker_rule is None:
+    broker_rules = [
+        rule
+        for rule in ingress
+        if rule.get("ports") == [{"protocol": "TCP", "port": 4222}]
+    ]
+    if not broker_rules:
         _fail("NATS NetworkPolicy", "exact TCP 4222 rule is missing")
-    peers = {
-        peer.get("podSelector", {}).get("matchLabels", {}).get(
-            "app.kubernetes.io/component"
-        )
-        for peer in broker_rule.get("from", [])
-    }
-    if peers != CHART_CLIENTS:
+    core_rules = [
+        rule for rule in broker_rules
+        if {
+            peer.get("podSelector", {}).get("matchLabels", {}).get(
+                "app.kubernetes.io/component"
+            )
+            for peer in rule.get("from", [])
+        } == CHART_CLIENTS
+    ]
+    if len(core_rules) != 1:
         _fail("NATS NetworkPolicy", "peers must equal the seven chart clients")
+    bundled = yaml.safe_load(bundled_values.read_text(encoding="utf-8"))
+    expected_demo_peers = bundled["networkPolicy"]["nats"]["demoMint"][
+        "allowedPeers"
+    ]
+    demo_rules = [
+        rule for rule in broker_rules
+        if rule.get("from") == expected_demo_peers
+    ]
+    if len(demo_rules) != 1:
+        _fail(
+            "NATS NetworkPolicy",
+            "must admit the exact external demo-mint selector only on TCP 4222",
+        )
+    if any(
+        rule.get("from") == expected_demo_peers
+        and rule.get("ports") != [{"protocol": "TCP", "port": 4222}]
+        for rule in ingress
+    ):
+        _fail(
+            "NATS NetworkPolicy",
+            "external demo-mint selector reaches a non-client listener",
+        )
 
     deployments = {
         item["metadata"]["name"].removeprefix("smoke-"): item

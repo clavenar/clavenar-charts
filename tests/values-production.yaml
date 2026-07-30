@@ -76,6 +76,8 @@ services:
     operatorMtls:
       enabled: true
       publicTrustSecretName: clavenar-operator-public-trust
+    demo:
+      enabled: true
 
 networkPolicy:
   enabled: true
@@ -97,3 +99,11 @@ networkPolicy:
           podSelector:
             matchLabels:
               app.kubernetes.io/name: operator-tls-passthrough
+    demo:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: traefik

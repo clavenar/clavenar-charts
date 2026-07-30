@@ -1000,6 +1000,16 @@ networkPolicy:
   ledger:
     trustedProxy:
       allowedPeers: []
+  # Optional separately deployed demo-mint path to bundled NATS. The broker's
+  # certificate-to-user map already grants only the exact demo-mint identity;
+  # this independent network edge admits that pod only on the NATS client
+  # port. It never widens the unauthenticated monitoring listener.
+  nats:
+    demoMint:
+      # Every peer must select app.kubernetes.io/name=clavenar-demo-mint in an
+      # explicit namespace distinct from the chart release and Prometheus
+      # namespaces. Peers are rejected when bundled NATS is disabled.
+      allowedPeers: []
   # Console trust classes are isolated by listener and port. Both peer
   # lists are empty by default, preserving an exact default-deny ingress
   # policy. Add explicit NetworkPolicyPeer objects only for the workload

@@ -97,7 +97,9 @@ NATS and Vault are not bundled by default. Operators can bring their own or
 enable the evaluation-only subcharts. Bundled NATS uses durable file-backed
 JetStream, exact certificate-to-user `verify_and_map` authorization generated
 from the public `clavenar.nats-authorization/v1` fixture, and a NetworkPolicy
-admitting only declared clients. Production external-broker mode renders only
+admitting only declared in-chart clients plus, when explicitly selected, the
+canonical demo-mint pod in its external namespace on client port `:4222`.
+That peer never reaches monitoring `:8222`. Production external-broker mode renders only
 when the operator explicitly declares ownership of that same authorization
 contract and durable JetStream storage.
 

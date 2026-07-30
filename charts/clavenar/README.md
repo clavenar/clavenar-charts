@@ -459,7 +459,12 @@ apply walkthrough.
   bundled workload gets an ingress-isolating policy. Rules name the
   exact destination port and caller selectors. Proxy admits an
   unrestricted source only on agent mTLS port 8443. Console operator and
-  demo ingress use independent, empty-by-default peer lists. Prometheus
+  demo ingress use independent, empty-by-default peer lists; the production
+  example selects only the k3s Traefik pod for demo `:9085`. The external
+  website selector reaches only Ledger mTLS `:8183`. When bundled NATS is
+  enabled, `networkPolicy.nats.demoMint.allowedPeers` may select one canonical
+  `clavenar-demo-mint` pod in an explicit external namespace for client
+  `:4222`; that selector never reaches monitor `:8222`. Prometheus
   can reach only the diagnostics listener (`9185`) when the global
   namespace selector is configured. The chart-default console posture is
   `demo-only`; a valid demo cookie creates only a prefix-scoped demo Viewer,
@@ -474,6 +479,10 @@ apply walkthrough.
   separate from operator/workload trust and provide a reviewed token issuer.
   Use `valueFrom.secretKeyRef` as shown in Authentication Secrets above; never
   put the key in an inline `value`.
+  These policies require an enforcing CNI. On k3s, retain its embedded
+  kube-router NetworkPolicy controller and never install with
+  `--disable-network-policy`; render-time validation cannot prove live packet
+  enforcement.
 - **Governed listener inventory** — `listeners.yaml` records every
   application and probe-only bind, Service publication, protocol,
   authentication/callers, limits, and external-publication posture.

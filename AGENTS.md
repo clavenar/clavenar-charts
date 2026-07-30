@@ -159,7 +159,10 @@ health.
 - **NetworkPolicy** defaults on and is destination/port-specific. Proxy is
   open to arbitrary sources only on 8443; console operator and demo trust
   classes default denied until their independent `allowedPeers` lists supply
-  explicit selectors. Console probes/scrapes use diagnostics-only 9185. Keep
+  explicit selectors. The separately deployed demo-mint may reach bundled
+  NATS `:4222` only through its canonical external-namespace selector; it never
+  reaches the unauthenticated monitor. Console probes/scrapes use
+  diagnostics-only 9185. Keep
   `listeners.yaml`, its checker, and policy templates in lockstep. **PDB** emits only where
   `replicas > 1` (SQLite singletons skip naturally; `minAvailable=ceil/2`).
 - **All pods run nonroot UID 65532** (`podSecurityContext`); `fsGroup` remounts

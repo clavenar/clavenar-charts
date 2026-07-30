@@ -153,6 +153,7 @@
 {{- $trustedProxySpiffe := trim $ledger.trustedProxySpiffe }}
 {{- $requireTrustedProxy := $ledger.requireTrustedProxy }}
 {{- $trustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
+{{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
 {{- $canonicalTrustedProxy := "spiffe://clavenar.local/service/website" }}
 {{- $ledgerCrypto := .Values.ledgerCryptographicVerification }}
 {{- if ne (int $ledger.port) 8083 }}
@@ -424,6 +425,43 @@
 {{- end }}
 {{- if ne (get $podLabels "app.kubernetes.io/name") "clavenar-website" }}
 {{- fail (printf "networkPolicy.ledger.trustedProxy.allowedPeers[%d].podSelector.matchLabels must include app.kubernetes.io/name=clavenar-website" $index) }}
+{{- end }}
+{{- end }}
+{{- if and (not (empty $natsDemoMintPeers)) (not .Values.networkPolicy.enabled) }}
+{{- fail "networkPolicy.nats.demoMint.allowedPeers requires networkPolicy.enabled=true" }}
+{{- end }}
+{{- if and (not (empty $natsDemoMintPeers)) (not .Values.nats.bundled.enabled) }}
+{{- fail "networkPolicy.nats.demoMint.allowedPeers is valid only when nats.bundled.enabled=true" }}
+{{- end }}
+{{- if gt (len $natsDemoMintPeers) 1 }}
+{{- fail "networkPolicy.nats.demoMint.allowedPeers accepts at most one exact demo-mint selector" }}
+{{- end }}
+{{- range $index, $peer := $natsDemoMintPeers }}
+{{- if hasKey $peer "ipBlock" }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d] must use exact positive pod and namespace selectors, not ipBlock" $index) }}
+{{- end }}
+{{- $podLabels := dig "podSelector" "matchLabels" (dict) $peer }}
+{{- $podExpressions := dig "podSelector" "matchExpressions" (list) $peer }}
+{{- $namespaceLabels := dig "namespaceSelector" "matchLabels" (dict) $peer }}
+{{- $namespaceExpressions := dig "namespaceSelector" "matchExpressions" (list) $peer }}
+{{- if or (empty $podLabels) (empty $namespaceLabels) }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d] requires non-empty podSelector.matchLabels and namespaceSelector.matchLabels" $index) }}
+{{- end }}
+{{- if or (not (empty $podExpressions)) (not (empty $namespaceExpressions)) }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d] must not use matchExpressions; use exact positive matchLabels" $index) }}
+{{- end }}
+{{- if ne (get $podLabels "app.kubernetes.io/name") "clavenar-demo-mint" }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d].podSelector.matchLabels must include app.kubernetes.io/name=clavenar-demo-mint" $index) }}
+{{- end }}
+{{- $demoMintNamespace := get $namespaceLabels "kubernetes.io/metadata.name" }}
+{{- if empty $demoMintNamespace }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d].namespaceSelector.matchLabels must include kubernetes.io/metadata.name" $index) }}
+{{- end }}
+{{- if eq $demoMintNamespace $.Release.Namespace }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d] demo-mint namespace must differ from the Helm release namespace %s" $index $.Release.Namespace) }}
+{{- end }}
+{{- if eq $demoMintNamespace $.Values.networkPolicy.prometheusNamespaceLabel }}
+{{- fail (printf "networkPolicy.nats.demoMint.allowedPeers[%d] demo-mint namespace must differ from networkPolicy.prometheusNamespaceLabel" $index) }}
 {{- end }}
 {{- end }}
 {{- if .Values.vault.bundled.enabled }}

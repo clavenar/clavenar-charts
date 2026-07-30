@@ -46,6 +46,20 @@ nats:
   natsBox:
     enabled: false
 
+# The separately deployed demo-mint uses its own mTLS identity and may reach
+# only the bundled NATS client listener. This selector is inert until the
+# clavenar-demo namespace and matching workload exist.
+networkPolicy:
+  nats:
+    demoMint:
+      allowedPeers:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: clavenar-demo
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: clavenar-demo-mint
+
 vault:
   bundled:
     enabled: true
