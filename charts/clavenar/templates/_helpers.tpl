@@ -164,7 +164,7 @@ the auto-mint Job. */}}
 {{/* Stable identity-layout marker. Change only for an incompatible SAN or
 Secret data shape; rotation generation is deliberately independent. */}}
 {{- define "clavenar.tlsSanScheme" -}}
-release-prefixed-v3-assurance
+release-prefixed-v4-additional-dns
 {{- end -}}
 
 {{/* Enabled TLS consumers coordinated by the explicit rotation hook. */}}

@@ -63,6 +63,12 @@ spec:
               value: {{ include "clavenar.bundleServices" . | quote }}
             - name: RELEASE_NAME
               value: {{ .Release.Name | quote }}
+            - name: PROXY_SERVER_ADDITIONAL_DNS_NAMES
+              value: {{ join " " .Values.tlsBundle.additionalDnsNames.proxyServer | quote }}
+            - name: CONSOLE_ADDITIONAL_DNS_NAMES
+              value: {{ join " " .Values.tlsBundle.additionalDnsNames.console | quote }}
+            - name: IDENTITY_ADDITIONAL_DNS_NAMES
+              value: {{ join " " .Values.tlsBundle.additionalDnsNames.identity | quote }}
             - name: TLS_ROTATION_OPERATION
               value: {{ .Values.tlsBundle.rotation.operation | quote }}
             - name: TLS_ROTATION_GENERATION

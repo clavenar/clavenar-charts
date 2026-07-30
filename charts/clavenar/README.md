@@ -710,6 +710,10 @@ tlsBundle:
   mountPath: /certs
   spiffeTrustDomain: clavenar.local      # governed exact-caller trust domain
   autoMint: false                        # evaluation only
+  additionalDnsNames:
+    proxyServer: []                      # appended to server.crt
+    console: []                          # appended to service-console.crt
+    identity: []                         # appended to service-identity.crt
   rotation:
     operation: reconcile                 # reconcile or explicit rotate
     generation: bootstrap-v1             # advance for every rotation
@@ -759,6 +763,14 @@ change under `reconcile` fails closed instead of silently replacing trust.
 The default membership includes the chart-managed services plus the external
 website, demo-mint, and simulator peers. Adding those identities to an existing
 auto-minted Secret is a membership rotation, not an ordinary reconcile.
+
+`additionalDnsNames` is the explicit environment publication contract. The
+chart preserves the internal Proxy, Console, and Identity SANs and appends only
+the configured canonical, unique DNS names. TCP `HostSNI` routes must be checked
+against these values by the owning environment overlay. Because the exact SAN
+inventory is part of `release-prefixed-v4-additional-dns`, an existing
+evaluation Secret from an earlier SAN scheme is rejected instead of being
+silently reissued; initialize the new environment with an absent Secret.
 
 To rotate, advance the generation and select exactly one governed reason:
 

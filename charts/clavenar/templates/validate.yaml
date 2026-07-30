@@ -100,6 +100,24 @@
 {{- if ne .Values.tlsBundle.spiffeTrustDomain "clavenar.local" }}
 {{- fail "tlsBundle.spiffeTrustDomain must remain clavenar.local for the canonical exact Brain auxiliary callers" }}
 {{- end }}
+{{- $bundleServices := include "clavenar.bundleServices" . | splitList " " }}
+{{- $additionalDns := .Values.tlsBundle.additionalDnsNames }}
+{{- range $contractName, $dnsNames := dict "proxyServer" $additionalDns.proxyServer "console" $additionalDns.console "identity" $additionalDns.identity }}
+{{- range $dnsName := $dnsNames }}
+{{- if not (regexMatch "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$" $dnsName) }}
+{{- fail (printf "tlsBundle.additionalDnsNames.%s contains a noncanonical DNS name" $contractName) }}
+{{- end }}
+{{- end }}
+{{- if ne (len $dnsNames) (len (uniq $dnsNames)) }}
+{{- fail (printf "tlsBundle.additionalDnsNames.%s contains duplicate DNS names" $contractName) }}
+{{- end }}
+{{- end }}
+{{- if and (not (empty $additionalDns.console)) (not (has "console" $bundleServices)) }}
+{{- fail "tlsBundle.additionalDnsNames.console requires console in the TLS bundle" }}
+{{- end }}
+{{- if and (not (empty $additionalDns.identity)) (not (has "identity" $bundleServices)) }}
+{{- fail "tlsBundle.additionalDnsNames.identity requires identity in the TLS bundle" }}
+{{- end }}
 {{- $tlsRotation := .Values.tlsBundle.rotation }}
 {{- if and .Values.tlsBundle.autoMint (empty .Values.tlsBundle.secretName) }}
 {{- fail "tlsBundle.autoMint=true requires a non-empty tlsBundle.secretName" }}
@@ -117,7 +135,6 @@
 {{- fail "tlsBundle.rotation.overlapSeconds must exceed rolloutTimeoutSeconds" }}
 {{- end }}
 {{- if .Values.tlsBundle.autoMint }}
-{{- $bundleServices := include "clavenar.bundleServices" . | splitList " " }}
 {{- range $name, $cfg := .Values.services }}
 {{- if and $cfg.enabled (not (has ($name | kebabcase) $bundleServices)) }}
 {{- fail (printf "tlsBundle.autoMint=true requires enabled service %s in tlsBundle.bundleServices" ($name | kebabcase)) }}

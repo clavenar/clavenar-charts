@@ -1232,7 +1232,7 @@ class ListenerMatrixTest(unittest.TestCase):
             entry["value"] for entry in mint["env"]
             if entry["name"] == "EXPECTED_SAN_SCHEME"
         )
-        self.assertEqual("release-prefixed-v3-assurance", expected_scheme)
+        self.assertEqual("release-prefixed-v4-additional-dns", expected_scheme)
         mint = job["spec"]["template"]["spec"]["initContainers"][1]
         bundle_services = next(
             entry["value"] for entry in mint["env"]

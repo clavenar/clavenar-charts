@@ -8,6 +8,9 @@ umask 077
 : "${SPIFFE_TRUST_DOMAIN:?must be set}"
 : "${BUNDLE_SERVICES:?must be set}"
 : "${RELEASE_NAME:?must be set}"
+: "${PROXY_SERVER_ADDITIONAL_DNS_NAMES?must be set}"
+: "${CONSOLE_ADDITIONAL_DNS_NAMES?must be set}"
+: "${IDENTITY_ADDITIONAL_DNS_NAMES?must be set}"
 : "${TLS_ROTATION_OPERATION:?must be set}"
 : "${TLS_ROTATION_GENERATION:?must be set}"
 : "${TLS_ROTATION_REASON:?must be set}"
@@ -40,6 +43,34 @@ printf '%s\n' "$CERT_VALIDITY_DAYS" | grep -Eq '^[0-9]+$' \
     || die "certificate validity must be an integer day count"
 [ "$CERT_VALIDITY_DAYS" -ge 1 ] && [ "$CERT_VALIDITY_DAYS" -le 3650 ] \
     || die "certificate validity must be between 1 and 3650 days"
+
+validate_dns_names() {
+    contract="$1"
+    names="$2"
+    [ -z "$names" ] || printf '%s\n' "$names" \
+        | grep -Eq '^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*( [a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*)*$' \
+        || die "$contract contains a noncanonical DNS name"
+    [ -z "$names" ] && return
+    [ "$(printf '%s\n' "$names" | tr ' ' '\n' | wc -l)" \
+        -eq "$(printf '%s\n' "$names" | tr ' ' '\n' | sort -u | wc -l)" ] \
+        || die "$contract contains duplicate DNS names"
+}
+
+dns_san_suffix() {
+    names="$1"
+    suffix=""
+    for dns_name in $names; do
+        suffix="${suffix},DNS:${dns_name}"
+    done
+    printf '%s' "$suffix"
+}
+
+validate_dns_names "Proxy server DNS contract" "$PROXY_SERVER_ADDITIONAL_DNS_NAMES"
+validate_dns_names "Console DNS contract" "$CONSOLE_ADDITIONAL_DNS_NAMES"
+validate_dns_names "Identity DNS contract" "$IDENTITY_ADDITIONAL_DNS_NAMES"
+proxy_server_dns_suffix="$(dns_san_suffix "$PROXY_SERVER_ADDITIONAL_DNS_NAMES")"
+console_dns_suffix="$(dns_san_suffix "$CONSOLE_ADDITIONAL_DNS_NAMES")"
+identity_dns_suffix="$(dns_san_suffix "$IDENTITY_ADDITIONAL_DNS_NAMES")"
 
 membership_sha() {
     printf 'sha256:%s' "$(printf '%s\n' "$1" | sha256sum | cut -d' ' -f1)"
@@ -107,7 +138,8 @@ validate_bundle() {
     require_pair "$directory/server.crt" "$directory/server.key" "$ca"
     server_sans="$(openssl x509 -in "$directory/server.crt" \
         -noout -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
-    [ "$server_sans" = "DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local" ] \
+    expected_server_sans="DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local${proxy_server_dns_suffix}"
+    [ "$server_sans" = "$expected_server_sans" ] \
         || die "Proxy server certificate SANs are not exact"
     require_pair "$directory/client.crt" "$directory/client.key" "$ca"
 
@@ -122,6 +154,11 @@ $(private_public_digest "$directory/server.key")"
         actual_sans="$(openssl x509 -in "$certificate" -noout \
             -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
         expected_sans="URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost"
+        if [ "$service" = console ]; then
+            expected_sans="${expected_sans}${console_dns_suffix}"
+        elif [ "$service" = identity ]; then
+            expected_sans="${expected_sans}${identity_dns_suffix}"
+        fi
         [ "$actual_sans" = "$expected_sans" ] \
             || die "workload certificate SANs are not exact"
         digest="$(private_public_digest "$private_key")"
@@ -158,7 +195,7 @@ generate_bundle() {
     openssl genrsa -out server.key 2048 2>/dev/null
     openssl req -new -key server.key -out server.csr \
         -subj "/CN=localhost" \
-        -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local" \
+        -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local${proxy_server_dns_suffix}" \
         2>/dev/null
     openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in server.csr -CA ca.crt -CAkey ca.key \
         -CAcreateserial -copy_extensions copy -out server.crt 2>/dev/null
@@ -168,10 +205,16 @@ generate_bundle() {
     openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in client.csr -CA ca.crt -CAkey ca.key \
         -CAcreateserial -out client.crt 2>/dev/null
     for service in $services; do
+        workload_dns_suffix=""
+        if [ "$service" = console ]; then
+            workload_dns_suffix="$console_dns_suffix"
+        elif [ "$service" = identity ]; then
+            workload_dns_suffix="$identity_dns_suffix"
+        fi
         openssl genrsa -out "service-${service}.key" 2048 2>/dev/null
         openssl req -new -key "service-${service}.key" \
             -out "service-${service}.csr" -subj "/CN=clavenar-${service}" \
-            -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost" \
+            -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost${workload_dns_suffix}" \
             2>/dev/null
         openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in "service-${service}.csr" \
             -CA ca.crt -CAkey ca.key -CAcreateserial -copy_extensions copy \

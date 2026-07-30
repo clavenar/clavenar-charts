@@ -47,10 +47,13 @@ class TlsRotationScriptTests(unittest.TestCase):
             "WORK_DIR": str(self.work_dir),
             "TLS_SECRET_NAME": "clavenar-certs",
             "POD_NAMESPACE": "test",
-            "EXPECTED_SAN_SCHEME": "release-prefixed-v3-assurance",
+            "EXPECTED_SAN_SCHEME": "release-prefixed-v4-additional-dns",
             "SPIFFE_TRUST_DOMAIN": "clavenar.local",
             "BUNDLE_SERVICES": "proxy brain",
             "RELEASE_NAME": "smoke",
+            "PROXY_SERVER_ADDITIONAL_DNS_NAMES": "",
+            "CONSOLE_ADDITIONAL_DNS_NAMES": "",
+            "IDENTITY_ADDITIONAL_DNS_NAMES": "",
             "TLS_ROTATION_OPERATION": "reconcile",
             "TLS_ROTATION_GENERATION": "generation-1",
             "TLS_ROTATION_REASON": "none",
@@ -274,6 +277,75 @@ class TlsRotationScriptTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("recorded CA digest", result.stderr)
 
+    def test_additional_dns_names_are_exact_and_fail_closed(self):
+        environment = self.environment(
+            BUNDLE_SERVICES="proxy console identity",
+            PROXY_SERVER_ADDITIONAL_DNS_NAMES=(
+                "mcp.dev.clavenar.ai "
+                "clavenar-dev-proxy.clavenar.svc.cluster.local"
+            ),
+            CONSOLE_ADDITIONAL_DNS_NAMES="console.dev.clavenar.ai",
+            IDENTITY_ADDITIONAL_DNS_NAMES=(
+                "clavenar-dev-identity.clavenar.svc.cluster.local"
+            ),
+        )
+        self.transaction(environment)
+        active = self.active()
+        expected = {
+            "server.crt": {
+                "DNS:localhost",
+                "DNS:proxy",
+                "DNS:proxy.clavenar.local",
+                "DNS:mcp.dev.clavenar.ai",
+                "DNS:clavenar-dev-proxy.clavenar.svc.cluster.local",
+            },
+            "service-console.crt": {
+                "URI:spiffe://clavenar.local/service/console",
+                "DNS:console",
+                "DNS:smoke-console",
+                "DNS:localhost",
+                "DNS:console.dev.clavenar.ai",
+            },
+            "service-identity.crt": {
+                "URI:spiffe://clavenar.local/service/identity",
+                "DNS:identity",
+                "DNS:smoke-identity",
+                "DNS:localhost",
+                "DNS:clavenar-dev-identity.clavenar.svc.cluster.local",
+            },
+        }
+        for name, expected_sans in expected.items():
+            certificate = self.root / name
+            certificate.write_bytes(self.decoded(active, name))
+            rendered = subprocess.run(
+                [
+                    "openssl",
+                    "x509",
+                    "-in",
+                    certificate,
+                    "-noout",
+                    "-ext",
+                    "subjectAltName",
+                ],
+                text=True,
+                capture_output=True,
+                check=True,
+            ).stdout
+            actual = {
+                item.strip()
+                for line in rendered.splitlines()[1:]
+                for item in line.split(",")
+            }
+            self.assertEqual(expected_sans, actual)
+
+        invalid = self.environment(
+            PROXY_SERVER_ADDITIONAL_DNS_NAMES="valid.example INVALID.example",
+        )
+        self.reset_workspace()
+        result = self.run_script("mint.sh", invalid, check=False)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("noncanonical DNS name", result.stderr)
+
 
 class TlsRotationRenderTests(unittest.TestCase):
     @classmethod
@@ -312,6 +384,15 @@ class TlsRotationRenderTests(unittest.TestCase):
         self.assertEqual("reconcile", apply_env["TLS_ROTATION_OPERATION"])
         self.assertEqual("bootstrap-v1", apply_env["TLS_ROTATION_GENERATION"])
         self.assertIn("assurance", apply_env["ROLLOUT_DEPLOYMENTS"].split())
+        mint = next(
+            container
+            for container in pod["initContainers"]
+            if container["name"] == "mint"
+        )
+        mint_env = {item["name"]: item["value"] for item in mint["env"]}
+        self.assertIn("PROXY_SERVER_ADDITIONAL_DNS_NAMES", mint_env)
+        self.assertIn("CONSOLE_ADDITIONAL_DNS_NAMES", mint_env)
+        self.assertIn("IDENTITY_ADDITIONAL_DNS_NAMES", mint_env)
 
         role = self.resource("Role", "smoke-tls-automint")
         rules = {(tuple(rule["apiGroups"]), tuple(rule["resources"])): set(rule["verbs"])

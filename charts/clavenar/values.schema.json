@@ -1110,9 +1110,49 @@
           "required": ["repository", "tag", "pullPolicy"],
           "additionalProperties": false
         },
-        "spiffeTrustDomain": { "const": "clavenar.local" }
+        "spiffeTrustDomain": { "const": "clavenar.local" },
+        "additionalDnsNames": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["proxyServer", "console", "identity"],
+          "properties": {
+            "proxyServer": {
+              "type": "array",
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$"
+              }
+            },
+            "console": {
+              "type": "array",
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$"
+              }
+            },
+            "identity": {
+              "type": "array",
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$"
+              }
+            }
+          }
+        }
       },
-      "required": ["secretName", "mountPath", "autoMint", "rotation", "spiffeTrustDomain"]
+      "required": [
+        "secretName", "mountPath", "autoMint", "rotation",
+        "additionalDnsNames", "spiffeTrustDomain"
+      ]
     },
     "networkPolicy": {
       "type": "object",
