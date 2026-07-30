@@ -464,7 +464,10 @@ apply walkthrough.
   website selector reaches only Ledger mTLS `:8183`. An optional canonical
   external Simulator selector replaces the legacy same-namespace Simulator
   peer on Identity, HIL, Ledger, Proxy-readiness, and upstream-readiness
-  ports; it requires workload TLS and a distinct namespace. When bundled NATS is
+  ports; it requires workload TLS and a distinct namespace. The optional
+  same-namespace `clavenar-demo-reset` Job selector borrows Console identity
+  only on HIL `:8084` and Ledger mTLS `:8183`; it cannot match the Console
+  Deployment or any diagnostics listener. When bundled NATS is
   enabled, `networkPolicy.nats.demoMint.allowedPeers` may select one canonical
   `clavenar-demo-mint` pod in an explicit external namespace for client
   `:4222`; that selector never reaches monitor `:8222`. Prometheus

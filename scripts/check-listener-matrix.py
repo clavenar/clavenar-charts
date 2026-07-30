@@ -214,6 +214,10 @@ def expected_policies(matrix, values, release):
                         sources.extend(
                             value_at(values, "networkPolicy.nats.demoMint.allowedPeers") or []
                         )
+                    elif token == "configured-demo-reset-peers":
+                        sources.extend(
+                            value_at(values, "networkPolicy.demoReset.allowedPeers") or []
+                        )
                     elif token == "simulator" and value_at(
                         values, "networkPolicy.simulator.allowedPeers"
                     ):
@@ -460,6 +464,38 @@ def validate_simulator_peer(values, release_namespace, errors):
             errors.append(
                 f"simulator namespace {simulator_namespace} must differ "
                 "from the Prometheus namespace"
+            )
+
+
+def validate_demo_reset_peer(values, errors):
+    path = "networkPolicy.demoReset.allowedPeers"
+    peers = value_at(values, path) or []
+    if peers and not value_at(values, "networkPolicy.enabled"):
+        errors.append(f"{path} requires networkPolicy.enabled=true")
+    if peers and not value_at(values, "tlsBundle.secretName"):
+        errors.append(f"{path} requires tlsBundle.secretName")
+    if len(peers) > 1:
+        errors.append(f"{path} accepts at most one exact selector")
+    for index, configured in enumerate(peers):
+        if not isinstance(configured, dict):
+            continue
+        if "namespaceSelector" in configured:
+            errors.append(
+                f"{path}[{index}] must remain in the chart release namespace"
+            )
+        pod_selector = configured.get("podSelector")
+        pod_labels = (
+            pod_selector.get("matchLabels")
+            if isinstance(pod_selector, dict)
+            else {}
+        )
+        if not isinstance(pod_labels, dict):
+            pod_labels = {}
+        if pod_labels.get("app.kubernetes.io/name") != "clavenar-demo-reset":
+            errors.append(
+                f"{path}[{index}] must include "
+                "podSelector.matchLabels[app.kubernetes.io/name]="
+                "clavenar-demo-reset"
             )
 
 
@@ -1413,7 +1449,11 @@ def validate(
             reference = (service, governed_rule.get("listenerId"))
             if reference not in seen:
                 errors.append(f"NetworkPolicy contract {reference} references a missing listener")
-            contract_peers.setdefault(reference, set()).update(governed_rule.get("peers", []))
+            normalized_peers = {
+                "console" if peer == "configured-demo-reset-peers" else peer
+                for peer in governed_rule.get("peers", [])
+            }
+            contract_peers.setdefault(reference, set()).update(normalized_peers)
     for listener in matrix.get("listeners", []):
         reference = (listener.get("service"), listener.get("listenerId"))
         allowed = set(listener.get("allowedPeers") or [])
@@ -1436,12 +1476,14 @@ def validate(
             "networkPolicy.ledger.trustedProxy.allowedPeers",
             "networkPolicy.nats.demoMint.allowedPeers",
             "networkPolicy.simulator.allowedPeers",
+            "networkPolicy.demoReset.allowedPeers",
         ),
         errors,
     )
     validate_ledger_trusted_proxy_peer(values, namespace, errors)
     validate_nats_demo_mint_peer(values, namespace, errors)
     validate_simulator_peer(values, namespace, errors)
+    validate_demo_reset_peer(values, errors)
     validate_deployment_profile(values, errors)
 
     active_listeners = [

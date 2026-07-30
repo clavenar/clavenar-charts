@@ -7,6 +7,7 @@
 {{- $ledgerTrustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
 {{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
 {{- $simulatorPeers := .Values.networkPolicy.simulator.allowedPeers }}
+{{- $demoResetPeers := .Values.networkPolicy.demoReset.allowedPeers }}
 {{- $callers := dict
       "policyEngine" (list "proxy" "console")
       "ledger" (list "console" "deepReview")
@@ -49,6 +50,12 @@
             application-layer requirement. */ -}}
       {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "configuredPeers" $ledgerTrustedProxyPeers) -}}
     {{- end -}}
+    {{- if not (empty $demoResetPeers) -}}
+      {{- $rules = append $rules (dict "port" (int $cfg.mtlsPort) "configuredPeers" $demoResetPeers) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if and (eq $name "hil") (not (empty $demoResetPeers)) -}}
+    {{- $rules = append $rules (dict "port" (int $cfg.port) "configuredPeers" $demoResetPeers) -}}
   {{- end -}}
 {{- end -}}
 ---

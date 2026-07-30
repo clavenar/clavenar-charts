@@ -1141,6 +1141,9 @@
         "simulator": {
           "$ref": "#/definitions/simulatorPeerClass"
         },
+        "demoReset": {
+          "$ref": "#/definitions/demoResetPeerClass"
+        },
         "console": {
           "type": "object",
           "additionalProperties": false,
@@ -1421,6 +1424,43 @@
               }
             }
           }
+        }
+      }
+    },
+    "demoResetPeerClass": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["allowedPeers"],
+      "properties": {
+        "allowedPeers": {
+          "type": "array",
+          "maxItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["podSelector"],
+            "properties": {
+              "podSelector": {
+                "$ref": "#/definitions/canonicalDemoResetPodSelector"
+              }
+            }
+          }
+        }
+      }
+    },
+    "canonicalDemoResetPodSelector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["matchLabels"],
+      "properties": {
+        "matchLabels": {
+          "type": "object",
+          "minProperties": 1,
+          "required": ["app.kubernetes.io/name"],
+          "properties": {
+            "app.kubernetes.io/name": { "const": "clavenar-demo-reset" }
+          },
+          "additionalProperties": { "type": "string" }
         }
       }
     },

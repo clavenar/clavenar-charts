@@ -1017,6 +1017,12 @@ networkPolicy:
   # remain in force.
   simulator:
     allowedPeers: []
+  # Optional same-namespace weekly reset Job. It carries only the Console
+  # workload certificate because the cleanup routes are capability-bound to
+  # that identity, while this selector keeps the transient pod distinct from
+  # the Console Deployment.
+  demoReset:
+    allowedPeers: []
   # Console trust classes are isolated by listener and port. Both peer
   # lists are empty by default, preserving an exact default-deny ingress
   # policy. Add explicit NetworkPolicyPeer objects only for the workload

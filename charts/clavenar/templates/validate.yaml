@@ -155,6 +155,7 @@
 {{- $trustedProxyPeers := .Values.networkPolicy.ledger.trustedProxy.allowedPeers }}
 {{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
 {{- $simulatorPeers := .Values.networkPolicy.simulator.allowedPeers }}
+{{- $demoResetPeers := .Values.networkPolicy.demoReset.allowedPeers }}
 {{- $canonicalTrustedProxy := "spiffe://clavenar.local/service/website" }}
 {{- $ledgerCrypto := .Values.ledgerCryptographicVerification }}
 {{- if ne (int $ledger.port) 8083 }}
@@ -221,6 +222,12 @@
 {{- if and $.Values.networkPolicy.prometheusNamespaceLabel (eq $namespace $.Values.networkPolicy.prometheusNamespaceLabel) }}
 {{- fail "networkPolicy.simulator.allowedPeers must not overlap the Prometheus namespace" }}
 {{- end }}
+{{- end }}
+{{- if and (not (empty $demoResetPeers)) (empty .Values.tlsBundle.secretName) }}
+{{- fail "networkPolicy.demoReset.allowedPeers requires tlsBundle.secretName for Console cleanup authority" }}
+{{- end }}
+{{- if and (not (empty $demoResetPeers)) (not .Values.networkPolicy.enabled) }}
+{{- fail "networkPolicy.demoReset.allowedPeers requires networkPolicy.enabled=true" }}
 {{- end }}
 {{- if eq $deploymentProfile "production" }}
 {{- if empty .Values.authSecrets.existingSecretName }}

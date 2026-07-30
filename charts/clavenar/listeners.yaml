@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "e74f91fd417f577665bcb85b81a229ecd9056ff15d2b205cd820342ac55628d7"
+reviewedContractSha256: "1336924ece3d51f6c0a797d6673f40b830e7f266aae70a8bfb058fdbb2b25f6b"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -60,6 +60,7 @@ networkPolicies:
       - { listenerId: public-read, peers: [proxy, simulator], disabledWhen: "tlsBundle.secretName" }
       - { listenerId: internal-mtls, peers: [proxy, console, deep-review, simulator], enabledWhen: "tlsBundle.secretName" }
       - { listenerId: internal-mtls, peers: [configured-ledger-trusted-proxy-peers], enabledWhen: "tlsBundle.secretName and networkPolicy.ledger.trustedProxy.allowedPeers" }
+      - { listenerId: internal-mtls, peers: [configured-demo-reset-peers], enabledWhen: "tlsBundle.secretName and networkPolicy.demoReset.allowedPeers" }
       - { listenerId: public-read, peers: [proxy, console] }
       - { listenerId: public-read, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
   - service: hil
@@ -67,6 +68,7 @@ networkPolicies:
     enabledWhen: "services.hil.enabled"
     rules:
       - { listenerId: application, peers: [proxy, console, simulator] }
+      - { listenerId: application, peers: [configured-demo-reset-peers], enabledWhen: "tlsBundle.secretName and networkPolicy.demoReset.allowedPeers" }
       - { listenerId: health, peers: [proxy, console, simulator] }
       - { listenerId: health, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
   - service: identity

@@ -1648,6 +1648,137 @@ class ListenerMatrixTest(unittest.TestCase):
                 )
                 self.assertNotEqual(0, result.returncode, name)
 
+    def test_demo_reset_peer_borrows_only_console_cleanup_ports(self):
+        peer = {
+            "podSelector": {
+                "matchLabels": {
+                    "app.kubernetes.io/name": "clavenar-demo-reset",
+                    "app.kubernetes.io/instance": "clavenar-env-prod",
+                }
+            }
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "demo-reset-peer.yaml"
+            fixture.write_text(
+                yaml.safe_dump(
+                    {"networkPolicy": {"demoReset": {"allowedPeers": [peer]}}},
+                    sort_keys=False,
+                )
+            )
+            overlays = [ROOT / "tests/values-bundled.yaml", fixture]
+            command = [
+                "helm",
+                "template",
+                "smoke",
+                str(ROOT / "charts/clavenar"),
+                "--namespace",
+                "clavenar",
+            ]
+            for overlay in overlays:
+                command.extend(["-f", str(overlay)])
+            output = subprocess.run(
+                command,
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout
+            documents = [
+                item for item in yaml.safe_load_all(output)
+                if isinstance(item, dict)
+            ]
+            values = CHECKER.effective_values(
+                ROOT / "charts/clavenar",
+                overlays,
+            )
+            self.assertEqual(
+                [],
+                CHECKER.validate(
+                    self.matrix,
+                    values,
+                    documents,
+                    "smoke",
+                    "clavenar",
+                    chart_app_version=self.chart_app_version,
+                ),
+            )
+
+        actual = {}
+        for document in documents:
+            if document.get("kind") != "NetworkPolicy":
+                continue
+            ports = {
+                rule["ports"][0]["port"]
+                for rule in document["spec"].get("ingress", [])
+                if peer in (rule.get("from") or [])
+            }
+            if ports:
+                actual[document["metadata"]["name"]] = ports
+        self.assertEqual(
+            {
+                "smoke-hil": {8084},
+                "smoke-ledger": {8183},
+            },
+            actual,
+        )
+
+        cases = {
+            "wrong app": {
+                "networkPolicy": {
+                    "demoReset": {
+                        "allowedPeers": [
+                            {
+                                "podSelector": {
+                                    "matchLabels": {
+                                        "app.kubernetes.io/name": "other-reset"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            "cross namespace": {
+                "networkPolicy": {
+                    "demoReset": {
+                        "allowedPeers": [
+                            {
+                                **peer,
+                                "namespaceSelector": {
+                                    "matchLabels": {
+                                        "kubernetes.io/metadata.name": "other"
+                                    }
+                                },
+                            }
+                        ]
+                    }
+                }
+            },
+            "without TLS": {
+                "tlsBundle": {"secretName": ""},
+                "networkPolicy": {"demoReset": {"allowedPeers": [peer]}},
+            },
+        }
+        for name, values in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                fixture = Path(directory) / "values.yaml"
+                fixture.write_text(yaml.safe_dump(values, sort_keys=False))
+                result = subprocess.run(
+                    [
+                        "helm",
+                        "template",
+                        "smoke",
+                        str(ROOT / "charts/clavenar"),
+                        "--namespace",
+                        "clavenar",
+                        "-f",
+                        str(fixture),
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(0, result.returncode, name)
+
     def test_ledger_full_verify_limiter_inventory_is_complete(self):
         expected = {
             "public-read": (
