@@ -146,6 +146,7 @@ jobs:
         with:
           repository: clavenar/clavenar-e2e
           path: clavenar-e2e
+          token: ${{ secrets.WARDEN_REPO_TOKEN }}
 
       - uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4
         with:
