@@ -58,8 +58,6 @@ jobs:
       - name: Package the exact chart
         run: |
           helm package charts/clavenar --destination dist
-          (cd dist && sha256sum "clavenar-${{ github.event.client_payload.component_version }}.tgz") \
-            > "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz.sha256"
 
       - name: Log in to the protected OCI registry
         run: |
@@ -85,6 +83,19 @@ jobs:
           helm push
           "dist/clavenar-${{ github.event.client_payload.component_version }}.tgz"
           oci://ghcr.io/clavenar/charts
+
+      - name: Materialize the exact published chart bytes and checksum
+        env:
+          VERSION: ${{ github.event.client_payload.component_version }}
+        run: |
+          published="$RUNNER_TEMP/published-chart"
+          mkdir -p "$published"
+          helm pull oci://ghcr.io/clavenar/charts/clavenar \
+            --version "$VERSION" \
+            --destination "$published"
+          mv "$published/clavenar-$VERSION.tgz" "dist/clavenar-$VERSION.tgz"
+          (cd dist && sha256sum "clavenar-$VERSION.tgz") \
+            > "dist/clavenar-$VERSION.tgz.sha256"
 
       - name: Publish the exact source tag and release assets
         env:

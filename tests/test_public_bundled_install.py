@@ -224,19 +224,26 @@ class PublicBundledInstallTests(unittest.TestCase):
                     r"^ghcr\.io/clavenar/[a-z0-9-]+@sha256:[a-f0-9]{64}$",
                 )
 
-    def test_release_checksum_is_portable_outside_the_dist_directory(self) -> None:
+    def test_release_uses_exact_oci_bytes_for_asset_and_checksum(self) -> None:
         workflow = (ROOT / ".github/workflows/release.yml").read_text(
             encoding="utf-8"
         )
         self.assertIn(
-            '(cd dist && sha256sum "clavenar-${{ '
-            "github.event.client_payload.component_version }}.tgz\")",
+            "helm pull oci://ghcr.io/clavenar/charts/clavenar",
             workflow,
         )
-        self.assertNotIn(
-            'sha256sum "dist/clavenar-${{ '
-            "github.event.client_payload.component_version }}.tgz\"",
+        self.assertIn(
+            'mv "$published/clavenar-$VERSION.tgz" '
+            '"dist/clavenar-$VERSION.tgz"',
             workflow,
+        )
+        checksum = '(cd dist && sha256sum "clavenar-$VERSION.tgz")'
+        self.assertIn(checksum, workflow)
+        self.assertNotIn('sha256sum "dist/clavenar-$VERSION.tgz"', workflow)
+        self.assertLess(workflow.index("helm pull"), workflow.index(checksum))
+        self.assertLess(
+            workflow.index(checksum),
+            workflow.index('gh release upload "$tag" dist/* --clobber'),
         )
 
 
