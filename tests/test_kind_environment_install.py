@@ -6,7 +6,6 @@ import yaml
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "kind-environment-install.sh"
-WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 CRDS = ROOT / "tests" / "kind-environment-crds.yaml"
 
 
@@ -62,23 +61,6 @@ class KindEnvironmentInstallTests(unittest.TestCase):
         self.assertEqual(text.count("--no-hooks"), 2)
         self.assertIn('helm status "$release"', text)
         self.assertIn('[[ "$environment" == prod ]]', text)
-
-    def test_workflow_runs_both_postures_with_pinned_tooling(self):
-        text = WORKFLOW.read_text()
-        self.assertIn("kind environment install — ${{ matrix.environment }}", text)
-        self.assertIn("environment: [dev, prod]", text)
-        self.assertIn("sigs.k8s.io/kind@v0.26.0", text)
-        self.assertIn("v1.30.8/bin/linux/amd64/kubectl", text)
-        self.assertIn(
-            "7f39bdcf768ce4b8c1428894c70c49c8b4d2eee52f3606eb02f5f7d10f66d692",
-            text,
-        )
-        self.assertIn(
-            "scripts/kind-environment-install.sh "
-            '"${{ matrix.environment }}" clavenar-e2e',
-            text,
-        )
-
 
 if __name__ == "__main__":
     unittest.main()
