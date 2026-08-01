@@ -66,7 +66,7 @@ class StatefulUpgradeChartTests(unittest.TestCase):
                 annotations["clavenar.io/stateful-upgrade-contract"],
                 r"^sha256:[a-f0-9]{64}$",
             )
-            self.assertEqual("0.35.5", annotations["clavenar.io/release-version"])
+            self.assertEqual("0.36.0", annotations["clavenar.io/release-version"])
 
     def test_postgres_ledger_is_outside_sqlite_recreate(self) -> None:
         result = render(
@@ -114,7 +114,7 @@ class StatefulUpgradeChartTests(unittest.TestCase):
                 env = {row["name"]: row.get("value") for row in container["env"]}
                 self.assertEqual(mode, env["MODE"])
                 self.assertEqual(service, env["SERVICE"])
-                self.assertEqual("0.35.5", env["TARGET_RELEASE"])
+                self.assertEqual("0.36.0", env["TARGET_RELEASE"])
                 claim = next(
                     volume["persistentVolumeClaim"]["claimName"]
                     for volume in pod["volumes"]
