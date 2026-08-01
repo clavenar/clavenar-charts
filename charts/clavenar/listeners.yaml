@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "1336924ece3d51f6c0a797d6673f40b830e7f266aae70a8bfb058fdbb2b25f6b"
+reviewedContractSha256: "d3a71fc8dd269e2c63109fe7c97a8c0aa7053380aec94efeba047337b2b50a41"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -417,6 +417,11 @@ serviceObjects:
   - { id: upstream-stub, selectorOwner: core, enabledWhen: "upstreamStub.enabled", name: "{release}-upstream-stub", type: ClusterIP, ports: [{ name: http, port: 9000, targetPort: http, protocol: TCP }] }
   - { id: proxy-alias, selectorOwner: none, enabledWhen: "proxyAlias.enabled", name: proxy, type: ExternalName, externalName: "{release}-proxy.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8443, targetPort: 8443, protocol: TCP }] }
   - { id: identity-alias, selectorOwner: none, enabledWhen: "identityAlias.enabled and tlsBundle.secretName and workloadIdentity.enabled", name: identity, type: ExternalName, externalName: "{release}-identity.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8186, targetPort: 8186, protocol: TCP }] }
+  - { id: brain-alias, selectorOwner: none, enabledWhen: "tlsBundle.secretName and workloadIdentity.enabled", name: brain, type: ExternalName, externalName: "{release}-brain.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8081, targetPort: 8081, protocol: TCP }] }
+  - { id: policy-engine-alias, selectorOwner: none, enabledWhen: "tlsBundle.secretName and workloadIdentity.enabled", name: policy-engine, type: ExternalName, externalName: "{release}-policy-engine.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8082, targetPort: 8082, protocol: TCP }] }
+  - { id: ledger-alias, selectorOwner: none, enabledWhen: "tlsBundle.secretName and workloadIdentity.enabled", name: ledger, type: ExternalName, externalName: "{release}-ledger.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8183, targetPort: 8183, protocol: TCP }] }
+  - { id: hil-alias, selectorOwner: none, enabledWhen: "tlsBundle.secretName and workloadIdentity.enabled", name: hil, type: ExternalName, externalName: "{release}-hil.{namespace}.svc.cluster.local", ports: [{ name: mtls, port: 8084, targetPort: 8084, protocol: TCP }] }
+  - { id: assurance-alias, selectorOwner: none, enabledWhen: "services.assurance.enabled and tlsBundle.secretName and workloadIdentity.enabled", name: assurance, type: ExternalName, externalName: "{release}-assurance.{namespace}.svc.cluster.local", ports: [{ name: control-mtls, port: 8088, targetPort: 8088, protocol: TCP, appProtocol: https }] }
   - { id: nats, selectorOwner: nats, enabledWhen: "nats.bundled.enabled", name: "{release}-nats", type: ClusterIP, ports: [{ name: nats, port: 4222, targetPort: nats, protocol: TCP, appProtocol: tlsWhenTlsElseTcp }, { name: monitor, port: 8222, targetPort: monitor, protocol: TCP, appProtocol: http }] }
   - { id: nats-headless, selectorOwner: nats, enabledWhen: "nats.bundled.enabled", name: "{release}-nats-headless", type: ClusterIP, headless: true, publishNotReadyAddresses: true, ports: [{ name: nats, port: 4222, targetPort: nats, protocol: TCP, appProtocol: tlsWhenTlsElseTcp }, { name: monitor, port: 8222, targetPort: monitor, protocol: TCP, appProtocol: http }] }
   - { id: vault, selectorOwner: vault, enabledWhen: "vault.bundled.enabled", name: "{release}-vault", type: ClusterIP, publishNotReadyAddresses: true, ports: [{ name: http, port: 8200, targetPort: 8200, protocol: TCP }, { name: https-internal, port: 8201, targetPort: 8201, protocol: TCP }] }

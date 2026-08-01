@@ -53,7 +53,13 @@ class StatefulUpgradeChartTests(unittest.TestCase):
             item
             for item in self.items
             if item.get("kind") == "ConfigMap"
-            and item["metadata"]["name"] == "upgrade-test-stateful-upgrade-contract"
+            and item["metadata"]["name"].startswith(
+                "upgrade-test-stateful-upgrade-contract-"
+            )
+        )
+        self.assertRegex(
+            contract["metadata"]["name"],
+            r"^upgrade-test-stateful-upgrade-contract-[a-f0-9]{12}$",
         )
         self.assertTrue(contract["immutable"])
         self.assertEqual(SCHEMA.read_bytes(), contract["data"][SCHEMA.name].encode())
@@ -73,7 +79,7 @@ class StatefulUpgradeChartTests(unittest.TestCase):
                 annotations["clavenar.io/stateful-upgrade-contract"],
                 r"^sha256:[a-f0-9]{64}$",
             )
-            self.assertEqual("0.36.1", annotations["clavenar.io/release-version"])
+            self.assertEqual("0.36.2", annotations["clavenar.io/release-version"])
 
     def test_postgres_ledger_is_outside_sqlite_recreate(self) -> None:
         result = render(
@@ -121,7 +127,7 @@ class StatefulUpgradeChartTests(unittest.TestCase):
                 env = {row["name"]: row.get("value") for row in container["env"]}
                 self.assertEqual(mode, env["MODE"])
                 self.assertEqual(service, env["SERVICE"])
-                self.assertEqual("0.36.1", env["TARGET_RELEASE"])
+                self.assertEqual("0.36.2", env["TARGET_RELEASE"])
                 database, application_env = DATABASES[service]
                 self.assertEqual(database, env["DATABASE_NAME"])
                 claim = next(

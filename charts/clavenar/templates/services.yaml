@@ -20,6 +20,7 @@ inside the range is the iterated value.
 {{- $mountsFederatedIdentityContract := eq $name "console" }}
 {{- $mountsControlState := eq $name "proxy" }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (or $.Values.evaluationPublicTrust.enabled (not (empty $.Values.attestationTrustAnchors.secretName))) }}
+{{- $mountsIdentityCapabilities := and (eq $name "identity") (not (empty $.Values.identityCapabilities.existingConfigMapName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $mountsHilPayloadKey := eq $name "hil" }}
 {{- $mountsHilNotificationToken := and (eq $name "hil") (not (empty $cfg.notifications.webhook.tokenSecretName)) }}
@@ -201,7 +202,11 @@ spec:
               state=/state-root/current
               if [ -e "$state" ]; then
                 [ -d "$state" ] && [ ! -L "$state" ]
-                [ "$(stat -c '%a:%u' "$state")" = "700:{{ $.Values.podSecurityContext.runAsUser }}" ]
+                state_identity="$(stat -c '%a:%u:%g' "$state")"
+                case "$state_identity" in
+                  700:{{ $.Values.podSecurityContext.runAsUser }}:{{ $.Values.podSecurityContext.runAsGroup }}|2700:{{ $.Values.podSecurityContext.runAsUser }}:{{ $.Values.podSecurityContext.runAsGroup }}) ;;
+                  *) echo "workload SVID state has unsafe ownership or mode" >&2; exit 1 ;;
+                esac
               else
                 mkdir "$state"
                 chmod 0700 "$state"
@@ -363,6 +368,10 @@ spec:
             {{- if $mountsAttestationTrust }}
             - name: CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE
               value: /etc/clavenar/public-trust/k8s-trust-anchors.json
+            {{- if not (empty $.Values.attestationTrustAnchors.bootstrapApprovalKey) }}
+            - name: CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE
+              value: /etc/clavenar/public-trust/simulator-bootstrap-approval.json
+            {{- end }}
             {{- if $.Values.evaluationPublicTrust.enabled }}
             - name: CLAVENAR_IDENTITY_OIDC_TENANT_EVALUATION_ISSUER
               value: https://evaluation.invalid/
@@ -374,13 +383,17 @@ spec:
               value: "true"
             {{- end }}
             {{- end }}
+            {{- if $mountsIdentityCapabilities }}
+            - name: CLAVENAR_IDENTITY_CAPABILITIES_TOML
+              value: /etc/clavenar/identity-capabilities/capabilities.toml
+            {{- end }}
           livenessProbe:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "liveness") | nindent 12 }}
           readinessProbe:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsIdentityCapabilities $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -427,6 +440,12 @@ spec:
               mountPath: /etc/clavenar/public-trust
               readOnly: true
             {{- end }}
+            {{- if $mountsIdentityCapabilities }}
+            - name: identity-capabilities
+              mountPath: /etc/clavenar/identity-capabilities/capabilities.toml
+              subPath: capabilities.toml
+              readOnly: true
+            {{- end }}
             {{- if $mountsBrainCacheKey }}
             - name: brain-cache-hmac-key
               mountPath: /run/secrets/brain-cache-hmac-key
@@ -466,7 +485,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsIdentityCapabilities $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -614,7 +633,19 @@ spec:
             items:
               - key: {{ $.Values.attestationTrustAnchors.key }}
                 path: k8s-trust-anchors.json
+              {{- if not (empty $.Values.attestationTrustAnchors.bootstrapApprovalKey) }}
+              - key: {{ $.Values.attestationTrustAnchors.bootstrapApprovalKey }}
+                path: simulator-bootstrap-approval.json
+              {{- end }}
           {{- end }}
+        {{- end }}
+        {{- if $mountsIdentityCapabilities }}
+        - name: identity-capabilities
+          configMap:
+            name: {{ $.Values.identityCapabilities.existingConfigMapName }}
+            items:
+              - key: {{ $.Values.identityCapabilities.key }}
+                path: capabilities.toml
         {{- end }}
         {{- if $mountsBrainCacheKey }}
         - name: brain-cache-hmac-key

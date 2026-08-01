@@ -67,6 +67,17 @@ hilPayloadProtection:
 attestationTrustAnchors:
   secretName: ""
   key: k8s-trust-anchors.json
+  # Optional public approval document used only to admit the separately
+  # deployed Simulator's first key-bound workload enrollment. It must live in
+  # the same public-trust Secret; private attestation keys remain absent.
+  bootstrapApprovalKey: ""
+
+# Optional operator-supplied ConfigMap containing Identity's tenant/group
+# capability map. The chart projects only the named key into Identity and
+# leaves the ConfigMap lifecycle with the environment owner.
+identityCapabilities:
+  existingConfigMapName: ""
+  key: capabilities.toml
 
 # Public verification material for the self-contained evaluation quickstart.
 # This contains no private key or signing authority. The packaged bundled
@@ -293,10 +304,11 @@ agentVaultSeed:
 # server cert SAN as `DNS:proxy, DNS:proxy.clavenar.local,
 # DNS:localhost` — the TLS handshake validates SNI against the SAN.
 #
-# Enable for any lab / dev deploy where agents speak directly to the
-# proxy's Service IP. Skip when an Ingress / Gateway terminates mTLS
-# upstream (the Ingress sets the right SNI), or when another `proxy`
-# Service already exists in the namespace.
+# Enable whenever agents or the Assurance workload speak directly to the
+# proxy's Service IP. It is required for Assurance with managed workload TLS.
+# Skip only when no in-cluster client needs the alias (for example, an
+# Ingress/Gateway is the sole mTLS caller), or when another `proxy` Service
+# already exists in the namespace.
 proxyAlias:
   enabled: false
 

@@ -43,6 +43,17 @@ certificates deliberately carry DNS:identity, independent of release name. */}}
 {{- if and .Values.identityAlias.enabled (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled -}}identity{{- else -}}{{ .Release.Name }}-identity{{- end -}}
 {{- end -}}
 
+{{/* Stable application hostname for a managed workload-SVID server. Renewed
+certificates deliberately carry the bare service DNS name, so mTLS callers use
+the matching ExternalName alias after workload identity is enabled. */}}
+{{- define "clavenar.workloadHost" -}}
+{{- if and (not (empty .ctx.Values.tlsBundle.secretName)) .ctx.Values.workloadIdentity.enabled -}}
+{{- .service | kebabcase -}}
+{{- else -}}
+{{- printf "%s-%s" .ctx.Release.Name (.service | kebabcase) -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Per-service fullname: <release>-<service>. The values key is
 camelCase to form a valid Go-template path; k8s object names need
 RFC-1123 lowercase, so we kebabcase here. */}}
@@ -355,6 +366,8 @@ per environment variable.
         "CLAVENAR_IDENTITY_REPLAY_REPLICAS"
         "CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS"
         "CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE"
+        "CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE"
+        "CLAVENAR_IDENTITY_CAPABILITIES_TOML"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
         "NATS_TLS_CA_PATH"
@@ -487,6 +500,12 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- $mount := .ctx.Values.tlsBundle.mountPath -}}
 {{- $tlsOn := not (empty $tls) -}}
 {{- $identityHost := include "clavenar.identityHost" .ctx -}}
+{{- $proxyHost := include "clavenar.workloadHost" (dict "ctx" .ctx "service" "proxy") -}}
+{{- $brainHost := include "clavenar.workloadHost" (dict "ctx" .ctx "service" "brain") -}}
+{{- $policyHost := include "clavenar.workloadHost" (dict "ctx" .ctx "service" "policy-engine") -}}
+{{- $ledgerHost := include "clavenar.workloadHost" (dict "ctx" .ctx "service" "ledger") -}}
+{{- $hilHost := include "clavenar.workloadHost" (dict "ctx" .ctx "service" "hil") -}}
+{{- $assuranceHost := include "clavenar.workloadHost" (dict "ctx" .ctx "service" "assurance") -}}
 {{- $brainScheme := ternary "https" "http" $tlsOn -}}
 {{- $policyScheme := ternary "https" "http" $tlsOn -}}
 {{- $managedWorkload := and $tlsOn .ctx.Values.workloadIdentity.enabled (has $name (list "proxy" "brain" "policyEngine" "ledger" "hil" "identity" "console")) -}}
@@ -517,7 +536,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # This exact allowlist is chart-owned so a fresh install can perform the
 # first self-enrollment without an unsafe wildcard.
 - name: CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS
-  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/brain,spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/ledger,spiffe://clavenar.local/service/hil,spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/console"
+  value: "spiffe://clavenar.local/service/proxy,spiffe://clavenar.local/service/brain,spiffe://clavenar.local/service/policy-engine,spiffe://clavenar.local/service/ledger,spiffe://clavenar.local/service/hil,spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/console,spiffe://clavenar.local/service/simulator"
 {{- end }}
 {{ end }}{{ "\n" -}}
 {{- if has $name (list "proxy" "identity") }}
@@ -553,13 +572,13 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_PROXY_QUOTA_CACHE_TTL_SECS
   value: "300"
 - name: CLAVENAR_BRAIN_URL
-  value: "{{ $brainScheme }}://{{ $rel }}-brain:8081/inspect"
+  value: "{{ $brainScheme }}://{{ $brainHost }}:8081/inspect"
 - name: CLAVENAR_POLICY_URL
-  value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082/evaluate"
+  value: "{{ $policyScheme }}://{{ $policyHost }}:8082/evaluate"
 - name: CLAVENAR_HIL_URL
-  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $hilHost }}:8084"
 - name: CLAVENAR_LEDGER_URL
-  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $ledgerHost }}:{{ ternary "8183" "8083" $tlsOn }}"
 - name: CLAVENAR_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ ternary $identityHost (printf "%s-identity" $rel) $tlsOn }}:{{ ternary "8186" "8086" $tlsOn }}"
 - name: CLAVENAR_BRAIN_READINESS_URL
@@ -680,7 +699,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # listener. The workload client additionally pins the exact Brain SPIFFE URI;
 # there is no plaintext health-listener fallback.
 - name: CLAVENAR_POLICY_ENGINE_BRAIN_URL
-  value: "https://{{ $rel }}-brain:8081"
+  value: "https://{{ $brainHost }}:8081"
 {{- if not $tlsOn }}
 - name: CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE
   value: "spiffe://clavenar.local/service/identity,spiffe://clavenar.local/service/brain"
@@ -727,8 +746,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 #
 # Service template emits a second port (`name: mtls`) alongside
 # `http` when tlsBundle.secretName is set, so the chart-wired
-# CLAVENAR_CONSOLE_IDENTITY_URL=https://<release>-identity:8186 resolves
-# without any per-release manifest tweak.
+# CLAVENAR_CONSOLE_IDENTITY_URL=https://identity:8186 resolves through the
+# stable workload alias without any per-release manifest tweak.
 - name: CLAVENAR_IDENTITY_TLS_DIR
   value: {{ $mount | quote }}
 - name: CLAVENAR_IDENTITY_MTLS_ADDR
@@ -757,8 +776,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # network attacker cannot bypass mTLS by hitting `port` directly.
 # Service template emits a second port (`name: mtls`) alongside
 # `http` when tlsBundle.secretName is set so in-cluster clients can
-# dial CLAVENAR_CONSOLE_LEDGER_URL=https://<release>-ledger:8183 by
-# Service DNS.
+# dial CLAVENAR_CONSOLE_LEDGER_URL=https://ledger:8183 through the stable
+# workload alias.
 - name: CLAVENAR_LEDGER_TLS_DIR
   value: {{ $mount | quote }}
 - name: CLAVENAR_LEDGER_MTLS_ADDR
@@ -830,17 +849,17 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # policy-engine on :8082 (single-port mTLS), hil on :8084 (single-mode
 # mTLS), identity on :8186 (mTLS listener).
 - name: CLAVENAR_CONSOLE_LEDGER_URL
-  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-ledger:{{ ternary "8183" "8083" $tlsOn }}"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $ledgerHost }}:{{ ternary "8183" "8083" $tlsOn }}"
 - name: CLAVENAR_CONSOLE_HIL_URL
-  value: "{{ ternary "https" "http" $tlsOn }}://{{ $rel }}-hil:8084"
+  value: "{{ ternary "https" "http" $tlsOn }}://{{ $hilHost }}:8084"
 - name: CLAVENAR_CONSOLE_POLICY_ENGINE_URL
-  value: "{{ $policyScheme }}://{{ $rel }}-policy-engine:8082"
+  value: "{{ $policyScheme }}://{{ $policyHost }}:8082"
 - name: CLAVENAR_CONSOLE_IDENTITY_URL
   value: "{{ ternary "https" "http" $tlsOn }}://{{ ternary $identityHost (printf "%s-identity" $rel) $tlsOn }}:{{ ternary "8186" "8086" $tlsOn }}"
 # Narration and model-snapshot reads never use Brain's plaintext diagnostics
 # listener. Without workload TLS these optional operations fail soft.
 - name: CLAVENAR_CONSOLE_BRAIN_URL
-  value: "https://{{ $rel }}-brain:8081"
+  value: "https://{{ $brainHost }}:8081"
 - name: CLAVENAR_CONSOLE_LEDGER_READINESS_URL
   value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "ledger") | quote }}
 - name: CLAVENAR_CONSOLE_HIL_READINESS_URL
@@ -859,7 +878,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- if and $tlsOn .ctx.Values.services.console.operatorMtls.enabled .ctx.Values.services.assurance.enabled }}
 - name: CLAVENAR_ASSURANCE_URL
-  value: "https://{{ $rel }}-assurance:8088"
+  value: "https://{{ $assuranceHost }}:8088"
 {{- end }}
 {{- if $tlsOn }}
 # Outbound mTLS — same cert bundle the proxy uses. One
@@ -876,7 +895,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- if eq $name "assurance" }}
 - name: CLAVENAR_ASSURANCE_PROXY_URL
-  value: "https://{{ $rel }}-proxy:8443/mcp"
+  value: "https://{{ $proxyHost }}:8443/mcp"
 - name: CLAVENAR_ASSURANCE_PROXY_READINESS_URL
   value: {{ include "clavenar.dependencyReadinessUrl" (dict "ctx" .ctx "service" "proxy") | quote }}
 # Assurance namespaces its NATS URL like deep-review does — mirror the

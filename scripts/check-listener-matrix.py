@@ -902,6 +902,11 @@ def validate_console_contract(
     operator_enabled = bool(value_at(values, "services.console.operatorMtls.enabled"))
     demo_enabled = bool(value_at(values, "services.console.demo.enabled"))
     tls_secret = value_at(values, "tlsBundle.secretName")
+    workload_brain_host = (
+        "brain"
+        if tls_secret and value_at(values, "workloadIdentity.enabled")
+        else f"{release}-brain"
+    )
 
     expected_ports = {
         "operator-mtls" if operator_enabled else "demo": 8085,
@@ -954,7 +959,7 @@ def validate_console_contract(
         "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR": "0.0.0.0:9185",
         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_MAX": "10",
         "CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS": "60",
-        "CLAVENAR_CONSOLE_BRAIN_URL": f"https://{release}-brain:8081",
+        "CLAVENAR_CONSOLE_BRAIN_URL": f"https://{workload_brain_host}:8081",
     }
     release_values = [
         entry.get("value")
@@ -982,7 +987,11 @@ def validate_console_contract(
             ),
         })
         if value_at(values, "services.assurance.enabled") and tls_secret:
-            expected_env["CLAVENAR_ASSURANCE_URL"] = f"https://{release}-assurance:8088"
+            expected_env["CLAVENAR_ASSURANCE_URL"] = (
+                "https://assurance:8088"
+                if tls_secret and value_at(values, "workloadIdentity.enabled")
+                else f"https://{release}-assurance:8088"
+            )
         if demo_enabled:
             expected_env["CLAVENAR_CONSOLE_DEMO_ADDR"] = "0.0.0.0:9085"
     if tls_secret:
@@ -1096,6 +1105,11 @@ def validate_brain_auxiliary_contract(values, docs, release, errors):
         return
     container = containers[0]
     tls_secret = value_at(values, "tlsBundle.secretName")
+    workload_brain_host = (
+        "brain"
+        if tls_secret and value_at(values, "workloadIdentity.enabled")
+        else f"{release}-brain"
+    )
     expected_ports = {"http": 8081, "health": 9081}
     actual_ports = {
         port.get("name"): int(port["containerPort"])
@@ -1193,14 +1207,14 @@ def validate_brain_auxiliary_contract(values, docs, release, errors):
 
     expected_clients = {
         f"{release}-policy-engine": {
-            "CLAVENAR_POLICY_ENGINE_BRAIN_URL": f"https://{release}-brain:8081",
+            "CLAVENAR_POLICY_ENGINE_BRAIN_URL": f"https://{workload_brain_host}:8081",
             "CLAVENAR_POLICY_EXPECTED_PEER_SPIFFE": (
                 "spiffe://clavenar.local/service/identity,"
                 "spiffe://clavenar.local/service/brain"
             ),
         },
         f"{release}-console": {
-            "CLAVENAR_CONSOLE_BRAIN_URL": f"https://{release}-brain:8081",
+            "CLAVENAR_CONSOLE_BRAIN_URL": f"https://{workload_brain_host}:8081",
         },
     }
     for deployment_name, expected in expected_clients.items():
@@ -1520,6 +1534,11 @@ def validate(
     aliases = {
         "proxy-alias": "proxy",
         "identity-alias": "identity",
+        "brain-alias": "brain",
+        "policy-engine-alias": "policy-engine",
+        "ledger-alias": "ledger",
+        "hil-alias": "hil",
+        "assurance-alias": "assurance",
         "nats-headless": "nats",
         "vault-internal": "vault",
     }

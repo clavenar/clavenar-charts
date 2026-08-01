@@ -142,6 +142,7 @@ class PublicBundledInstallTests(unittest.TestCase):
                 "spiffe://clavenar.local/service/hil",
                 "spiffe://clavenar.local/service/identity",
                 "spiffe://clavenar.local/service/console",
+                "spiffe://clavenar.local/service/simulator",
             },
             set(
                 identity_env[

@@ -1,5 +1,7 @@
 tlsBundle:
   secretName: clavenar-certs
+proxyAlias:
+  enabled: true
 services:
   # Repeat the strict auxiliary boundary in the canonical hardened fixture so
   # render evidence does not rely on an implicit fallback.

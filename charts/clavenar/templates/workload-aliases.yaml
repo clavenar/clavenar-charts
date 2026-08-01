@@ -1,0 +1,33 @@
+{{/*
+Stable DNS aliases for application listeners whose server certificates rotate
+through workload SVIDs. The renewed certificates carry bare DNS names so
+callers must retain the same SNI independently of the Helm release name.
+*/}}
+{{- if and (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled }}
+{{- range $service := list "brain" "policy-engine" "ledger" "hil" "assurance" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $service }}
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" $ "service" (printf "%s-alias" $service)) | nindent 4 }}
+spec:
+  type: ExternalName
+  externalName: {{ printf "%s-%s.%s.svc.cluster.local" $.Release.Name $service $.Release.Namespace }}
+  ports:
+    {{- if eq $service "ledger" }}
+    - name: mtls
+      port: {{ $.Values.services.ledger.mtlsPort }}
+      targetPort: {{ $.Values.services.ledger.mtlsPort }}
+    {{- else }}
+    - name: {{ ternary "control-mtls" "mtls" (eq $service "assurance") }}
+      port: {{ (index $.Values.services (ternary "policyEngine" $service (eq $service "policy-engine"))).port }}
+      targetPort: {{ (index $.Values.services (ternary "policyEngine" $service (eq $service "policy-engine"))).port }}
+    {{- end }}
+      protocol: TCP
+      {{- if eq $service "assurance" }}
+      appProtocol: https
+      {{- end }}
+{{- end }}
+{{- end }}

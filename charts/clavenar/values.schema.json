@@ -214,9 +214,32 @@
     "attestationTrustAnchors": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["secretName", "key"],
+      "required": ["secretName", "key", "bootstrapApprovalKey"],
       "properties": {
         "secretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "bootstrapApprovalKey": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
+    "identityCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["existingConfigMapName", "key"],
+      "properties": {
+        "existingConfigMapName": {
           "type": "string",
           "maxLength": 253,
           "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
@@ -572,6 +595,8 @@
                         "CLAVENAR_IDENTITY_REPLAY_REPLICAS",
                         "CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS",
                         "CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE",
+                        "CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE",
+                        "CLAVENAR_IDENTITY_CAPABILITIES_TOML",
                         "NATS_TLS_CERT_PATH",
                         "NATS_TLS_KEY_PATH",
                         "NATS_TLS_CA_PATH",

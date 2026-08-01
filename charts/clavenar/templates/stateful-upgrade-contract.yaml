@@ -1,12 +1,15 @@
+{{- $schema := .Files.Get "files/stateful-upgrade-v1.schema.json" -}}
+{{- $fixture := .Files.Get "files/stateful-upgrade-v1.fixture.json" -}}
+{{- $contentDigest := sha256sum (printf "%s\n%s" $schema $fixture) -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "clavenar.fullname" . }}-stateful-upgrade-contract
+  name: {{ printf "%s-stateful-upgrade-contract-%s" (include "clavenar.fullname" . | trunc 23 | trimSuffix "-") (trunc 12 $contentDigest) }}
   labels:
     {{- include "clavenar.labels" (dict "ctx" . "service" "stateful-upgrade-contract") | nindent 4 }}
 immutable: true
 data:
   stateful-upgrade-v1.schema.json: |
-{{ .Files.Get "files/stateful-upgrade-v1.schema.json" | trimSuffix "\n" | indent 4 }}
+{{ $schema | trimSuffix "\n" | indent 4 }}
   stateful-upgrade-v1.fixture.json: |
-{{ .Files.Get "files/stateful-upgrade-v1.fixture.json" | trimSuffix "\n" | indent 4 }}
+{{ $fixture | trimSuffix "\n" | indent 4 }}

@@ -67,6 +67,12 @@
 {{- if and (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled (not .Values.identityAlias.enabled) }}
 {{- fail "workloadIdentity.enabled with workload TLS requires identityAlias.enabled=true so renewed DNS:identity certificates match the authority URL" }}
 {{- end }}
+{{- if and (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled .Values.services.assurance.enabled (not .Values.proxyAlias.enabled) }}
+{{- fail "services.assurance.enabled with workload identity and TLS requires proxyAlias.enabled=true so renewed DNS:proxy certificates match the Assurance URL" }}
+{{- end }}
+{{- if and (not (empty .Values.attestationTrustAnchors.bootstrapApprovalKey)) (empty .Values.attestationTrustAnchors.secretName) }}
+{{- fail "attestationTrustAnchors.bootstrapApprovalKey requires attestationTrustAnchors.secretName" }}
+{{- end }}
 {{- if .Values.exec.enabled }}
 {{- if eq $deploymentProfile "production" }}
 {{- fail "deploymentProfile=production forbids exec.enabled=true until WP-13 closes" }}

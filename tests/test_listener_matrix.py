@@ -147,6 +147,8 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_IDENTITY_REPLAY_REPLICAS",
         "CLAVENAR_IDENTITY_WORKLOAD_ALLOWED_CALLERS",
         "CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE",
+        "CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE",
+        "CLAVENAR_IDENTITY_CAPABILITIES_TOML",
         "VAULT_ADDR",
         "VAULT_TOKEN_FILE",
     },
@@ -915,7 +917,7 @@ class ListenerMatrixTest(unittest.TestCase):
                     for entry in policy["spec"]["template"]["spec"]["containers"][0]["env"]
                 }
                 self.assertEqual(
-                    "https://smoke-brain:8081",
+                    f"https://{'brain' if tls_enabled else 'smoke-brain'}:8081",
                     policy_env["CLAVENAR_POLICY_ENGINE_BRAIN_URL"],
                 )
                 self.assertEqual(
@@ -934,7 +936,7 @@ class ListenerMatrixTest(unittest.TestCase):
                     for entry in console["spec"]["template"]["spec"]["containers"][0]["env"]
                 }
                 self.assertEqual(
-                    "https://smoke-brain:8081",
+                    f"https://{'brain' if tls_enabled else 'smoke-brain'}:8081",
                     console_env["CLAVENAR_CONSOLE_BRAIN_URL"],
                 )
                 if tls_enabled:
@@ -989,6 +991,164 @@ class ListenerMatrixTest(unittest.TestCase):
                 peer["podSelector"]["matchLabels"]["app.kubernetes.io/component"]
                 for peer in default_policy["spec"]["ingress"][0]["from"]
             },
+        )
+
+    def test_managed_workload_tls_uses_stable_server_aliases(self):
+        documents = self.rendered["production"]
+        expected_aliases = {
+            "proxy": ("smoke-proxy.default.svc.cluster.local", "mtls", 8443),
+            "identity": ("smoke-identity.default.svc.cluster.local", "mtls", 8186),
+            "brain": ("smoke-brain.default.svc.cluster.local", "mtls", 8081),
+            "policy-engine": (
+                "smoke-policy-engine.default.svc.cluster.local",
+                "mtls",
+                8082,
+            ),
+            "ledger": ("smoke-ledger.default.svc.cluster.local", "mtls", 8183),
+            "hil": ("smoke-hil.default.svc.cluster.local", "mtls", 8084),
+            "assurance": (
+                "smoke-assurance.default.svc.cluster.local",
+                "control-mtls",
+                8088,
+            ),
+        }
+        for name, (external_name, port_name, port) in expected_aliases.items():
+            with self.subTest(alias=name):
+                service = next(
+                    doc
+                    for doc in documents
+                    if doc.get("kind") == "Service"
+                    and doc["metadata"]["name"] == name
+                )
+                self.assertEqual("ExternalName", service["spec"]["type"])
+                self.assertEqual(external_name, service["spec"]["externalName"])
+                expected_port = {
+                    "name": port_name,
+                    "port": port,
+                    "targetPort": port,
+                    "protocol": "TCP",
+                }
+                if name == "assurance":
+                    expected_port["appProtocol"] = "https"
+                self.assertEqual(expected_port, service["spec"]["ports"][0])
+
+        expected_urls = {
+            "smoke-proxy": {
+                "CLAVENAR_BRAIN_URL": "https://brain:8081/inspect",
+                "CLAVENAR_POLICY_URL": "https://policy-engine:8082/evaluate",
+                "CLAVENAR_HIL_URL": "https://hil:8084",
+                "CLAVENAR_LEDGER_URL": "https://ledger:8183",
+                "CLAVENAR_IDENTITY_URL": "https://identity:8186",
+            },
+            "smoke-policy-engine": {
+                "CLAVENAR_POLICY_ENGINE_BRAIN_URL": "https://brain:8081",
+            },
+            "smoke-console": {
+                "CLAVENAR_CONSOLE_BRAIN_URL": "https://brain:8081",
+                "CLAVENAR_CONSOLE_POLICY_ENGINE_URL": "https://policy-engine:8082",
+                "CLAVENAR_CONSOLE_HIL_URL": "https://hil:8084",
+                "CLAVENAR_CONSOLE_LEDGER_URL": "https://ledger:8183",
+                "CLAVENAR_CONSOLE_IDENTITY_URL": "https://identity:8186",
+                "CLAVENAR_ASSURANCE_URL": "https://assurance:8088",
+            },
+            "smoke-assurance": {
+                "CLAVENAR_ASSURANCE_PROXY_URL": "https://proxy:8443/mcp",
+            },
+        }
+        for deployment_name, expected in expected_urls.items():
+            with self.subTest(deployment=deployment_name):
+                deployment = next(
+                    doc
+                    for doc in documents
+                    if doc.get("kind") == "Deployment"
+                    and doc["metadata"]["name"] == deployment_name
+                )
+                actual = {
+                    entry["name"]: entry.get("value")
+                    for entry in deployment["spec"]["template"]["spec"]["containers"][0]["env"]
+                    if entry["name"] in expected
+                }
+                self.assertEqual(expected, actual)
+
+    def test_identity_projects_bootstrap_approval_and_capability_map_exactly(self):
+        values = yaml.safe_load((ROOT / "tests/values-production.yaml").read_text())
+        values["attestationTrustAnchors"]["bootstrapApprovalKey"] = (
+            "simulator-bootstrap-approval.json"
+        )
+        values["identityCapabilities"] = {
+            "existingConfigMapName": "clavenar-identity-capabilities",
+            "key": "capabilities.toml",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / "values.yaml"
+            fixture.write_text(yaml.safe_dump(values, sort_keys=False))
+            output = subprocess.run(
+                [
+                    "helm",
+                    "template",
+                    "smoke",
+                    str(ROOT / "charts/clavenar"),
+                    "-f",
+                    str(fixture),
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            ).stdout
+        documents = [doc for doc in yaml.safe_load_all(output) if isinstance(doc, dict)]
+        identity = next(
+            doc
+            for doc in documents
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-identity"
+        )
+        pod = identity["spec"]["template"]["spec"]
+        container = pod["containers"][0]
+        env = {entry["name"]: entry.get("value") for entry in container["env"]}
+        self.assertEqual(
+            "/etc/clavenar/public-trust/simulator-bootstrap-approval.json",
+            env["CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE"],
+        )
+        self.assertEqual(
+            "/etc/clavenar/identity-capabilities/capabilities.toml",
+            env["CLAVENAR_IDENTITY_CAPABILITIES_TOML"],
+        )
+        volumes = {volume["name"]: volume for volume in pod["volumes"]}
+        self.assertEqual(
+            {
+                ("k8s-trust-anchors.json", "k8s-trust-anchors.json"),
+                ("simulator-bootstrap-approval.json", "simulator-bootstrap-approval.json"),
+            },
+            {
+                (item["key"], item["path"])
+                for item in volumes["attestation-trust-anchors"]["secret"]["items"]
+            },
+        )
+        self.assertEqual(
+            {
+                "name": "clavenar-identity-capabilities",
+                "items": [{"key": "capabilities.toml", "path": "capabilities.toml"}],
+            },
+            volumes["identity-capabilities"]["configMap"],
+        )
+        mounts = {mount["name"]: mount for mount in container["volumeMounts"]}
+        self.assertEqual(
+            {
+                "name": "identity-capabilities",
+                "mountPath": "/etc/clavenar/identity-capabilities/capabilities.toml",
+                "subPath": "capabilities.toml",
+                "readOnly": True,
+            },
+            mounts["identity-capabilities"],
+        )
+        state_initializer = next(
+            item
+            for item in pod["initContainers"]
+            if item["name"] == "workload-svid-state-initializer"
+        )
+        self.assertIn(
+            "700:65532:65532|2700:65532:65532",
+            "\n".join(state_initializer["args"]),
         )
 
     def test_brain_auxiliary_manifest_drift_is_rejected(self):
@@ -1090,7 +1250,7 @@ class ListenerMatrixTest(unittest.TestCase):
             operator_env["CLAVENAR_CONSOLE_MUTATION_ORIGINS"],
         )
         self.assertEqual(
-            "https://smoke-assurance:8088",
+            "https://assurance:8088",
             operator_env["CLAVENAR_ASSURANCE_URL"],
         )
         volumes = {volume["name"]: volume for volume in operator_pod["volumes"]}
