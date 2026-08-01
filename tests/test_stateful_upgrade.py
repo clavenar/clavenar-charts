@@ -4,7 +4,7 @@ import json
 import subprocess
 import tempfile
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 
@@ -14,6 +14,13 @@ CHART = ROOT / "charts" / "clavenar"
 SCHEMA = CHART / "files" / "stateful-upgrade-v1.schema.json"
 FIXTURE = CHART / "files" / "stateful-upgrade-v1.fixture.json"
 SERVICES = {"ledger", "hil", "identity", "policy-engine", "proxy"}
+DATABASES = {
+    "ledger": ("ledger.db", "CLAVENAR_LEDGER_DB"),
+    "hil": ("hil.db", "CLAVENAR_HIL_DB"),
+    "identity": ("identity.db", "CLAVENAR_IDENTITY_DB"),
+    "policy-engine": ("policies.db", "CLAVENAR_POLICY_DB"),
+    "proxy": ("server-execution.db", "CLAVENAR_PROXY_SERVER_EXECUTION_DB"),
+}
 
 
 def render(*arguments: str) -> subprocess.CompletedProcess[str]:
@@ -66,7 +73,7 @@ class StatefulUpgradeChartTests(unittest.TestCase):
                 annotations["clavenar.io/stateful-upgrade-contract"],
                 r"^sha256:[a-f0-9]{64}$",
             )
-            self.assertEqual("0.36.0", annotations["clavenar.io/release-version"])
+            self.assertEqual("0.36.1", annotations["clavenar.io/release-version"])
 
     def test_postgres_ledger_is_outside_sqlite_recreate(self) -> None:
         result = render(
@@ -114,13 +121,30 @@ class StatefulUpgradeChartTests(unittest.TestCase):
                 env = {row["name"]: row.get("value") for row in container["env"]}
                 self.assertEqual(mode, env["MODE"])
                 self.assertEqual(service, env["SERVICE"])
-                self.assertEqual("0.36.0", env["TARGET_RELEASE"])
+                self.assertEqual("0.36.1", env["TARGET_RELEASE"])
+                database, application_env = DATABASES[service]
+                self.assertEqual(database, env["DATABASE_NAME"])
                 claim = next(
                     volume["persistentVolumeClaim"]["claimName"]
                     for volume in pod["volumes"]
                     if volume["name"] == "data"
                 )
                 self.assertEqual(f"upgrade-test-{service}-data", claim)
+            deployment = next(
+                item
+                for item in self.items
+                if item.get("kind") == "Deployment"
+                and item["metadata"]["name"] == f"upgrade-test-{service}"
+            )
+            application = deployment["spec"]["template"]["spec"]["containers"][0]
+            application_envs = {
+                row["name"]: row.get("value") for row in application["env"]
+            }
+            database, application_env = DATABASES[service]
+            self.assertEqual(
+                database,
+                PurePosixPath(application_envs[application_env]).name,
+            )
 
     def test_hook_script_compiles_and_contains_atomic_restore_boundary(self) -> None:
         script = next(

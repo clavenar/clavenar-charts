@@ -10,9 +10,9 @@
 {{- end }}
 {{- $hookName := printf "%s-stateful-upgrade" (include "clavenar.fullname" .) | trunc 63 | trimSuffix "-" }}
 {{- $workloads := list
-      (dict "key" "ledger" "service" "ledger" "database" "clavenar_ledger.db")
-      (dict "key" "hil" "service" "hil" "database" "clavenar_hil.db")
-      (dict "key" "identity" "service" "identity" "database" "clavenar_identity.db")
+      (dict "key" "ledger" "service" "ledger" "database" "ledger.db")
+      (dict "key" "hil" "service" "hil" "database" "hil.db")
+      (dict "key" "identity" "service" "identity" "database" "identity.db")
       (dict "key" "policyEngine" "service" "policy-engine" "database" "policies.db")
       (dict "key" "proxy" "service" "proxy" "database" "server-execution.db")
 }}
@@ -133,9 +133,9 @@ data:
     if not VERSION.fullmatch(TARGET_RELEASE):
         fail("TARGET_RELEASE is invalid")
     if DATABASE_NAME not in {
-        "clavenar_ledger.db",
-        "clavenar_hil.db",
-        "clavenar_identity.db",
+        "ledger.db",
+        "hil.db",
+        "identity.db",
         "policies.db",
         "server-execution.db",
     }:
