@@ -11,6 +11,7 @@ umask 077
 : "${PROXY_SERVER_ADDITIONAL_DNS_NAMES?must be set}"
 : "${CONSOLE_ADDITIONAL_DNS_NAMES?must be set}"
 : "${IDENTITY_ADDITIONAL_DNS_NAMES?must be set}"
+: "${NATS_ADDITIONAL_DNS_NAMES?must be set}"
 : "${TLS_ROTATION_OPERATION:?must be set}"
 : "${TLS_ROTATION_GENERATION:?must be set}"
 : "${TLS_ROTATION_REASON:?must be set}"
@@ -68,9 +69,11 @@ dns_san_suffix() {
 validate_dns_names "Proxy server DNS contract" "$PROXY_SERVER_ADDITIONAL_DNS_NAMES"
 validate_dns_names "Console DNS contract" "$CONSOLE_ADDITIONAL_DNS_NAMES"
 validate_dns_names "Identity DNS contract" "$IDENTITY_ADDITIONAL_DNS_NAMES"
+validate_dns_names "NATS DNS contract" "$NATS_ADDITIONAL_DNS_NAMES"
 proxy_server_dns_suffix="$(dns_san_suffix "$PROXY_SERVER_ADDITIONAL_DNS_NAMES")"
 console_dns_suffix="$(dns_san_suffix "$CONSOLE_ADDITIONAL_DNS_NAMES")"
 identity_dns_suffix="$(dns_san_suffix "$IDENTITY_ADDITIONAL_DNS_NAMES")"
+nats_dns_suffix="$(dns_san_suffix "$NATS_ADDITIONAL_DNS_NAMES")"
 
 membership_sha() {
     printf 'sha256:%s' "$(printf '%s\n' "$1" | sha256sum | cut -d' ' -f1)"
@@ -158,6 +161,8 @@ $(private_public_digest "$directory/server.key")"
             expected_sans="${expected_sans}${console_dns_suffix}"
         elif [ "$service" = identity ]; then
             expected_sans="${expected_sans}${identity_dns_suffix}"
+        elif [ "$service" = nats ]; then
+            expected_sans="${expected_sans}${nats_dns_suffix}"
         fi
         [ "$actual_sans" = "$expected_sans" ] \
             || die "workload certificate SANs are not exact"
@@ -210,6 +215,8 @@ generate_bundle() {
             workload_dns_suffix="$console_dns_suffix"
         elif [ "$service" = identity ]; then
             workload_dns_suffix="$identity_dns_suffix"
+        elif [ "$service" = nats ]; then
+            workload_dns_suffix="$nats_dns_suffix"
         fi
         openssl genrsa -out "service-${service}.key" 2048 2>/dev/null
         openssl req -new -key "service-${service}.key" \

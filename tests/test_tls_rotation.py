@@ -54,6 +54,7 @@ class TlsRotationScriptTests(unittest.TestCase):
             "PROXY_SERVER_ADDITIONAL_DNS_NAMES": "",
             "CONSOLE_ADDITIONAL_DNS_NAMES": "",
             "IDENTITY_ADDITIONAL_DNS_NAMES": "",
+            "NATS_ADDITIONAL_DNS_NAMES": "",
             "TLS_ROTATION_OPERATION": "reconcile",
             "TLS_ROTATION_GENERATION": "generation-1",
             "TLS_ROTATION_REASON": "none",
@@ -279,7 +280,7 @@ class TlsRotationScriptTests(unittest.TestCase):
 
     def test_additional_dns_names_are_exact_and_fail_closed(self):
         environment = self.environment(
-            BUNDLE_SERVICES="proxy console identity",
+            BUNDLE_SERVICES="proxy console identity nats",
             PROXY_SERVER_ADDITIONAL_DNS_NAMES=(
                 "mcp.dev.clavenar.ai "
                 "clavenar-dev-proxy.clavenar.svc.cluster.local"
@@ -287,6 +288,9 @@ class TlsRotationScriptTests(unittest.TestCase):
             CONSOLE_ADDITIONAL_DNS_NAMES="console.dev.clavenar.ai",
             IDENTITY_ADDITIONAL_DNS_NAMES=(
                 "clavenar-dev-identity.clavenar.svc.cluster.local"
+            ),
+            NATS_ADDITIONAL_DNS_NAMES=(
+                "clavenar-dev-nats.clavenar.svc.cluster.local"
             ),
         )
         self.transaction(environment)
@@ -312,6 +316,13 @@ class TlsRotationScriptTests(unittest.TestCase):
                 "DNS:smoke-identity",
                 "DNS:localhost",
                 "DNS:clavenar-dev-identity.clavenar.svc.cluster.local",
+            },
+            "service-nats.crt": {
+                "URI:spiffe://clavenar.local/service/nats",
+                "DNS:nats",
+                "DNS:smoke-nats",
+                "DNS:localhost",
+                "DNS:clavenar-dev-nats.clavenar.svc.cluster.local",
             },
         }
         for name, expected_sans in expected.items():
@@ -393,6 +404,7 @@ class TlsRotationRenderTests(unittest.TestCase):
         self.assertIn("PROXY_SERVER_ADDITIONAL_DNS_NAMES", mint_env)
         self.assertIn("CONSOLE_ADDITIONAL_DNS_NAMES", mint_env)
         self.assertIn("IDENTITY_ADDITIONAL_DNS_NAMES", mint_env)
+        self.assertIn("NATS_ADDITIONAL_DNS_NAMES", mint_env)
 
         role = self.resource("Role", "smoke-tls-automint")
         rules = {(tuple(rule["apiGroups"]), tuple(rule["resources"])): set(rule["verbs"])

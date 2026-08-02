@@ -69,6 +69,8 @@ spec:
               value: {{ join " " .Values.tlsBundle.additionalDnsNames.console | quote }}
             - name: IDENTITY_ADDITIONAL_DNS_NAMES
               value: {{ join " " .Values.tlsBundle.additionalDnsNames.identity | quote }}
+            - name: NATS_ADDITIONAL_DNS_NAMES
+              value: {{ join " " .Values.tlsBundle.additionalDnsNames.nats | quote }}
             - name: TLS_ROTATION_OPERATION
               value: {{ .Values.tlsBundle.rotation.operation | quote }}
             - name: TLS_ROTATION_GENERATION

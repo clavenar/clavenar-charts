@@ -1167,7 +1167,7 @@
         "additionalDnsNames": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["proxyServer", "console", "identity"],
+          "required": ["proxyServer", "console", "identity", "nats"],
           "properties": {
             "proxyServer": {
               "type": "array",
@@ -1190,6 +1190,16 @@
               }
             },
             "identity": {
+              "type": "array",
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "maxLength": 253,
+                "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)*$"
+              }
+            },
+            "nats": {
               "type": "array",
               "maxItems": 8,
               "uniqueItems": true,
