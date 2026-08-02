@@ -139,8 +139,8 @@
 {{- if and (eq $tlsRotation.operation "reconcile") (ne $tlsRotation.reason "none") }}
 {{- fail "tlsBundle.rotation.operation=reconcile requires reason=none" }}
 {{- end }}
-{{- if and (eq $tlsRotation.operation "rotate") (not (has $tlsRotation.reason (list "membership" "expiry"))) }}
-{{- fail "tlsBundle.rotation.operation=rotate requires reason=membership or expiry" }}
+{{- if and (eq $tlsRotation.operation "rotate") (not (has $tlsRotation.reason (list "membership" "expiry" "dns"))) }}
+{{- fail "tlsBundle.rotation.operation=rotate requires reason=membership, expiry, or dns" }}
 {{- end }}
 {{- if and (eq $tlsRotation.operation "rotate") (not .Values.tlsBundle.autoMint) }}
 {{- fail "tlsBundle.rotation.operation=rotate requires tlsBundle.autoMint=true" }}

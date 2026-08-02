@@ -248,6 +248,55 @@ class TlsRotationScriptTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("outside the configured renewal window", result.stderr)
 
+    def test_dns_rotation_requires_and_applies_exact_san_change(self):
+        initial = self.environment(BUNDLE_SERVICES="proxy brain nats")
+        self.transaction(initial)
+        old_ca = self.decoded(self.active(), "ca.crt")
+
+        self.reset_workspace()
+        rotate = self.environment(
+            BUNDLE_SERVICES="proxy brain nats",
+            NATS_ADDITIONAL_DNS_NAMES=(
+                "smoke-nats.test.svc.cluster.local"
+            ),
+            TLS_ROTATION_OPERATION="rotate",
+            TLS_ROTATION_GENERATION="generation-2",
+            TLS_ROTATION_REASON="dns",
+        )
+        self.transaction(rotate)
+        active = self.active()
+        self.assertNotEqual(old_ca, self.decoded(active, "ca.crt"))
+        self.assertEqual(
+            "dns",
+            active["metadata"]["annotations"][
+                "clavenar.com/tls-rotation-reason"
+            ],
+        )
+        certificate = self.root / "nats-dns.crt"
+        certificate.write_bytes(self.decoded(active, "service-nats.crt"))
+        rendered = subprocess.run(
+            ["openssl", "x509", "-in", certificate, "-noout", "-ext", "subjectAltName"],
+            text=True,
+            capture_output=True,
+            check=True,
+        ).stdout
+        self.assertIn("DNS:smoke-nats.test.svc.cluster.local", rendered)
+
+        self.reset_workspace()
+        pointless = self.environment(
+            BUNDLE_SERVICES="proxy brain nats",
+            NATS_ADDITIONAL_DNS_NAMES=(
+                "smoke-nats.test.svc.cluster.local"
+            ),
+            TLS_ROTATION_OPERATION="rotate",
+            TLS_ROTATION_GENERATION="generation-3",
+            TLS_ROTATION_REASON="dns",
+        )
+        self.run_script("snapshot.sh", pointless)
+        result = self.run_script("mint.sh", pointless, check=False)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("actual SAN contract change", result.stderr)
+
     def test_foreign_secret_member_and_recorded_digest_fail_closed(self):
         self.transaction(self.environment())
         kube = self.kube()

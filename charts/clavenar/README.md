@@ -724,10 +724,11 @@ tlsBundle:
     proxyServer: []                      # appended to server.crt
     console: []                          # appended to service-console.crt
     identity: []                         # appended to service-identity.crt
+    nats: []                             # appended to service-nats.crt
   rotation:
     operation: reconcile                 # reconcile or explicit rotate
     generation: bootstrap-v1             # advance for every rotation
-    reason: none                         # none, membership, or expiry
+    reason: none                         # none, membership, expiry, or dns
     expiryWindowSeconds: 2592000         # expiry rotation gate (30 days)
     overlapSeconds: 900                  # bounded two-public-root window
     rolloutTimeoutSeconds: 300           # readiness deadline per controller
@@ -775,7 +776,7 @@ website, demo-mint, and simulator peers. Adding those identities to an existing
 auto-minted Secret is a membership rotation, not an ordinary reconcile.
 
 `additionalDnsNames` is the explicit environment publication contract. The
-chart preserves the internal Proxy, Console, and Identity SANs and appends only
+chart preserves the internal Proxy, Console, Identity, and NATS SANs and appends only
 the configured canonical, unique DNS names. TCP `HostSNI` routes must be checked
 against these values by the owning environment overlay. Because the exact SAN
 inventory is part of `release-prefixed-v4-additional-dns`, an existing
@@ -793,7 +794,8 @@ helm upgrade my-clavenar charts/clavenar --reuse-values \
 
 `expiry` is admitted only inside `expiryWindowSeconds`. `membership` requires
 an actual additive membership change; removal of a still-live identity is
-rejected. The hook validates a wholly fresh CA and leaf set, publishes old
+rejected. `dns` requires unchanged membership and an actual change from the
+active canonical SAN contract to the newly reviewed one. The hook validates a wholly fresh CA and leaf set, publishes old
 leaves with both public roots, rolls every TLS consumer to Ready, publishes new
 leaves under both roots, and only then retires the old live root. The active
 Secret contains one signer at every phase. Superseded private material exists

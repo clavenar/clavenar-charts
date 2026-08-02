@@ -123,7 +123,7 @@ else
         || die "existing Secret has invalid prior-CA lineage"
     [ "$overlap_deadline" = 0 ] \
         || die "stable Secret has a live overlap deadline"
-    printf '%s\n' "$rotation_reason" | grep -Eq '^(none|membership|expiry)$' \
+    printf '%s\n' "$rotation_reason" | grep -Eq '^(none|membership|expiry|dns)$' \
         || die "stable Secret has an invalid rotation reason"
     [ "$readiness" = ready ] && [ "$ready_generation" = "$generation" ] \
         || die "stable Secret lacks exact generation readiness"

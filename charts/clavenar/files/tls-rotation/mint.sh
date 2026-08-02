@@ -124,6 +124,7 @@ require_pair() {
 validate_bundle() {
     directory="$1"
     services="$2"
+    validation_mode="${3:-target}"
     ca="$directory/ca.crt"
     if [ ! -s "$ca" ] || [ ! -s "$directory/ca.key" ]; then
         die "bundle has no complete CA pair"
@@ -141,9 +142,22 @@ validate_bundle() {
     require_pair "$directory/server.crt" "$directory/server.key" "$ca"
     server_sans="$(openssl x509 -in "$directory/server.crt" \
         -noout -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
-    expected_server_sans="DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local${proxy_server_dns_suffix}"
-    [ "$server_sans" = "$expected_server_sans" ] \
-        || die "Proxy server certificate SANs are not exact"
+    base_server_sans="DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local"
+    expected_server_sans="${base_server_sans}${proxy_server_dns_suffix}"
+    if [ "$validation_mode" = active-dns ]; then
+        case "$server_sans" in
+            "$base_server_sans") ;;
+            "$base_server_sans",DNS:*)
+                active_dns_names="$(printf '%s\n' "${server_sans#"$base_server_sans",DNS:}" | sed 's/,DNS:/ /g')"
+                validate_dns_names "active Proxy server DNS contract" "$active_dns_names"
+                ;;
+            *) die "active Proxy server certificate SANs are invalid" ;;
+        esac
+        [ "$server_sans" = "$expected_server_sans" ] || san_contract_drift=1
+    else
+        [ "$server_sans" = "$expected_server_sans" ] \
+            || die "Proxy server certificate SANs are not exact"
+    fi
     require_pair "$directory/client.crt" "$directory/client.key" "$ca"
 
     expected_files="ca.crt ca.key client.crt client.key server.crt server.key"
@@ -156,7 +170,8 @@ $(private_public_digest "$directory/server.key")"
         require_pair "$certificate" "$private_key" "$ca"
         actual_sans="$(openssl x509 -in "$certificate" -noout \
             -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
-        expected_sans="URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost"
+        base_sans="URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost"
+        expected_sans="$base_sans"
         if [ "$service" = console ]; then
             expected_sans="${expected_sans}${console_dns_suffix}"
         elif [ "$service" = identity ]; then
@@ -164,8 +179,20 @@ $(private_public_digest "$directory/server.key")"
         elif [ "$service" = nats ]; then
             expected_sans="${expected_sans}${nats_dns_suffix}"
         fi
-        [ "$actual_sans" = "$expected_sans" ] \
-            || die "workload certificate SANs are not exact"
+        if [ "$validation_mode" = active-dns ]; then
+            case "$actual_sans" in
+                "$base_sans") ;;
+                "$base_sans",DNS:*)
+                    active_dns_names="$(printf '%s\n' "${actual_sans#"$base_sans",DNS:}" | sed 's/,DNS:/ /g')"
+                    validate_dns_names "active workload DNS contract" "$active_dns_names"
+                    ;;
+                *) die "active workload certificate SANs are invalid" ;;
+            esac
+            [ "$actual_sans" = "$expected_sans" ] || san_contract_drift=1
+        else
+            [ "$actual_sans" = "$expected_sans" ] \
+                || die "workload certificate SANs are not exact"
+        fi
         digest="$(private_public_digest "$private_key")"
         printf '%s\n' "$private_digests" | grep -Fqx "$digest" \
             && die "bundle reuses a private identity"
@@ -236,7 +263,13 @@ printf '%s\n' "$new_membership_sha" > "$STATE_DIR/new-membership-sha"
 
 if [ "$(cat "$STATE_DIR/existence")" = present ]; then
     previous_services="$(cat "$STATE_DIR/previous-services")"
-    validate_bundle "$PREVIOUS_DIR" "$previous_services"
+    san_contract_drift=0
+    if [ "$TLS_ROTATION_OPERATION" = rotate ] \
+        && [ "$TLS_ROTATION_REASON" = dns ]; then
+        validate_bundle "$PREVIOUS_DIR" "$previous_services" active-dns
+    else
+        validate_bundle "$PREVIOUS_DIR" "$previous_services"
+    fi
     previous_ca_sha="$(certificate_digest "$PREVIOUS_DIR/ca.crt")"
     previous_bundle_sha="$(bundle_digest "$PREVIOUS_DIR")"
     printf '%s\n' "$previous_ca_sha" > "$STATE_DIR/previous-ca-sha"
@@ -304,7 +337,14 @@ case "$TLS_ROTATION_OPERATION" in
                     die "expiry rotation is outside the configured renewal window"
                 fi
                 ;;
-            *) die "rotation reason must be expiry or membership" ;;
+            dns)
+                [ "$(cat "$STATE_DIR/previous-membership-sha")" \
+                    = "$new_membership_sha" ] \
+                    || die "DNS rotation cannot also change membership"
+                [ "$san_contract_drift" -eq 1 ] \
+                    || die "DNS rotation requires an actual SAN contract change"
+                ;;
+            *) die "rotation reason must be expiry, membership, or dns" ;;
         esac
         generate_bundle "$NEW_DIR" "$BUNDLE_SERVICES"
         ;;

@@ -956,7 +956,8 @@ tlsBundle:
   autoMint: false
   rotation:
     # reconcile initializes an absent Secret or preserves/migrates a valid
-    # existing one. rotate requires a new generation plus membership/expiry.
+    # existing one. rotate requires a new generation plus membership, expiry,
+    # or an exact DNS SAN contract change.
     operation: reconcile
     generation: bootstrap-v1
     reason: none
