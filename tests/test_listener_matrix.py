@@ -1733,6 +1733,7 @@ class ListenerMatrixTest(unittest.TestCase):
             "smoke-identity": {8086, 8186},
             "smoke-ledger": {8183},
             "smoke-upstream-stub": {9000},
+            "smoke-vault": {8200},
         }
         actual = {}
         for document in documents:

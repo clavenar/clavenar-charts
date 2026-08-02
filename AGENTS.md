@@ -165,7 +165,8 @@ health.
   NATS `:4222` only through its canonical external-namespace selector; it never
   reaches the unauthenticated monitor. The optional separately deployed
   Simulator peer substitutes one canonical external-namespace selector across
-  only its governed application and readiness ports. The transient demo-reset
+  only its governed application/readiness ports and the token-authenticated
+  bundled-Vault API needed for evaluation seeding. The transient demo-reset
   selector remains same-namespace and reaches only HIL application `:8084` and
   Ledger mTLS `:8183` with Console cleanup authority. Console probes/scrapes use
   diagnostics-only 9185. Keep

@@ -304,7 +304,23 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
-        {{- range $caller := list "proxy" "identity" "vault-bootstrap" "vault-agent-seed" }}
+        {{- range $caller := list "proxy" "identity" }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: {{ $caller }}
+        {{- end }}
+        {{- if not (empty $simulatorPeers) }}
+        {{- toYaml $simulatorPeers | nindent 8 }}
+        {{- else }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ $.Chart.Name }}
+              app.kubernetes.io/instance: {{ $.Release.Name }}
+              app.kubernetes.io/component: simulator
+        {{- end }}
+        {{- range $caller := list "vault-bootstrap" "vault-agent-seed" }}
         - podSelector:
             matchLabels:
               app.kubernetes.io/name: {{ $.Chart.Name }}
