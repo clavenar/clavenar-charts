@@ -93,6 +93,11 @@ identityCapabilities:
 # wiring on a clean cluster; production validation forbids it.
 evaluationPublicTrust:
   enabled: false
+  # Evaluation environments may project a deployment-specific, public
+  # measurement approval beside the packaged trust anchors. The Secret must
+  # contain public data only; Identity never receives the attestation signer.
+  bootstrapApprovalSecretName: ""
+  bootstrapApprovalKey: ""
 
 # NATS + Vault default to BYO (bring-your-own). Flip `bundled.enabled`
 # to have the chart install the upstream subcharts alongside the

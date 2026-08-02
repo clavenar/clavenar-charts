@@ -225,6 +225,82 @@ class PublicBundledInstallTests(unittest.TestCase):
                     r"^ghcr\.io/clavenar/[a-z0-9-]+@sha256:[a-f0-9]{64}$",
                 )
 
+    def test_evaluation_measurement_approval_projects_public_secret(self) -> None:
+        result = subprocess.run(
+            [
+                "helm",
+                "template",
+                "approval",
+                str(CHART),
+                "-f",
+                str(PACKAGED_VALUES),
+                "--set",
+                (
+                    "evaluationPublicTrust.bootstrapApprovalSecretName="
+                    "simulator-public-trust"
+                ),
+                "--set",
+                (
+                    "evaluationPublicTrust.bootstrapApprovalKey="
+                    "simulator-approval.json"
+                ),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(0, result.returncode, result.stderr)
+        identity = next(
+            item
+            for item in yaml.safe_load_all(result.stdout)
+            if isinstance(item, dict)
+            and item.get("kind") == "Deployment"
+            and item.get("metadata", {}).get("name") == "approval-identity"
+        )
+        container = identity["spec"]["template"]["spec"]["containers"][0]
+        environment = {
+            entry["name"]: entry.get("value") for entry in container["env"]
+        }
+        self.assertEqual(
+            "/etc/clavenar/public-trust/simulator-bootstrap-approval.json",
+            environment["CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE"],
+        )
+        trust = next(
+            volume
+            for volume in identity["spec"]["template"]["spec"]["volumes"]
+            if volume["name"] == "attestation-trust-anchors"
+        )
+        self.assertEqual(2, len(trust["projected"]["sources"]))
+        self.assertEqual(
+            "simulator-public-trust",
+            trust["projected"]["sources"][1]["secret"]["name"],
+        )
+        self.assertEqual(
+            "simulator-approval.json",
+            trust["projected"]["sources"][1]["secret"]["items"][0]["key"],
+        )
+
+        incomplete = subprocess.run(
+            [
+                "helm",
+                "template",
+                "approval",
+                str(CHART),
+                "-f",
+                str(PACKAGED_VALUES),
+                "--set",
+                (
+                    "evaluationPublicTrust.bootstrapApprovalSecretName="
+                    "simulator-public-trust"
+                ),
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(0, incomplete.returncode)
+        self.assertIn("requires both", incomplete.stderr)
+
     def test_release_uses_exact_oci_bytes_for_asset_and_checksum(self) -> None:
         workflow = (ROOT / ".github/workflows/release.yml").read_text(
             encoding="utf-8"

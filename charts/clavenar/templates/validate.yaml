@@ -63,6 +63,11 @@
 {{- if not (empty .Values.attestationTrustAnchors.secretName) }}
 {{- fail "evaluationPublicTrust.enabled=true cannot be combined with attestationTrustAnchors.secretName" }}
 {{- end }}
+{{- if ne (empty .Values.evaluationPublicTrust.bootstrapApprovalSecretName) (empty .Values.evaluationPublicTrust.bootstrapApprovalKey) }}
+{{- fail "evaluationPublicTrust bootstrap approval requires both bootstrapApprovalSecretName and bootstrapApprovalKey" }}
+{{- end }}
+{{- else if or (not (empty .Values.evaluationPublicTrust.bootstrapApprovalSecretName)) (not (empty .Values.evaluationPublicTrust.bootstrapApprovalKey)) }}
+{{- fail "evaluationPublicTrust bootstrap approval requires enabled=true" }}
 {{- end }}
 {{- if and (not (empty .Values.tlsBundle.secretName)) .Values.workloadIdentity.enabled (not .Values.identityAlias.enabled) }}
 {{- fail "workloadIdentity.enabled with workload TLS requires identityAlias.enabled=true so renewed DNS:identity certificates match the authority URL" }}

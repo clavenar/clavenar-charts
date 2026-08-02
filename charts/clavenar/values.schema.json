@@ -277,6 +277,16 @@
       "properties": {
         "enabled": {
           "type": "boolean"
+        },
+        "bootstrapApprovalSecretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        },
+        "bootstrapApprovalKey": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[A-Za-z0-9._-]+$"
         }
       }
     },

@@ -256,7 +256,11 @@ public OIDC and attestation verification keys only. It cannot mint an operator
 identity or an attestation and is rejected by the production profile. Managed
 workload renewal uses the stable `identity` ExternalName alias because renewed
 authority certificates carry `DNS:identity`, independent of the Helm release
-name.
+name. An evaluation deployment with a host-issued measurement approval may set
+`evaluationPublicTrust.bootstrapApprovalSecretName` and
+`evaluationPublicTrust.bootstrapApprovalKey`; the chart projects that public
+statement beside its packaged trust anchors and wires Identity's bootstrap
+approval path without receiving the attestation signing key.
 
 For production, pre-provision a separate Opaque Secret containing
 `hil-session-key`, `hil-decide-token`, `hil-bootstrap-token`, and

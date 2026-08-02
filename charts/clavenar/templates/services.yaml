@@ -369,7 +369,7 @@ spec:
             {{- if $mountsAttestationTrust }}
             - name: CLAVENAR_ATTESTATION_TRUST_ANCHORS_FILE
               value: /etc/clavenar/public-trust/k8s-trust-anchors.json
-            {{- if not (empty $.Values.attestationTrustAnchors.bootstrapApprovalKey) }}
+            {{- if or (not (empty $.Values.attestationTrustAnchors.bootstrapApprovalKey)) (and $.Values.evaluationPublicTrust.enabled (not (empty $.Values.evaluationPublicTrust.bootstrapApprovalKey))) }}
             - name: CLAVENAR_ATTESTATION_BOOTSTRAP_APPROVAL_FILE
               value: /etc/clavenar/public-trust/simulator-bootstrap-approval.json
             {{- end }}
@@ -629,6 +629,23 @@ spec:
         {{- if $mountsAttestationTrust }}
         - name: attestation-trust-anchors
           {{- if $.Values.evaluationPublicTrust.enabled }}
+          {{- if not (empty $.Values.evaluationPublicTrust.bootstrapApprovalSecretName) }}
+          projected:
+            defaultMode: 0444
+            sources:
+              - configMap:
+                  name: {{ include "clavenar.evaluationPublicTrustName" $ }}
+                  items:
+                    - key: k8s-trust-anchors.json
+                      path: k8s-trust-anchors.json
+                    - key: evaluation-oidc-jwks.json
+                      path: evaluation-oidc-jwks.json
+              - secret:
+                  name: {{ $.Values.evaluationPublicTrust.bootstrapApprovalSecretName }}
+                  items:
+                    - key: {{ $.Values.evaluationPublicTrust.bootstrapApprovalKey }}
+                      path: simulator-bootstrap-approval.json
+          {{- else }}
           configMap:
             name: {{ include "clavenar.evaluationPublicTrustName" $ }}
             defaultMode: 0444
@@ -637,6 +654,7 @@ spec:
                 path: k8s-trust-anchors.json
               - key: evaluation-oidc-jwks.json
                 path: evaluation-oidc-jwks.json
+          {{- end }}
           {{- else }}
           secret:
             secretName: {{ $.Values.attestationTrustAnchors.secretName }}
