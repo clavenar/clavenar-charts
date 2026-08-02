@@ -571,7 +571,7 @@ spec:
         {{- if $mountsCapability }}
         - name: workload-capabilities
           configMap:
-            name: {{ include "clavenar.fullname" $ }}-workload-capabilities
+            name: {{ include "clavenar.workloadCapabilityConfigMapName" $ }}
             items:
               - key: workload-capability-bundle.json
                 path: workload-capability-bundle.json

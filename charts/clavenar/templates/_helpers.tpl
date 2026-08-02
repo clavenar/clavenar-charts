@@ -13,6 +13,14 @@ Helpers for the Clavenar chart. Image-tag fallback chain:
 {{- end -}}
 {{- end -}}
 
+{{/* Content-address immutable workload policy so kubelet never reuses a
+stale projection after Helm replaces the bundle. */}}
+{{- define "clavenar.workloadCapabilityConfigMapName" -}}
+{{- $base := include "clavenar.fullname" . | trunc 28 | trimSuffix "-" -}}
+{{- $digest := .Files.Get "files/workload-capability-bundle.json" | sha256sum | trunc 12 -}}
+{{- printf "%s-workload-capabilities-%s" $base $digest -}}
+{{- end -}}
+
 {{/* Shared authentication Secret. Preserve the historical
 `<release>-shared-tokens` default while allowing production operators to
 reference a Secret managed outside this release. */}}

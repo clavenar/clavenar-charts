@@ -47,11 +47,15 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
             141,
             sum(len(policy["routes"]) for policy in bundle["services"].values()),
         )
+        expected_name = (
+            "smoke-workload-capabilities-"
+            + hashlib.sha256(bundle_bytes).hexdigest()[:12]
+        )
         configmap = next(
             item
             for item in render("-f", str(ROOT / "tests/values-production.yaml"))
             if item.get("kind") == "ConfigMap"
-            and item["metadata"]["name"] == "smoke-workload-capabilities"
+            and item["metadata"]["name"] == expected_name
         )
         self.assertTrue(configmap["immutable"])
         self.assertEqual(
@@ -72,6 +76,10 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
             "CLAVENAR_ENDPOINT_CAPABILITY_MATRIX_SHA256": bundle["matrixSha256"],
         }
         documents = render("-f", str(ROOT / "tests/values-production.yaml"))
+        expected_name = (
+            "smoke-workload-capabilities-"
+            + hashlib.sha256(bundle_bytes).hexdigest()[:12]
+        )
         for target in TARGETS:
             with self.subTest(target=target):
                 deployment = next(
@@ -106,6 +114,15 @@ class WorkloadCapabilityBundleTests(unittest.TestCase):
                     mount["mountPath"],
                 )
                 self.assertTrue(mount["readOnly"])
+                volume = next(
+                    item
+                    for item in pod["volumes"]
+                    if item["name"] == "workload-capabilities"
+                )
+                self.assertEqual(
+                    expected_name,
+                    volume["configMap"]["name"],
+                )
 
     def test_plain_evaluation_render_does_not_project_runtime_policy(self) -> None:
         documents = render()

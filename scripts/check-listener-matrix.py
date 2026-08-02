@@ -561,8 +561,9 @@ def validate_workload_capability_contract(values, docs, release, errors):
     configmaps = [
         doc for doc in docs
         if doc.get("kind") == "ConfigMap"
-        and doc.get("metadata", {}).get("name")
-        == f"{release}-workload-capabilities"
+        and doc.get("metadata", {}).get("labels", {}).get(
+            "app.kubernetes.io/component"
+        ) == "workload-capabilities"
     ]
     if len(configmaps) != 1:
         errors.append(
@@ -582,6 +583,12 @@ def validate_workload_capability_contract(values, docs, release, errors):
     if configmap.get("immutable") is not True:
         errors.append("generated workload capability ConfigMap must be immutable")
     bundle_sha = f"sha256:{hashlib.sha256(raw.encode()).hexdigest()}"
+    release_prefix = release[:28].rstrip("-")
+    expected_configmap_name = (
+        f"{release_prefix}-workload-capabilities-{bundle_sha[7:19]}"
+    )
+    if configmap.get("metadata", {}).get("name") != expected_configmap_name:
+        errors.append("generated workload capability ConfigMap is not content-addressed")
     identities = bundle.get("workloadIdentities") or []
     services = bundle.get("services") or {}
     families = {
@@ -673,7 +680,7 @@ def validate_workload_capability_contract(values, docs, release, errors):
             != "/etc/clavenar/workload-capability-bundle.json"
             or mount.get("subPath") != "workload-capability-bundle.json"
             or mount.get("readOnly") is not True
-            or volume.get("name") != f"{release}-workload-capabilities"
+            or volume.get("name") != expected_configmap_name
         ):
             errors.append(f"{workload_name} generated capability mount drifted")
 
