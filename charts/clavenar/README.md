@@ -102,6 +102,8 @@ boundaries are present together:
 - `authSecrets.rotationId` selects an explicit non-secret credential generation;
 - `attestationTrustAnchors.secretName` selects the public Kubernetes Ed25519
   verifier keys (the cluster signing private key is never mounted);
+- optional `tpm2AttestationTrust.secretName` selects a public pinned-AK
+  registry and adds `tpm2-quote` without replacing `k8s-key-bound`;
 - `vault.addr` and `vault.tokenSecretName` select the external signed-registry
   authority, while distinct `identityTokenKey` and `proxyTokenKey` values
   select its least-privilege credentials; bundled dev-mode Vault is refused;
@@ -291,6 +293,10 @@ authSecrets:
 attestationTrustAnchors:
   secretName: clavenar-attestation-trust
   key: k8s-trust-anchors.json
+
+tpm2AttestationTrust:
+  secretName: clavenar-tpm2-attestation-trust
+  key: tpm2-trust-anchors.json
 
 services:
   console:

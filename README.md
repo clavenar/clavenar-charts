@@ -181,6 +181,10 @@ outside every Clavenar pod. Its signed measurement registry requires the
 external Vault address and a Secret containing distinct, scoped Identity and
 Proxy token keys; production projects each key as a file and refuses bundled
 dev Vault.
+An optional public-only `tpm2AttestationTrust` Secret adds pinned TPM 2.0
+attestation keys and qualified names. When selected, Proxy and Identity use the
+combined `identity-k8s-key-bound+tpm2-quote` posture; Kubernetes verification
+remains mandatory and no TPM private key is mounted.
 
 That default keeps console ingress denied and serves only the safe demo
 router if you port-forward it. Enabling operator mTLS additionally requires

@@ -234,6 +234,24 @@
         }
       }
     },
+    "tpm2AttestationTrust": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretName", "key"],
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[A-Za-z0-9._-]+$"
+        }
+      }
+    },
     "identityCapabilities": {
       "type": "object",
       "additionalProperties": false,

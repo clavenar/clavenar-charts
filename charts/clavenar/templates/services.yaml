@@ -20,6 +20,7 @@ inside the range is the iterated value.
 {{- $mountsFederatedIdentityContract := eq $name "console" }}
 {{- $mountsControlState := eq $name "proxy" }}
 {{- $mountsAttestationTrust := and (eq $name "identity") (or $.Values.evaluationPublicTrust.enabled (not (empty $.Values.attestationTrustAnchors.secretName))) }}
+{{- $mountsTpm2AttestationTrust := and (eq $name "identity") (not (empty $.Values.tpm2AttestationTrust.secretName)) }}
 {{- $mountsIdentityCapabilities := and (eq $name "identity") (not (empty $.Values.identityCapabilities.existingConfigMapName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
 {{- $mountsHilPayloadKey := eq $name "hil" }}
@@ -383,6 +384,10 @@ spec:
               value: "true"
             {{- end }}
             {{- end }}
+            {{- if $mountsTpm2AttestationTrust }}
+            - name: CLAVENAR_TPM2_TRUST_ANCHORS_FILE
+              value: /etc/clavenar/tpm2-trust/tpm2-trust-anchors.json
+            {{- end }}
             {{- if $mountsIdentityCapabilities }}
             - name: CLAVENAR_IDENTITY_CAPABILITIES_TOML
               value: /etc/clavenar/identity-capabilities/capabilities.toml
@@ -438,6 +443,12 @@ spec:
             {{- if $mountsAttestationTrust }}
             - name: attestation-trust-anchors
               mountPath: /etc/clavenar/public-trust
+              readOnly: true
+            {{- end }}
+            {{- if $mountsTpm2AttestationTrust }}
+            - name: tpm2-attestation-trust
+              mountPath: /etc/clavenar/tpm2-trust/tpm2-trust-anchors.json
+              subPath: tpm2-trust-anchors.json
               readOnly: true
             {{- end }}
             {{- if $mountsIdentityCapabilities }}
@@ -638,6 +649,15 @@ spec:
                 path: simulator-bootstrap-approval.json
               {{- end }}
           {{- end }}
+        {{- end }}
+        {{- if $mountsTpm2AttestationTrust }}
+        - name: tpm2-attestation-trust
+          secret:
+            secretName: {{ $.Values.tpm2AttestationTrust.secretName }}
+            defaultMode: 0444
+            items:
+              - key: {{ $.Values.tpm2AttestationTrust.key }}
+                path: tpm2-trust-anchors.json
         {{- end }}
         {{- if $mountsIdentityCapabilities }}
         - name: identity-capabilities

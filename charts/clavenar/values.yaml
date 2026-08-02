@@ -72,6 +72,14 @@ attestationTrustAnchors:
   # the same public-trust Secret; private attestation keys remain absent.
   bootstrapApprovalKey: ""
 
+# Optional public TPM 2.0 attestation-key registry consumed only by Identity.
+# Supplying it selects the combined k8s-key-bound+tpm2-quote provider for
+# Identity and Proxy; it never replaces the Kubernetes verifier. The Secret
+# must contain only pinned public AK material and qualified names.
+tpm2AttestationTrust:
+  secretName: ""
+  key: tpm2-trust-anchors.json
+
 # Optional operator-supplied ConfigMap containing Identity's tenant/group
 # capability map. The chart projects only the named key into Identity and
 # leaves the ConfigMap lifecycle with the environment owner.

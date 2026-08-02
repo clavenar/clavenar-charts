@@ -542,11 +542,12 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- if has $name (list "proxy" "identity") }}
 # Attestation provider posture is chart-owned. Evaluation may explicitly use
 # the deterministic Proxy mock; production selects only Identity's real
-# k8s-key-bound verifier and both binaries enforce it before listener bind.
+# verifier and both binaries enforce it before listener bind. A separately
+# projected TPM registry adds tpm2-quote without replacing k8s-key-bound.
 - name: CLAVENAR_RUNTIME_ENVIRONMENT
   value: {{ ternary "production" "development" (eq .ctx.Values.deploymentProfile "production") | quote }}
 - name: CLAVENAR_ATTESTATION_PROVIDER
-  value: {{ ternary "identity-k8s-key-bound" (ternary "mock" "identity-k8s-key-bound" (eq $name "proxy")) (eq .ctx.Values.deploymentProfile "production") | quote }}
+  value: {{ ternary "identity-k8s-key-bound+tpm2-quote" (ternary "identity-k8s-key-bound" (ternary "mock" "identity-k8s-key-bound" (eq $name "proxy")) (eq .ctx.Values.deploymentProfile "production")) (not (empty .ctx.Values.tpm2AttestationTrust.secretName)) | quote }}
 # Retained JetStream control projections use one exact replica contract across
 # their Identity writer and Proxy reader/CAS writer.
 - name: CLAVENAR_CONTROL_STATE_REPLICAS

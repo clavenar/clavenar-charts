@@ -73,6 +73,9 @@
 {{- if and (not (empty .Values.attestationTrustAnchors.bootstrapApprovalKey)) (empty .Values.attestationTrustAnchors.secretName) }}
 {{- fail "attestationTrustAnchors.bootstrapApprovalKey requires attestationTrustAnchors.secretName" }}
 {{- end }}
+{{- if and (not (empty .Values.tpm2AttestationTrust.key)) (empty .Values.tpm2AttestationTrust.secretName) (ne .Values.tpm2AttestationTrust.key "tpm2-trust-anchors.json") }}
+{{- fail "tpm2AttestationTrust.key cannot be customized without tpm2AttestationTrust.secretName" }}
+{{- end }}
 {{- if .Values.exec.enabled }}
 {{- if eq $deploymentProfile "production" }}
 {{- fail "deploymentProfile=production forbids exec.enabled=true until WP-13 closes" }}

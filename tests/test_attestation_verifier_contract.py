@@ -58,6 +58,67 @@ class AttestationVerifierContractChartTests(unittest.TestCase):
             "/etc/clavenar/public-trust/k8s-trust-anchors.json",
         )
 
+    def test_tpm_registry_adds_combined_provider_and_identity_only_public_trust(self) -> None:
+        output = subprocess.run(
+            [
+                "helm",
+                "template",
+                "smoke",
+                str(CHART),
+                "-f",
+                str(ROOT / "tests/values-production.yaml"),
+                "--set",
+                "tpm2AttestationTrust.secretName=clavenar-tpm2-attestation-trust",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+        deployments = {
+            item["metadata"]["name"].removeprefix("smoke-"): item
+            for item in yaml.safe_load_all(output)
+            if isinstance(item, dict) and item.get("kind") == "Deployment"
+        }
+        for name in ("proxy", "identity"):
+            env = {
+                item["name"]: item.get("value")
+                for item in deployments[name]["spec"]["template"]["spec"]["containers"][0]["env"]
+            }
+            self.assertEqual(
+                env["CLAVENAR_ATTESTATION_PROVIDER"],
+                "identity-k8s-key-bound+tpm2-quote",
+            )
+        identity_pod = deployments["identity"]["spec"]["template"]["spec"]
+        identity_env = {
+            item["name"]: item.get("value")
+            for item in identity_pod["containers"][0]["env"]
+        }
+        self.assertEqual(
+            identity_env["CLAVENAR_TPM2_TRUST_ANCHORS_FILE"],
+            "/etc/clavenar/tpm2-trust/tpm2-trust-anchors.json",
+        )
+        volumes = {item["name"]: item for item in identity_pod["volumes"]}
+        self.assertEqual(
+            volumes["tpm2-attestation-trust"]["secret"],
+            {
+                "secretName": "clavenar-tpm2-attestation-trust",
+                "defaultMode": 292,
+                "items": [
+                    {
+                        "key": "tpm2-trust-anchors.json",
+                        "path": "tpm2-trust-anchors.json",
+                    }
+                ],
+            },
+        )
+        for name, deployment in deployments.items():
+            if name == "identity":
+                continue
+            volume_names = {
+                item["name"] for item in deployment["spec"]["template"]["spec"].get("volumes", [])
+            }
+            self.assertNotIn("tpm2-attestation-trust", volume_names)
+
     def test_evaluation_mock_is_explicit_and_proxy_only(self) -> None:
         output = subprocess.run(
             ["helm", "template", "smoke", str(CHART)],
