@@ -251,7 +251,7 @@ class TlsRotationScriptTests(unittest.TestCase):
     def test_dns_rotation_requires_and_applies_exact_san_change(self):
         initial = self.environment(BUNDLE_SERVICES="proxy brain nats")
         self.transaction(initial)
-        old_ca = self.decoded(self.active(), "ca.crt")
+        prior = copy.deepcopy(self.active())
 
         self.reset_workspace()
         rotate = self.environment(
@@ -265,7 +265,17 @@ class TlsRotationScriptTests(unittest.TestCase):
         )
         self.transaction(rotate)
         active = self.active()
-        self.assertNotEqual(old_ca, self.decoded(active, "ca.crt"))
+        self.assertEqual(
+            self.decoded(prior, "ca.crt"), self.decoded(active, "ca.crt")
+        )
+        self.assertEqual(
+            self.decoded(prior, "service-brain.crt"),
+            self.decoded(active, "service-brain.crt"),
+        )
+        self.assertNotEqual(
+            self.decoded(prior, "service-nats.crt"),
+            self.decoded(active, "service-nats.crt"),
+        )
         self.assertEqual(
             "dns",
             active["metadata"]["annotations"][
@@ -296,6 +306,31 @@ class TlsRotationScriptTests(unittest.TestCase):
         result = self.run_script("mint.sh", pointless, check=False)
         self.assertNotEqual(0, result.returncode)
         self.assertIn("actual SAN contract change", result.stderr)
+
+    def test_failed_dns_rotation_rolls_back_exact_secret_data(self):
+        initial = self.environment(BUNDLE_SERVICES="proxy brain nats")
+        self.transaction(initial)
+        prior = copy.deepcopy(self.active())
+
+        self.reset_workspace()
+        rotate = self.environment(
+            BUNDLE_SERVICES="proxy brain nats",
+            NATS_ADDITIONAL_DNS_NAMES=(
+                "smoke-nats.test.svc.cluster.local"
+            ),
+            TLS_ROTATION_OPERATION="rotate",
+            TLS_ROTATION_GENERATION="generation-2",
+            TLS_ROTATION_REASON="dns",
+            MOCK_FAIL_ROLLOUT_TOKEN="generation-2",
+        )
+        self.run_script("snapshot.sh", rotate)
+        self.run_script("mint.sh", rotate)
+        result = self.run_script("apply.sh", rotate, check=False)
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(prior["data"], self.active()["data"])
+        annotations = self.active()["metadata"]["annotations"]
+        self.assertEqual("stable", annotations["clavenar.com/tls-state"])
+        self.assertEqual("generation-1", annotations["clavenar.com/tls-generation"])
 
     def test_foreign_secret_member_and_recorded_digest_fail_closed(self):
         self.transaction(self.environment())

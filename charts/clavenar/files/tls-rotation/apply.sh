@@ -163,6 +163,19 @@ rollback_rotation() {
     new_membership_sha="$(cat "$STATE_DIR/new-membership-sha")"
     rollback_generation="$previous_generation"
 
+    if [ "$TLS_ROTATION_REASON" = dns ]; then
+        # DNS publication changes keep the active CA. Restore the exact prior
+        # leaf bundle and roll it back without introducing a second root.
+        rollback_enabled=0
+        write_bundle "$PREVIOUS_DIR" "$PREVIOUS_DIR/ca.crt" \
+            "$previous_services" "$previous_generation" stable \
+            "$previous_membership_sha" "$previous_ca_sha" \
+            "$previous_bundle_sha" none 0
+        rollout_generation "$previous_generation" \
+            "$(rollout_digest "$previous_bundle_sha" "$PREVIOUS_DIR/ca.crt")"
+        return 0
+    fi
+
     # First restore dual trust with the new leaves, then dual trust with the
     # old leaves, and only then old-only trust. This ordering keeps every mixed
     # pod pair mutually authenticated during rollback.
@@ -235,6 +248,24 @@ new_bundle_sha="$(cat "$STATE_DIR/new-bundle-sha")"
 rotation_deadline=$(($(date +%s) + OVERLAP_SECONDS))
 rollback_enabled=1
 rollback_generation="$previous_generation"
+
+if [ "$TLS_ROTATION_REASON" = dns ]; then
+    # A DNS contract change affects only leaf identities. Keeping the active
+    # CA avoids invalidating workload state bound to that trust anchor.
+    write_bundle "$NEW_DIR" "$NEW_DIR/ca.crt" "$BUNDLE_SERVICES" \
+        "$TLS_ROTATION_GENERATION" rotating-dns "$new_membership_sha" \
+        "$new_ca_sha" "$new_bundle_sha" none 0
+    rollout_generation "$TLS_ROTATION_GENERATION" \
+        "$(rollout_digest "$new_bundle_sha" "$NEW_DIR/ca.crt")"
+    rollback_enabled=0
+    rollback_generation=none
+    trust_sha="sha256:$(sha256sum "$NEW_DIR/ca.crt" | cut -d' ' -f1)"
+    annotate_secret "$TLS_ROTATION_GENERATION" stable "$new_membership_sha" \
+        "$new_ca_sha" "$new_bundle_sha" "$trust_sha" none 0 \
+        ready "$TLS_ROTATION_GENERATION" false
+    echo "TLS generation ${TLS_ROTATION_GENERATION} applied DNS leaf updates under the active CA"
+    exit 0
+fi
 
 write_bundle "$PREVIOUS_DIR" "$STATE_DIR/dual-ca.crt" "$previous_services" \
     "$previous_generation" overlap-old "$previous_membership_sha" \

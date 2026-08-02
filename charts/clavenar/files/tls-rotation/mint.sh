@@ -258,6 +258,59 @@ generate_bundle() {
     cd "$WORK_DIR"
 }
 
+generate_dns_bundle() {
+    directory="$1"
+    services="$2"
+    [ ! -e "$directory" ] || die "candidate output already exists"
+    mkdir "$directory"
+    cp -p "$PREVIOUS_DIR"/* "$directory"/
+    cd "$directory"
+    dns_leaf_changes=0
+
+    actual_server_sans="$(openssl x509 -in server.crt -noout \
+        -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
+    target_server_sans="DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local${proxy_server_dns_suffix}"
+    if [ "$actual_server_sans" != "$target_server_sans" ]; then
+        openssl genrsa -out server.key 2048 2>/dev/null
+        openssl req -new -key server.key -out server.csr \
+            -subj "/CN=localhost" \
+            -addext "subjectAltName=${target_server_sans}" 2>/dev/null
+        openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in server.csr \
+            -CA ca.crt -CAkey ca.key -CAcreateserial -copy_extensions copy \
+            -out server.crt 2>/dev/null
+        dns_leaf_changes=$((dns_leaf_changes + 1))
+    fi
+
+    for service in $services; do
+        workload_dns_suffix=""
+        if [ "$service" = console ]; then
+            workload_dns_suffix="$console_dns_suffix"
+        elif [ "$service" = identity ]; then
+            workload_dns_suffix="$identity_dns_suffix"
+        elif [ "$service" = nats ]; then
+            workload_dns_suffix="$nats_dns_suffix"
+        fi
+        actual_sans="$(openssl x509 -in "service-${service}.crt" -noout \
+            -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
+        target_sans="URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost${workload_dns_suffix}"
+        if [ "$actual_sans" != "$target_sans" ]; then
+            openssl genrsa -out "service-${service}.key" 2048 2>/dev/null
+            openssl req -new -key "service-${service}.key" \
+                -out "service-${service}.csr" -subj "/CN=clavenar-${service}" \
+                -addext "subjectAltName=${target_sans}" 2>/dev/null
+            openssl x509 -req -days "$CERT_VALIDITY_DAYS" \
+                -in "service-${service}.csr" -CA ca.crt -CAkey ca.key \
+                -CAcreateserial -copy_extensions copy \
+                -out "service-${service}.crt" 2>/dev/null
+            dns_leaf_changes=$((dns_leaf_changes + 1))
+        fi
+    done
+    rm -f ./*.csr ca.srl
+    [ "$dns_leaf_changes" -gt 0 ] \
+        || die "DNS rotation did not reissue any leaf certificate"
+    cd "$WORK_DIR"
+}
+
 new_membership_sha="$(membership_sha "$BUNDLE_SERVICES")"
 printf '%s\n' "$new_membership_sha" > "$STATE_DIR/new-membership-sha"
 
@@ -346,7 +399,11 @@ case "$TLS_ROTATION_OPERATION" in
                 ;;
             *) die "rotation reason must be expiry, membership, or dns" ;;
         esac
-        generate_bundle "$NEW_DIR" "$BUNDLE_SERVICES"
+        if [ "$TLS_ROTATION_REASON" = dns ]; then
+            generate_dns_bundle "$NEW_DIR" "$BUNDLE_SERVICES"
+        else
+            generate_bundle "$NEW_DIR" "$BUNDLE_SERVICES"
+        fi
         ;;
     *) die "operation must be reconcile or rotate" ;;
 esac
@@ -358,23 +415,31 @@ printf '%s\n' "$new_ca_sha" > "$STATE_DIR/new-ca-sha"
 printf '%s\n' "$new_bundle_sha" > "$STATE_DIR/new-bundle-sha"
 
 if [ "$(cat "$STATE_DIR/existence")" = present ]; then
-    [ "$new_ca_sha" != "$(cat "$STATE_DIR/previous-ca-sha")" ] \
-        || die "fresh candidate reused the active CA"
-    old_private_digests="$(find "$PREVIOUS_DIR" -maxdepth 1 -type f \
-        -name '*.key' -exec sh -c '
-            for key do
-                openssl pkey -in "$key" -pubout -outform DER 2>/dev/null \
-                    | sha256sum | cut -d" " -f1
-            done
-        ' sh {} +)"
-    find "$NEW_DIR" -maxdepth 1 -type f -name '*.key' | sort \
-        > "$STATE_DIR/new-private-keys"
-    while IFS= read -r key; do
-        new_digest="$(private_public_digest "$key")"
-        printf '%s\n' "$old_private_digests" | grep -Fqx "$new_digest" \
-            && die "fresh candidate reused a superseded private identity"
-    done < "$STATE_DIR/new-private-keys"
-    cat "$PREVIOUS_DIR/ca.crt" "$NEW_DIR/ca.crt" > "$STATE_DIR/dual-ca.crt"
+    if [ "$TLS_ROTATION_OPERATION" = rotate ] \
+        && [ "$TLS_ROTATION_REASON" = dns ]; then
+        [ "$new_ca_sha" = "$(cat "$STATE_DIR/previous-ca-sha")" ] \
+            || die "DNS candidate replaced the active CA"
+        [ "$new_bundle_sha" != "$(cat "$STATE_DIR/previous-bundle-sha")" ] \
+            || die "DNS candidate did not change the active bundle"
+    else
+        [ "$new_ca_sha" != "$(cat "$STATE_DIR/previous-ca-sha")" ] \
+            || die "fresh candidate reused the active CA"
+        old_private_digests="$(find "$PREVIOUS_DIR" -maxdepth 1 -type f \
+            -name '*.key' -exec sh -c '
+                for key do
+                    openssl pkey -in "$key" -pubout -outform DER 2>/dev/null \
+                        | sha256sum | cut -d" " -f1
+                done
+            ' sh {} +)"
+        find "$NEW_DIR" -maxdepth 1 -type f -name '*.key' | sort \
+            > "$STATE_DIR/new-private-keys"
+        while IFS= read -r key; do
+            new_digest="$(private_public_digest "$key")"
+            printf '%s\n' "$old_private_digests" | grep -Fqx "$new_digest" \
+                && die "fresh candidate reused a superseded private identity"
+        done < "$STATE_DIR/new-private-keys"
+        cat "$PREVIOUS_DIR/ca.crt" "$NEW_DIR/ca.crt" > "$STATE_DIR/dual-ca.crt"
+    fi
 fi
 
-echo "Fresh TLS bundle candidate validated"
+echo "TLS bundle candidate validated"

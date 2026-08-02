@@ -795,13 +795,16 @@ helm upgrade my-clavenar charts/clavenar --reuse-values \
 `expiry` is admitted only inside `expiryWindowSeconds`. `membership` requires
 an actual additive membership change; removal of a still-live identity is
 rejected. `dns` requires unchanged membership and an actual change from the
-active canonical SAN contract to the newly reviewed one. The hook validates a wholly fresh CA and leaf set, publishes old
-leaves with both public roots, rolls every TLS consumer to Ready, publishes new
-leaves under both roots, and only then retires the old live root. The active
+active canonical SAN contract to the newly reviewed one. DNS rotation reissues
+only affected leaf certificates under the active CA, rolls every TLS consumer
+to Ready, and restores the exact prior leaf bundle if rollout fails. Expiry and
+membership rotation instead validate a wholly fresh CA and leaf set, publish
+old leaves with both public roots, roll every TLS consumer to Ready, publish new
+leaves under both roots, and only then retire the old live root. The active
 Secret contains one signer at every phase. Superseded private material exists
 only in memory for the hook lifetime; the retained history Secret contains
-only the retired `ca.crt`. A rollout or deadline failure restores the prior
-generation through the same dual-trust ordering.
+only a retired `ca.crt`. A rollout or deadline failure restores the prior
+generation through the appropriate leaf-only or dual-trust ordering.
 
 Helm persists CLI value overrides. After a successful rotation, return the
 operation to the ordinary posture while retaining the new generation:
