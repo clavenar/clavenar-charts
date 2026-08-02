@@ -1,9 +1,9 @@
 {
   "agentWorkloadCaller": "agent-workload",
-  "contractVersion": "1.11.0",
+  "contractVersion": "1.12.0",
   "feature": "WP-02.9",
-  "listenerMatrixSha256": "sha256:c5b96577544c5164955edaf26a59f4af1e8f68a70421ba47e08ce1119ec1defd",
-  "matrixSha256": "sha256:9f49de843bb642dd896c80bf7eff7c694600715ca3be6a8fd9be966611a007c7",
+  "listenerMatrixSha256": "sha256:136eda09eb1bc53d7189157cf25d62224c4b5d022dc89c6c96a9c8da6d85d7ca",
+  "matrixSha256": "sha256:f33787f91c6c29a04a5913d2f636f14e86f0d07fde1f21bad47238dde41b65f3",
   "schemaVersion": 1,
   "services": {
     "hil": {
@@ -549,6 +549,15 @@
           "allowedCallerIds": [
             "service-console"
           ],
+          "capability": "identity.attestation.measurement.manage",
+          "family": "identity-attestation-measurement-manage",
+          "method": "POST",
+          "pathTemplate": "/agents/{id}/tpm2-enrollment-challenges"
+        },
+        {
+          "allowedCallerIds": [
+            "service-console"
+          ],
           "capability": "identity.agent.lifecycle",
           "family": "identity-agent-lifecycle",
           "method": "POST",
@@ -648,6 +657,15 @@
           "family": "identity-agent-svid",
           "method": "POST",
           "pathTemplate": "/svid"
+        },
+        {
+          "allowedCallerIds": [
+            "service-proxy"
+          ],
+          "capability": "identity.svid.agent.renew",
+          "family": "identity-agent-svid-renew",
+          "method": "POST",
+          "pathTemplate": "/svid/renew"
         },
         {
           "allowedCallerIds": [
