@@ -122,7 +122,17 @@ rollout_generation() {
     token="$1"
     digest="$2"
     rollout_status=0
-    for service in ${ROLLOUT_DEPLOYMENTS:-}; do
+    rollout_deployments="${ROLLOUT_DEPLOYMENTS:-}"
+    if [ "$TLS_ROTATION_REASON" = profile ]; then
+        # Identity must load the corrected CA first so every subsequent
+        # workload renewal response carries the new certificate bytes.
+        rollout_deployments=identity
+        for service in ${ROLLOUT_DEPLOYMENTS:-}; do
+            [ "$service" = identity ] \
+                || rollout_deployments="${rollout_deployments} ${service}"
+        done
+    fi
+    for service in $rollout_deployments; do
         deployment="${RELEASE_NAME}-${service}"
         if kubectl -n "$POD_NAMESPACE" get deployment "$deployment" \
             >/dev/null 2>&1; then
@@ -163,9 +173,10 @@ rollback_rotation() {
     new_membership_sha="$(cat "$STATE_DIR/new-membership-sha")"
     rollback_generation="$previous_generation"
 
-    if [ "$TLS_ROTATION_REASON" = dns ]; then
-        # DNS publication changes keep the active CA. Restore the exact prior
-        # leaf bundle and roll it back without introducing a second root.
+    if [ "$TLS_ROTATION_REASON" = dns ] \
+        || [ "$TLS_ROTATION_REASON" = profile ]; then
+        # DNS publication changes and signer-preserving profile corrections
+        # restore the exact prior bundle without introducing a second signer.
         rollback_enabled=0
         write_bundle "$PREVIOUS_DIR" "$PREVIOUS_DIR/ca.crt" \
             "$previous_services" "$previous_generation" stable \
@@ -249,11 +260,12 @@ rotation_deadline=$(($(date +%s) + OVERLAP_SECONDS))
 rollback_enabled=1
 rollback_generation="$previous_generation"
 
-if [ "$TLS_ROTATION_REASON" = dns ]; then
-    # A DNS contract change affects only leaf identities. Keeping the active
-    # CA avoids invalidating workload state bound to that trust anchor.
+if [ "$TLS_ROTATION_REASON" = dns ] \
+    || [ "$TLS_ROTATION_REASON" = profile ]; then
+    # DNS changes retain the CA certificate. Profile corrections retain the
+    # exact signer and private identities while replacing certificate bytes.
     write_bundle "$NEW_DIR" "$NEW_DIR/ca.crt" "$BUNDLE_SERVICES" \
-        "$TLS_ROTATION_GENERATION" rotating-dns "$new_membership_sha" \
+        "$TLS_ROTATION_GENERATION" "rotating-${TLS_ROTATION_REASON}" "$new_membership_sha" \
         "$new_ca_sha" "$new_bundle_sha" none 0
     rollout_generation "$TLS_ROTATION_GENERATION" \
         "$(rollout_digest "$new_bundle_sha" "$NEW_DIR/ca.crt")"
@@ -263,7 +275,7 @@ if [ "$TLS_ROTATION_REASON" = dns ]; then
     annotate_secret "$TLS_ROTATION_GENERATION" stable "$new_membership_sha" \
         "$new_ca_sha" "$new_bundle_sha" "$trust_sha" none 0 \
         ready "$TLS_ROTATION_GENERATION" false
-    echo "TLS generation ${TLS_ROTATION_GENERATION} applied DNS leaf updates under the active CA"
+    echo "TLS generation ${TLS_ROTATION_GENERATION} applied ${TLS_ROTATION_REASON} certificate updates under the active signer"
     exit 0
 fi
 

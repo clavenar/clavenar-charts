@@ -957,7 +957,7 @@ tlsBundle:
   rotation:
     # reconcile initializes an absent Secret or preserves/migrates a valid
     # existing one. rotate requires a new generation plus membership, expiry,
-    # or an exact DNS SAN contract change.
+    # an exact DNS SAN contract change, or an actual certificate-profile fix.
     operation: reconcile
     generation: bootstrap-v1
     reason: none

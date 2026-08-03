@@ -138,7 +138,7 @@ managed PKI (set `tlsBundle.autoMint=false` and provide
 `tlsBundle.secretName` from an existing Secret).
 Ordinary upgrades use rotation.operation=reconcile and preserve a valid
 stable Secret exactly. A trust change requires operation=rotate, a new
-rotation.generation, and reason=membership, expiry, or dns; return operation to
+rotation.generation, and reason=membership, expiry, dns, or profile; return operation to
 reconcile/reason=none after the successful rotation release.
 {{- end }}
 

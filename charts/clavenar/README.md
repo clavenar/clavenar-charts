@@ -728,7 +728,7 @@ tlsBundle:
   rotation:
     operation: reconcile                 # reconcile or explicit rotate
     generation: bootstrap-v1             # advance for every rotation
-    reason: none                         # none, membership, expiry, or dns
+    reason: none                         # none, membership, expiry, dns, or profile
     expiryWindowSeconds: 2592000         # expiry rotation gate (30 days)
     overlapSeconds: 900                  # bounded two-public-root window
     rolloutTimeoutSeconds: 300           # readiness deadline per controller
@@ -771,6 +771,9 @@ The default `rotation.operation=reconcile` initializes an absent Secret,
 performs a metadata-only migration of a valid legacy Secret, or preserves a
 canonical stable Secret byte-for-byte. A generation change or membership
 change under `reconcile` fails closed instead of silently replacing trust.
+An existing pre-profile bundle is likewise preserved with an explicit warning,
+allowing profile-aware consumers to land before the governed `profile`
+rotation; reconcile never silently repairs its certificate bytes.
 The default membership includes the chart-managed services plus the external
 website, demo-mint, and simulator peers. Adding those identities to an existing
 auto-minted Secret is a membership rotation, not an ordinary reconcile.
@@ -805,6 +808,17 @@ Secret contains one signer at every phase. Superseded private material exists
 only in memory for the hook lifetime; the retained history Secret contains
 only a retired `ca.crt`. A rollout or deadline failure restores the prior
 generation through the appropriate leaf-only or dual-trust ordering.
+
+`profile` is the governed repair path for an existing bundle that lacks the
+required critical CA/basic/key-usage constraints or exact leaf extended-key
+usages. It requires unchanged membership and real profile drift; a no-op
+profile rotation is rejected. It reissues the CA and leaves while preserving
+the exact signer and every private identity, so durable caller-held workload
+credentials remain cryptographically valid and can adopt the corrected CA
+certificate without recovery authority. Identity rolls first so subsequent
+renewal responses carry the corrected CA bytes. Newly minted CA certificates are
+restricted to certificate/CRL signing, server and client leaves have their
+exact TLS usage, and per-workload leaves carry both server and client TLS usage.
 
 Helm persists CLI value overrides. After a successful rotation, return the
 operation to the ordinary posture while retaining the new generation:

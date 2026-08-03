@@ -1,5 +1,6 @@
 import base64
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -307,6 +308,130 @@ class TlsRotationScriptTests(unittest.TestCase):
         self.assertNotEqual(0, result.returncode)
         self.assertIn("actual SAN contract change", result.stderr)
 
+    def test_profile_rotation_repairs_legacy_usage_and_rejects_noop(self):
+        self.transaction(self.environment())
+        kube = self.kube()
+        active = kube["secrets"]["clavenar-certs"]
+        old_ca = self.decoded(active, "ca.crt")
+        old_ca_key = self.decoded(active, "ca.key")
+        old_service_key = self.decoded(active, "service-proxy.key")
+        ca_key = self.root / "legacy-ca.key"
+        ca_certificate = self.root / "legacy-ca.crt"
+        ca_key.write_bytes(self.decoded(active, "ca.key"))
+        subprocess.run(
+            [
+                "openssl", "req", "-new", "-x509", "-days", "365",
+                "-key", ca_key, "-out", ca_certificate,
+                "-subj", "/CN=AgentClavenarCA",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        legacy_ca = ca_certificate.read_bytes()
+        active["data"]["ca.crt"] = base64.b64encode(legacy_ca).decode()
+        annotations = active["metadata"]["annotations"]
+        der = subprocess.run(
+            ["openssl", "x509", "-in", ca_certificate, "-outform", "DER"],
+            capture_output=True,
+            check=True,
+        ).stdout
+        annotations["clavenar.com/tls-ca-sha256"] = (
+            f"sha256:{hashlib.sha256(der).hexdigest()}"
+        )
+        bundle_inventory = "".join(
+            f"{name} {hashlib.sha256(base64.b64decode(value)).hexdigest()}\n"
+            for name, value in sorted(active["data"].items())
+        ).encode()
+        annotations["clavenar.com/tls-bundle-sha256"] = (
+            f"sha256:{hashlib.sha256(bundle_inventory).hexdigest()}"
+        )
+        annotations["clavenar.com/tls-trust-sha256"] = (
+            f"sha256:{hashlib.sha256(legacy_ca).hexdigest()}"
+        )
+        self.kube_state.write_text(json.dumps(kube))
+
+        self.reset_workspace()
+        self.run_script("snapshot.sh", self.environment())
+        preserved = self.run_script("mint.sh", self.environment())
+        self.run_script("apply.sh", self.environment())
+        self.assertIn(
+            "requires an explicit profile rotation",
+            preserved.stderr,
+        )
+        self.assertEqual(legacy_ca, self.decoded(self.active(), "ca.crt"))
+
+        self.reset_workspace()
+        rotate = self.environment(
+            TLS_ROTATION_OPERATION="rotate",
+            TLS_ROTATION_GENERATION="generation-2",
+            TLS_ROTATION_REASON="profile",
+        )
+        self.transaction(rotate)
+        repaired = self.active()
+        self.assertNotEqual(old_ca, self.decoded(repaired, "ca.crt"))
+        self.assertEqual(old_ca_key, self.decoded(repaired, "ca.key"))
+        self.assertEqual(
+            old_service_key,
+            self.decoded(repaired, "service-proxy.key"),
+        )
+        self.assertNotIn("dual-ca.crt", {path.name for path in self.state_dir.iterdir()})
+        self.assertEqual(
+            "profile",
+            repaired["metadata"]["annotations"][
+                "clavenar.com/tls-rotation-reason"
+            ],
+        )
+
+        profiles = {
+            "ca.crt": {
+                "basicConstraints": "X509v3BasicConstraints:criticalCA:TRUE",
+                "keyUsage": "X509v3KeyUsage:criticalCertificateSign,CRLSign",
+            },
+            "server.crt": {
+                "basicConstraints": "X509v3BasicConstraints:criticalCA:FALSE",
+                "keyUsage": "X509v3KeyUsage:criticalDigitalSignature,KeyEncipherment",
+                "extendedKeyUsage": "X509v3ExtendedKeyUsage:TLSWebServerAuthentication",
+            },
+            "client.crt": {
+                "basicConstraints": "X509v3BasicConstraints:criticalCA:FALSE",
+                "keyUsage": "X509v3KeyUsage:criticalDigitalSignature,KeyEncipherment",
+                "extendedKeyUsage": "X509v3ExtendedKeyUsage:TLSWebClientAuthentication",
+            },
+            "service-proxy.crt": {
+                "basicConstraints": "X509v3BasicConstraints:criticalCA:FALSE",
+                "keyUsage": "X509v3KeyUsage:criticalDigitalSignature,KeyEncipherment",
+                "extendedKeyUsage": (
+                    "X509v3ExtendedKeyUsage:TLSWebServerAuthentication,"
+                    "TLSWebClientAuthentication"
+                ),
+            },
+        }
+        for name, expected_extensions in profiles.items():
+            certificate = self.root / name
+            certificate.write_bytes(self.decoded(repaired, name))
+            for extension, expected in expected_extensions.items():
+                rendered = subprocess.run(
+                    [
+                        "openssl", "x509", "-in", certificate,
+                        "-noout", "-ext", extension,
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=True,
+                ).stdout
+                self.assertEqual(expected, "".join(rendered.split()))
+
+        self.reset_workspace()
+        pointless = self.environment(
+            TLS_ROTATION_OPERATION="rotate",
+            TLS_ROTATION_GENERATION="generation-3",
+            TLS_ROTATION_REASON="profile",
+        )
+        self.run_script("snapshot.sh", pointless)
+        result = self.run_script("mint.sh", pointless, check=False)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("actual certificate profile change", result.stderr)
+
     def test_failed_dns_rotation_rolls_back_exact_secret_data(self):
         initial = self.environment(BUNDLE_SERVICES="proxy brain nats")
         self.transaction(initial)
@@ -509,6 +634,7 @@ class TlsRotationRenderTests(unittest.TestCase):
         apply_script = self.resource("ConfigMap", "smoke-tls-automint")["data"]["apply.sh"]
         self.assertIn("clavenar.io/tls-secret-digest", apply_script)
         self.assertIn("clavenar.com/tls-rollback-available", apply_script)
+        self.assertIn("rollout_deployments=identity", apply_script)
 
     def test_default_bundle_includes_external_peer_identities(self):
         job = self.resource("Job", "smoke-tls-automint")

@@ -121,6 +121,58 @@ require_pair() {
         || die "bundle has a certificate/private-key mismatch"
 }
 
+certificate_extension() {
+    certificate="$1"
+    extension="$2"
+    openssl x509 -in "$certificate" -noout -ext "$extension" 2>/dev/null \
+        | tr -d '[:space:]'
+}
+
+certificate_profile_matches() {
+    certificate="$1"
+    profile="$2"
+    basic_constraints="$(certificate_extension "$certificate" basicConstraints)"
+    key_usage="$(certificate_extension "$certificate" keyUsage)"
+    extended_key_usage="$(certificate_extension "$certificate" extendedKeyUsage)"
+    case "$profile" in
+        ca)
+            [ "$basic_constraints" = "X509v3BasicConstraints:criticalCA:TRUE" ] \
+                && [ "$key_usage" = "X509v3KeyUsage:criticalCertificateSign,CRLSign" ] \
+                && [ -z "$extended_key_usage" ]
+            ;;
+        server)
+            [ "$basic_constraints" = "X509v3BasicConstraints:criticalCA:FALSE" ] \
+                && [ "$key_usage" = "X509v3KeyUsage:criticalDigitalSignature,KeyEncipherment" ] \
+                && [ "$extended_key_usage" = "X509v3ExtendedKeyUsage:TLSWebServerAuthentication" ]
+            ;;
+        client)
+            [ "$basic_constraints" = "X509v3BasicConstraints:criticalCA:FALSE" ] \
+                && [ "$key_usage" = "X509v3KeyUsage:criticalDigitalSignature,KeyEncipherment" ] \
+                && [ "$extended_key_usage" = "X509v3ExtendedKeyUsage:TLSWebClientAuthentication" ]
+            ;;
+        workload)
+            [ "$basic_constraints" = "X509v3BasicConstraints:criticalCA:FALSE" ] \
+                && [ "$key_usage" = "X509v3KeyUsage:criticalDigitalSignature,KeyEncipherment" ] \
+                && [ "$extended_key_usage" = "X509v3ExtendedKeyUsage:TLSWebServerAuthentication,TLSWebClientAuthentication" ]
+            ;;
+        *) die "unknown certificate profile" ;;
+    esac
+}
+
+validate_certificate_profile() {
+    certificate="$1"
+    profile="$2"
+    validation_mode="$3"
+    if certificate_profile_matches "$certificate" "$profile"; then
+        return
+    fi
+    if [ "$validation_mode" = active-profile ]; then
+        profile_contract_drift=1
+        return
+    fi
+    die "bundle certificate does not match the required ${profile} profile"
+}
+
 validate_bundle() {
     directory="$1"
     services="$2"
@@ -138,8 +190,10 @@ validate_bundle() {
         || die "bundle CA signer does not match its certificate"
     openssl x509 -checkend 0 -noout -in "$ca" >/dev/null 2>&1 \
         || die "bundle CA is expired"
+    validate_certificate_profile "$ca" ca "$validation_mode"
 
     require_pair "$directory/server.crt" "$directory/server.key" "$ca"
+    validate_certificate_profile "$directory/server.crt" server "$validation_mode"
     server_sans="$(openssl x509 -in "$directory/server.crt" \
         -noout -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
     base_server_sans="DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local"
@@ -159,6 +213,7 @@ validate_bundle() {
             || die "Proxy server certificate SANs are not exact"
     fi
     require_pair "$directory/client.crt" "$directory/client.key" "$ca"
+    validate_certificate_profile "$directory/client.crt" client "$validation_mode"
 
     expected_files="ca.crt ca.key client.crt client.key server.crt server.key"
     private_digests="$(private_public_digest "$directory/ca.key")
@@ -168,6 +223,7 @@ $(private_public_digest "$directory/server.key")"
         certificate="$directory/service-${service}.crt"
         private_key="$directory/service-${service}.key"
         require_pair "$certificate" "$private_key" "$ca"
+        validate_certificate_profile "$certificate" workload "$validation_mode"
         actual_sans="$(openssl x509 -in "$certificate" -noout \
             -ext subjectAltName 2>/dev/null | sed -n '2,$p' | tr -d '[:space:]')"
         base_sans="URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost"
@@ -223,19 +279,27 @@ generate_bundle() {
     cd "$directory"
     openssl genrsa -out ca.key 2048 2>/dev/null
     openssl req -new -x509 -days "$CERT_VALIDITY_DAYS" -key ca.key -out ca.crt \
-        -subj "/CN=AgentClavenarCA" 2>/dev/null
+        -subj "/CN=AgentClavenarCA" \
+        -addext "basicConstraints=critical,CA:TRUE" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
     openssl genrsa -out server.key 2048 2>/dev/null
     openssl req -new -key server.key -out server.csr \
         -subj "/CN=localhost" \
         -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local${proxy_server_dns_suffix}" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+        -addext "extendedKeyUsage=serverAuth" \
         2>/dev/null
     openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in server.csr -CA ca.crt -CAkey ca.key \
         -CAcreateserial -copy_extensions copy -out server.crt 2>/dev/null
     openssl genrsa -out client.key 2048 2>/dev/null
     openssl req -new -key client.key -out client.csr \
-        -subj "/CN=agent-001" 2>/dev/null
+        -subj "/CN=agent-001" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+        -addext "extendedKeyUsage=clientAuth" 2>/dev/null
     openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in client.csr -CA ca.crt -CAkey ca.key \
-        -CAcreateserial -out client.crt 2>/dev/null
+        -CAcreateserial -copy_extensions copy -out client.crt 2>/dev/null
     for service in $services; do
         workload_dns_suffix=""
         if [ "$service" = console ]; then
@@ -249,6 +313,9 @@ generate_bundle() {
         openssl req -new -key "service-${service}.key" \
             -out "service-${service}.csr" -subj "/CN=clavenar-${service}" \
             -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost${workload_dns_suffix}" \
+            -addext "basicConstraints=critical,CA:FALSE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+            -addext "extendedKeyUsage=serverAuth,clientAuth" \
             2>/dev/null
         openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in "service-${service}.csr" \
             -CA ca.crt -CAkey ca.key -CAcreateserial -copy_extensions copy \
@@ -274,7 +341,10 @@ generate_dns_bundle() {
         openssl genrsa -out server.key 2048 2>/dev/null
         openssl req -new -key server.key -out server.csr \
             -subj "/CN=localhost" \
-            -addext "subjectAltName=${target_server_sans}" 2>/dev/null
+            -addext "subjectAltName=${target_server_sans}" \
+            -addext "basicConstraints=critical,CA:FALSE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+            -addext "extendedKeyUsage=serverAuth" 2>/dev/null
         openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in server.csr \
             -CA ca.crt -CAkey ca.key -CAcreateserial -copy_extensions copy \
             -out server.crt 2>/dev/null
@@ -297,7 +367,10 @@ generate_dns_bundle() {
             openssl genrsa -out "service-${service}.key" 2048 2>/dev/null
             openssl req -new -key "service-${service}.key" \
                 -out "service-${service}.csr" -subj "/CN=clavenar-${service}" \
-                -addext "subjectAltName=${target_sans}" 2>/dev/null
+                -addext "subjectAltName=${target_sans}" \
+                -addext "basicConstraints=critical,CA:FALSE" \
+                -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+                -addext "extendedKeyUsage=serverAuth,clientAuth" 2>/dev/null
             openssl x509 -req -days "$CERT_VALIDITY_DAYS" \
                 -in "service-${service}.csr" -CA ca.crt -CAkey ca.key \
                 -CAcreateserial -copy_extensions copy \
@@ -311,17 +384,74 @@ generate_dns_bundle() {
     cd "$WORK_DIR"
 }
 
+generate_profile_bundle() {
+    directory="$1"
+    services="$2"
+    [ ! -e "$directory" ] || die "candidate output already exists"
+    mkdir "$directory"
+    cp -p "$PREVIOUS_DIR"/* "$directory"/
+    cd "$directory"
+
+    openssl req -new -x509 -days "$CERT_VALIDITY_DAYS" -key ca.key -out ca.crt \
+        -subj "/CN=AgentClavenarCA" \
+        -addext "basicConstraints=critical,CA:TRUE" \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" 2>/dev/null
+    openssl req -new -key server.key -out server.csr \
+        -subj "/CN=localhost" \
+        -addext "subjectAltName=DNS:localhost,DNS:proxy,DNS:proxy.clavenar.local${proxy_server_dns_suffix}" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+        -addext "extendedKeyUsage=serverAuth" 2>/dev/null
+    openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in server.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial -copy_extensions copy \
+        -out server.crt 2>/dev/null
+    openssl req -new -key client.key -out client.csr \
+        -subj "/CN=agent-001" \
+        -addext "basicConstraints=critical,CA:FALSE" \
+        -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+        -addext "extendedKeyUsage=clientAuth" 2>/dev/null
+    openssl x509 -req -days "$CERT_VALIDITY_DAYS" -in client.csr \
+        -CA ca.crt -CAkey ca.key -CAcreateserial -copy_extensions copy \
+        -out client.crt 2>/dev/null
+    for service in $services; do
+        workload_dns_suffix=""
+        if [ "$service" = console ]; then
+            workload_dns_suffix="$console_dns_suffix"
+        elif [ "$service" = identity ]; then
+            workload_dns_suffix="$identity_dns_suffix"
+        elif [ "$service" = nats ]; then
+            workload_dns_suffix="$nats_dns_suffix"
+        fi
+        openssl req -new -key "service-${service}.key" \
+            -out "service-${service}.csr" -subj "/CN=clavenar-${service}" \
+            -addext "subjectAltName=URI:spiffe://${SPIFFE_TRUST_DOMAIN}/service/${service},DNS:${service},DNS:${RELEASE_NAME}-${service},DNS:localhost${workload_dns_suffix}" \
+            -addext "basicConstraints=critical,CA:FALSE" \
+            -addext "keyUsage=critical,digitalSignature,keyEncipherment" \
+            -addext "extendedKeyUsage=serverAuth,clientAuth" 2>/dev/null
+        openssl x509 -req -days "$CERT_VALIDITY_DAYS" \
+            -in "service-${service}.csr" -CA ca.crt -CAkey ca.key \
+            -CAcreateserial -copy_extensions copy \
+            -out "service-${service}.crt" 2>/dev/null
+    done
+    rm -f ./*.csr ca.srl
+    cd "$WORK_DIR"
+}
+
 new_membership_sha="$(membership_sha "$BUNDLE_SERVICES")"
 printf '%s\n' "$new_membership_sha" > "$STATE_DIR/new-membership-sha"
 
 if [ "$(cat "$STATE_DIR/existence")" = present ]; then
     previous_services="$(cat "$STATE_DIR/previous-services")"
     san_contract_drift=0
+    profile_contract_drift=0
     if [ "$TLS_ROTATION_OPERATION" = rotate ] \
         && [ "$TLS_ROTATION_REASON" = dns ]; then
         validate_bundle "$PREVIOUS_DIR" "$previous_services" active-dns
     else
-        validate_bundle "$PREVIOUS_DIR" "$previous_services"
+        # Existing evaluation bundles predate the exact certificate profile.
+        # Preserve those bytes under reconcile so profile-capable consumers
+        # can land before the explicit signer-preserving correction.
+        validate_bundle "$PREVIOUS_DIR" "$previous_services" active-profile
     fi
     previous_ca_sha="$(certificate_digest "$PREVIOUS_DIR/ca.crt")"
     previous_bundle_sha="$(bundle_digest "$PREVIOUS_DIR")"
@@ -351,6 +481,9 @@ case "$TLS_ROTATION_OPERATION" in
             [ "$(cat "$STATE_DIR/previous-membership-sha")" \
                 = "$new_membership_sha" ] \
                 || die "membership changes require an explicit rotation"
+            if [ "$profile_contract_drift" -eq 1 ]; then
+                echo "Existing TLS bundle requires an explicit profile rotation" >&2
+            fi
             echo "Existing TLS bundle validated for exact no-op preservation"
             exit 0
         fi
@@ -397,13 +530,20 @@ case "$TLS_ROTATION_OPERATION" in
                 [ "$san_contract_drift" -eq 1 ] \
                     || die "DNS rotation requires an actual SAN contract change"
                 ;;
-            *) die "rotation reason must be expiry, membership, or dns" ;;
+            profile)
+                [ "$(cat "$STATE_DIR/previous-membership-sha")" \
+                    = "$new_membership_sha" ] \
+                    || die "profile rotation cannot also change membership"
+                [ "$profile_contract_drift" -eq 1 ] \
+                    || die "profile rotation requires an actual certificate profile change"
+                ;;
+            *) die "rotation reason must be expiry, membership, dns, or profile" ;;
         esac
-        if [ "$TLS_ROTATION_REASON" = dns ]; then
-            generate_dns_bundle "$NEW_DIR" "$BUNDLE_SERVICES"
-        else
-            generate_bundle "$NEW_DIR" "$BUNDLE_SERVICES"
-        fi
+        case "$TLS_ROTATION_REASON" in
+            dns) generate_dns_bundle "$NEW_DIR" "$BUNDLE_SERVICES" ;;
+            profile) generate_profile_bundle "$NEW_DIR" "$BUNDLE_SERVICES" ;;
+            *) generate_bundle "$NEW_DIR" "$BUNDLE_SERVICES" ;;
+        esac
         ;;
     *) die "operation must be reconcile or rotate" ;;
 esac
@@ -416,11 +556,26 @@ printf '%s\n' "$new_bundle_sha" > "$STATE_DIR/new-bundle-sha"
 
 if [ "$(cat "$STATE_DIR/existence")" = present ]; then
     if [ "$TLS_ROTATION_OPERATION" = rotate ] \
-        && [ "$TLS_ROTATION_REASON" = dns ]; then
-        [ "$new_ca_sha" = "$(cat "$STATE_DIR/previous-ca-sha")" ] \
-            || die "DNS candidate replaced the active CA"
+        && { [ "$TLS_ROTATION_REASON" = dns ] \
+            || [ "$TLS_ROTATION_REASON" = profile ]; }; then
+        if [ "$TLS_ROTATION_REASON" = dns ]; then
+            [ "$new_ca_sha" = "$(cat "$STATE_DIR/previous-ca-sha")" ] \
+                || die "DNS candidate replaced the active CA"
+        else
+            [ "$new_ca_sha" != "$(cat "$STATE_DIR/previous-ca-sha")" ] \
+                || die "profile candidate did not replace the CA certificate"
+            [ "$(certificate_public_digest "$NEW_DIR/ca.crt")" \
+                = "$(certificate_public_digest "$PREVIOUS_DIR/ca.crt")" ] \
+                || die "profile candidate replaced the active CA signer"
+            for previous_key in "$PREVIOUS_DIR"/*.key; do
+                key_name="$(basename "$previous_key")"
+                [ "$(private_public_digest "$NEW_DIR/$key_name")" \
+                    = "$(private_public_digest "$previous_key")" ] \
+                    || die "profile candidate replaced a live private identity"
+            done
+        fi
         [ "$new_bundle_sha" != "$(cat "$STATE_DIR/previous-bundle-sha")" ] \
-            || die "DNS candidate did not change the active bundle"
+            || die "governed candidate did not change the active bundle"
     else
         [ "$new_ca_sha" != "$(cat "$STATE_DIR/previous-ca-sha")" ] \
             || die "fresh candidate reused the active CA"
