@@ -72,6 +72,8 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
+        "CLAVENAR_PROXY_SPIFFE",
+        "CLAVENAR_PROXY_TLS_DIR",
         "CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS",
         "VAULT_ADDR",
         "VAULT_TOKEN_FILE",
@@ -1039,6 +1041,8 @@ class ListenerMatrixTest(unittest.TestCase):
                 "CLAVENAR_HIL_URL": "https://hil:8084",
                 "CLAVENAR_LEDGER_URL": "https://ledger:8183",
                 "CLAVENAR_IDENTITY_URL": "https://identity:8186",
+                "CLAVENAR_PROXY_SPIFFE": "spiffe://clavenar.local/service/proxy",
+                "CLAVENAR_PROXY_TLS_DIR": "/certs",
             },
             "smoke-policy-engine": {
                 "CLAVENAR_POLICY_ENGINE_BRAIN_URL": "https://brain:8081",

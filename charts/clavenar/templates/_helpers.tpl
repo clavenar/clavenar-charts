@@ -281,6 +281,8 @@ per environment variable.
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH"
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH"
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH"
+        "CLAVENAR_PROXY_SPIFFE"
+        "CLAVENAR_PROXY_TLS_DIR"
         "CLAVENAR_PROXY_EXEC_UPSTREAM_MTLS"
         "NATS_TLS_CERT_PATH"
         "NATS_TLS_KEY_PATH"
@@ -641,6 +643,14 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "{{ $mount }}/service-proxy.key"
 - name: CLAVENAR_PROXY_OUTBOUND_CA_PATH
   value: "{{ $mount }}/ca.crt"
+# Identity signing and A2A are a both-or-neither contract: the chart-owned
+# Identity URL above must be paired with the exact workload caller identity.
+# The helper also consumes this directory so outbound clients follow renewed
+# workload SVIDs instead of remaining pinned to the initial Secret snapshot.
+- name: CLAVENAR_PROXY_SPIFFE
+  value: "spiffe://{{ .ctx.Values.tlsBundle.spiffeTrustDomain }}/service/proxy"
+- name: CLAVENAR_PROXY_TLS_DIR
+  value: {{ $mount | quote }}
 {{- end }}
 {{- end }}
 {{- if eq $name "brain" }}
