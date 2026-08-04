@@ -57,6 +57,7 @@
     {"bucket": "clavenar_decoys", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
     {"bucket": "clavenar_grant_usage", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["proxy"]},
     {"bucket": "clavenar_history", "manager": "proxy", "readers": ["proxy"], "writers": ["proxy"]},
+    {"bucket": "clavenar_policy_spend", "manager": "policy-engine", "readers": ["policy-engine"], "writers": ["policy-engine"]},
     {"bucket": "clavenar_revocation", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
     {"bucket": "clavenar_upstreams", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
     {"bucket": "clavenar_velocity", "manager": "policy-engine", "readers": ["policy-engine"], "writers": ["policy-engine"]}
