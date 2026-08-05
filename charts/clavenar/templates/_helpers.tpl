@@ -32,6 +32,29 @@ name would make a reviewed contract refresh impossible to upgrade with Helm. */}
 {{- printf "%s-residual-product-disposition-%s" $base $digest -}}
 {{- end -}}
 
+{{/* Content-address the immutable distributed control-state bundle. Every
+mounted contract participates in the digest so a reviewed contract refresh
+creates a new ConfigMap instead of attempting a forbidden in-place patch. */}}
+{{- define "clavenar.distributedControlStateConfigMapName" -}}
+{{- $base := include "clavenar.fullname" . | trunc 23 | trimSuffix "-" -}}
+{{- $content := list
+      (.Files.Get "files/distributed-control-state-v1.schema.json")
+      (.Files.Get "files/distributed-control-state-v1.fixture.json")
+      (.Files.Get "files/tenant-state-migration-v1.schema.json")
+      (.Files.Get "files/tenant-state-migration-v1.fixture.json")
+      (.Files.Get "files/state-namespace-isolation-v1.schema.json")
+      (.Files.Get "files/state-namespace-isolation-v1.fixture.json")
+      (.Files.Get "files/tenant-route-authorization-v1.schema.json")
+      (.Files.Get "files/tenant-route-authorization-v1.fixture.json")
+      (.Files.Get "files/tenant-lifecycle-saga-v1.schema.json")
+      (.Files.Get "files/tenant-lifecycle-saga-v1.fixture.json")
+      (.Files.Get "files/distributed-control-resilience-v1.schema.json")
+      (.Files.Get "files/distributed-control-resilience-v1.fixture.json")
+      | join "\n" -}}
+{{- $digest := $content | sha256sum | trunc 12 -}}
+{{- printf "%s-distributed-control-state-%s" $base $digest -}}
+{{- end -}}
+
 {{/* Shared authentication Secret. Preserve the historical
 `<release>-shared-tokens` default while allowing production operators to
 reference a Secret managed outside this release. */}}

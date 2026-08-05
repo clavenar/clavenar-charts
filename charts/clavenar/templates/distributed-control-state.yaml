@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "clavenar.fullname" . }}-distributed-control-state
+  name: {{ include "clavenar.distributedControlStateConfigMapName" . }}
   labels:
     {{- include "clavenar.labels" (dict "ctx" . "service" "distributed-control-state") | nindent 4 }}
 immutable: true

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import unittest
@@ -14,6 +15,28 @@ SCHEMA = CHART / "files" / "distributed-control-state-v1.schema.json"
 FIXTURE = CHART / "files" / "distributed-control-state-v1.fixture.json"
 RESILIENCE_SCHEMA = CHART / "files" / "distributed-control-resilience-v1.schema.json"
 RESILIENCE_FIXTURE = CHART / "files" / "distributed-control-resilience-v1.fixture.json"
+CONTROL_STATE_FILES = (
+    "distributed-control-state-v1.schema.json",
+    "distributed-control-state-v1.fixture.json",
+    "tenant-state-migration-v1.schema.json",
+    "tenant-state-migration-v1.fixture.json",
+    "state-namespace-isolation-v1.schema.json",
+    "state-namespace-isolation-v1.fixture.json",
+    "tenant-route-authorization-v1.schema.json",
+    "tenant-route-authorization-v1.fixture.json",
+    "tenant-lifecycle-saga-v1.schema.json",
+    "tenant-lifecycle-saga-v1.fixture.json",
+    "distributed-control-resilience-v1.schema.json",
+    "distributed-control-resilience-v1.fixture.json",
+)
+
+
+def control_state_configmap_name() -> str:
+    content = b"\n".join(
+        (CHART / "files" / name).read_bytes() for name in CONTROL_STATE_FILES
+    )
+    digest = hashlib.sha256(content).hexdigest()[:12]
+    return f"smoke-distributed-control-state-{digest}"
 
 
 def render(*settings: str) -> list[dict]:
@@ -55,7 +78,7 @@ class DistributedControlStateChartTests(unittest.TestCase):
             item
             for item in render()
             if item.get("kind") == "ConfigMap"
-            and item["metadata"]["name"] == "smoke-distributed-control-state"
+            and item["metadata"]["name"] == control_state_configmap_name()
         )
         self.assertTrue(configmap["immutable"])
         self.assertEqual(SCHEMA.read_bytes(), configmap["data"][SCHEMA.name].encode())
@@ -97,6 +120,9 @@ class DistributedControlStateChartTests(unittest.TestCase):
             item
             for item in pod["spec"]["volumes"]
             if item["name"] == "distributed-control-state"
+        )
+        self.assertEqual(
+            control_state_configmap_name(), volume["configMap"]["name"]
         )
         self.assertEqual(
             {

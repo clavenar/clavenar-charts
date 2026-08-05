@@ -599,7 +599,7 @@ spec:
         {{- if $mountsControlState }}
         - name: distributed-control-state
           configMap:
-            name: {{ include "clavenar.fullname" $ }}-distributed-control-state
+            name: {{ include "clavenar.distributedControlStateConfigMapName" $ }}
             items:
               - key: distributed-control-state-v1.schema.json
                 path: distributed-control-state-v1.schema.json
