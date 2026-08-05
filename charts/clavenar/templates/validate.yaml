@@ -570,7 +570,7 @@
 {{- fail "bundled NATS requires JetStream on an enabled persistent file-store PVC" }}
 {{- end }}
 {{- $authorizationDigest := sha256sum (toRawJson .Values.nats.config.merge.authorization) }}
-{{- if ne $authorizationDigest "56f26edade357e37d6e69be1763f7d959b289baf4f2cac3aa737cbda7d7221a6" }}
+{{- if ne $authorizationDigest "5a8e872026523a9ccd392e7dcbaeb149b329b9a6c7b82c6168305c6045bbb98c" }}
 {{- fail "bundled NATS authorization must equal clavenar.nats-authorization/v1; operator overrides are forbidden" }}
 {{- end }}
 {{- else if eq $deploymentProfile "production" }}

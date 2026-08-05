@@ -32,8 +32,8 @@
       "stream": "clavenar-forensic",
       "streamManager": "ledger",
       "publishers": ["assurance", "deep-review", "demo-mint", "hil", "identity", "ledger", "policy-engine", "proxy"],
-      "subscribers": ["deep-review"],
-      "durableConsumers": [{"service": "ledger", "name": "ledger"}]
+      "subscribers": [],
+      "durableConsumers": [{"service": "deep-review", "name": "deep-review"}, {"service": "ledger", "name": "ledger"}]
     },
     {
       "subject": "clavenar.forensic.identity",
@@ -55,6 +55,7 @@
   "kvBuckets": [
     {"bucket": "clavenar_actor_token_replay", "manager": "identity", "readers": ["identity"], "writers": ["identity"]},
     {"bucket": "clavenar_decoys", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["identity"]},
+    {"bucket": "clavenar_deep_review_jobs", "manager": "deep-review", "readers": ["deep-review"], "writers": ["deep-review"]},
     {"bucket": "clavenar_grant_usage", "manager": "identity", "readers": ["identity", "proxy"], "writers": ["proxy"]},
     {"bucket": "clavenar_history", "manager": "proxy", "readers": ["proxy"], "writers": ["proxy"]},
     {"bucket": "clavenar_policy_spend", "manager": "policy-engine", "readers": ["policy-engine"], "writers": ["policy-engine"]},
