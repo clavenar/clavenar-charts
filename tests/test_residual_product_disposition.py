@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import unittest
@@ -43,12 +44,15 @@ class ResidualProductDispositionChartTests(unittest.TestCase):
                 )
 
     def test_contract_is_packaged_immutably(self) -> None:
+        digest = hashlib.sha256(
+            SCHEMA.read_bytes() + b"\n" + FIXTURE.read_bytes()
+        ).hexdigest()[:12]
         configmap = next(
             item
             for item in render()
             if item.get("kind") == "ConfigMap"
             and item["metadata"]["name"]
-            == "residual-product-residual-product-disposition"
+            == f"residual-product-residual-product-disposition-{digest}"
         )
         self.assertTrue(configmap["immutable"])
         self.assertEqual(SCHEMA.read_bytes(), configmap["data"][SCHEMA.name].encode())

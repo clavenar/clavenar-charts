@@ -21,6 +21,17 @@ stale projection after Helm replaces the bundle. */}}
 {{- printf "%s-workload-capabilities-%s" $base $digest -}}
 {{- end -}}
 
+{{/* Content-address the immutable residual-product contract. Kubernetes does
+not permit an in-place data update when immutable=true, so retaining a stable
+name would make a reviewed contract refresh impossible to upgrade with Helm. */}}
+{{- define "clavenar.residualProductDispositionConfigMapName" -}}
+{{- $base := include "clavenar.fullname" . | trunc 21 | trimSuffix "-" -}}
+{{- $schema := .Files.Get "files/residual-product-disposition-v1.schema.json" -}}
+{{- $fixture := .Files.Get "files/residual-product-disposition-v1.fixture.json" -}}
+{{- $digest := printf "%s\n%s" $schema $fixture | sha256sum | trunc 12 -}}
+{{- printf "%s-residual-product-disposition-%s" $base $digest -}}
+{{- end -}}
+
 {{/* Shared authentication Secret. Preserve the historical
 `<release>-shared-tokens` default while allowing production operators to
 reference a Secret managed outside this release. */}}
