@@ -90,7 +90,7 @@
               "$ref": "#/$defs/sha256"
             },
             "caseCount": {
-              "const": 40
+              "const": 55
             },
             "staticAnnotationOnly": {
               "const": true
@@ -250,7 +250,7 @@
           "$ref": "#/$defs/sha256"
         },
         "caseCount": {
-          "const": 40
+          "const": 55
         }
       }
     }

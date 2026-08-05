@@ -78,16 +78,16 @@
       "id": "sandbox-severity-adversarial-corpus",
       "status": "shipped",
       "publicPosture": "Sandbox severity is a reviewed static annotation over the pinned corpus, not execution isolation or authorization.",
-      "runtimePosture": "The pure analyzer deterministically classifies 40 reviewed filesystem, shell, HTTP, SQL, malformed, and unknown cases.",
+      "runtimePosture": "The pure analyzer deterministically classifies 55 reviewed filesystem, shell, HTTP, SQL, malformed, and unknown cases.",
       "tenantScope": "Analysis is tenant-agnostic and carries no authority; callers enforce tenant identity and authorization outside the analyzer.",
       "evidence": [
         {
           "kind": "reviewed-adversarial-corpus",
           "repository": "clavenar-sandbox",
           "path": "benchmark/adversarial-cases.json",
-          "commit": "0559953",
-          "sha256": "0c350e1ceb1404a5a57e17f5657ef7cbe97090e1fbdf349309ee339796f62565",
-          "caseCount": 40
+          "commit": "a83eed2",
+          "sha256": "509b744746ad57a2fb0be23ecb348014b533e357920cd9524c76a88c196986f2",
+          "caseCount": 55
         }
       ],
       "promotionRequirements": []
@@ -120,9 +120,9 @@
       "contract": "clavenar.sandbox-adversarial-corpus/v1",
       "repository": "clavenar-sandbox",
       "path": "benchmark/adversarial-cases.json",
-      "commit": "0559953",
-      "sha256": "0c350e1ceb1404a5a57e17f5657ef7cbe97090e1fbdf349309ee339796f62565",
-      "caseCount": 40,
+      "commit": "a83eed2",
+      "sha256": "509b744746ad57a2fb0be23ecb348014b533e357920cd9524c76a88c196986f2",
+      "caseCount": 55,
       "staticAnnotationOnly": true,
       "authorizationBoundary": false,
       "executionIsolation": false,
