@@ -50,7 +50,7 @@
       "source": "clavenar-shared/src/spiffe.rs",
       "contains": [
         "pub fn tenant_agent_key_from_spiffe",
-        "[\"tenant\", _, \"agent\", _, \"instance\", _]"
+        "[\"tenant\", tenant, \"agent\", agent, \"instance\", instance]"
       ]
     },
     {
