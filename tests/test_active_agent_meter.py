@@ -32,7 +32,7 @@ class ActiveAgentMeterChartTests(unittest.TestCase):
 
     def test_chart_minor_version_is_bumped(self) -> None:
         chart = (CHART / "Chart.yaml").read_text()
-        self.assertIn("version: 0.36.8", chart)
+        self.assertIn("version: 0.36.9", chart)
 
 
 if __name__ == "__main__":
