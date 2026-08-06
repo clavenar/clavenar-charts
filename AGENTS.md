@@ -12,29 +12,31 @@ them. (Pure-Terraform AWS/GCP/Azure modules are roadmap, not in-repo today.)
 This is a Helm/YAML chart — no compiled code. The CI matrix
 (`.github/workflows/ci.yml`) is the source of truth:
 ```bash
-cd charts/clavenar
-helm dep update .                          # materialize nats + vault subchart tarballs (gitignored)
-helm lint .
-python3 ../../scripts/check_dependency_readiness.py --source-root ../../.. --require-source
+helm dep update charts/clavenar            # materialize locked subcharts (gitignored)
+helm lint charts/clavenar
+python3 scripts/check_dependency_readiness.py --source-root . --require-source
+python3 scripts/check-nats-authorization.py
 
 # render across the six value sets CI checks, then kubeconform each:
-helm template smoke . > /tmp/default.yaml                                          # default
-helm template smoke . --set tlsBundle.secretName=clavenar-certs \
-  --set vault.addr=http://vault:8200 --set vault.tokenSecretName=clavenar-vault \
-  --set networkPolicy.enabled=true --set networkPolicy.prometheusNamespaceLabel=monitoring \
-  --set services.brain.replicas=3 --set services.policyEngine.replicas=2 > /tmp/all-on.yaml   # all-on
-helm template smoke . --set persistence.ledger.enabled=false \
+helm template smoke charts/clavenar > /tmp/default.yaml
+helm template smoke charts/clavenar -f tests/values-all-on.yaml > /tmp/all-on.yaml
+helm template smoke charts/clavenar --set persistence.ledger.enabled=false \
   --set services.ledger.postgres.enabled=true \
   --set services.ledger.postgres.dsnSecretName=ledger-postgres-dsn \
-  --set services.ledger.postgres.tlsCaSecretName=ledger-postgres-ca > /tmp/postgres.yaml      # staged postgres
-helm template smoke . -f ../../tests/values-bundled.yaml > /tmp/bundled.yaml                   # bundled
-helm template smoke . -f ../../tests/values-optional.yaml > /tmp/optional.yaml                 # optional listeners
-helm template smoke . -f ../../tests/values-production.yaml > /tmp/production.yaml             # fail-closed production
+  --set services.ledger.postgres.tlsCaSecretName=ledger-postgres-ca > /tmp/postgres.yaml
+helm template smoke charts/clavenar -f tests/values-bundled.yaml > /tmp/bundled.yaml
+helm template smoke charts/clavenar -f tests/values-optional.yaml > /tmp/optional.yaml
+helm template smoke charts/clavenar -f tests/values-production.yaml > /tmp/production.yaml
 
 for f in /tmp/{default,all-on,postgres,bundled,optional,production}.yaml; do
-  kubeconform -summary -strict -kubernetes-version 1.30.0 "$f"; done
+  kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 "$f"
+done
+python3 scripts/check-listener-matrix.py --manifest /tmp/default.yaml
+python3 -m unittest discover -v -s tests -p 'test_*.py'
 ```
-Plus `shellcheck -S warning scripts/*.sh`. Every render must emit ≥ 9
+Plus `shellcheck -S warning scripts/*.sh charts/clavenar/files/tls-rotation/*.sh`.
+Run the listener-matrix checker with each fixture's matching `--values`
+argument as CI does. Every render must emit ≥ 9
 `kind: Deployment` — CI fails the matrix otherwise (catches a service template
 that silently stops rendering).
 Prometheus rules must pass both syntax validation and the executable console
@@ -59,6 +61,8 @@ charts/clavenar/
     configmap.yaml workload-capability-bundle.yaml attestation-verifier-contract.yaml
     dependency-readiness-contract.yaml structured-execution-contract.yaml
     execution-ceilings-contract.yaml outbound-resolution-pinning-contract.yaml
+    distributed-control-state.yaml residual-product-disposition-contract.yaml
+    rooted-path-target-validation-contract.yaml stateful-upgrade-contract.yaml
     shared-tokens-secret.yaml vault-token-secret.yaml
     networkpolicy.yaml pdb.yaml proxy-alias.yaml upstream-stub.yaml exec.yaml
     tls-automint-{job,rbac,script}.yaml   # pre-install/upgrade hook: CA + chart/peer workload certs
@@ -85,7 +89,6 @@ upstream-stub 9000 · exec 9001 mutual-TLS authority + 9002 unpublished plain
 health.
 
 ## Conventions & invariants
-- After adding or updating a feature, also update the relevant `MANUAL_TESTS*` file(s) when needed.
 - **`clavenar.serviceFullname` kebab-cases values keys.** camelCase values paths
   (`services.policyEngine`, `services.deepReview`) become RFC-1123 object names
   (`<release>-policy-engine`, `<release>-deep-review`). In NOTES.txt / README /
