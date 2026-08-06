@@ -160,11 +160,11 @@ also exercised by CI as the canonical fail-closed profile.
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
   --version 0.36.8 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.36.8/clavenar-images-1.245.13.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.36.8/clavenar-images-1.245.14.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.245.13.yaml
+  -f ./clavenar-images-1.245.14.yaml
 ```
 
 This evaluation-only path bundles NATS, dev-mode Vault, and auto-minted
