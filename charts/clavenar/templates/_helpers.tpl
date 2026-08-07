@@ -105,6 +105,16 @@ RFC-1123 lowercase, so we kebabcase here. */}}
 {{- printf "%s-%s" $ctx.Release.Name $service | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/* Fresh-install Vault initialization is an ordinary Job so it can run while
+Helm waits for Identity readiness. Naming it by chart version and Helm revision
+avoids immutable Job pod-template patches and also gives a same-version repair
+attempt a fresh, idempotent bootstrap Job. */}}
+{{- define "clavenar.vaultBootstrapJobName" -}}
+{{- $base := include "clavenar.fullname" . | trunc 30 | trimSuffix "-" -}}
+{{- $version := .Chart.Version | replace "+" "-" | replace "." "-" -}}
+{{- printf "%s-vault-bootstrap-%s-r%d" $base $version (int .Release.Revision) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
 {{/* app.kubernetes.io/component differentiates services. Kebabcased
 to stay consistent with metadata.name. */}}
 {{- define "clavenar.selectorLabels" -}}

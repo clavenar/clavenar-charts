@@ -9,9 +9,9 @@ repos/clavenar-ctl/docs/clients/README.md "Shared prerequisites".
 Gated on BOTH `agentVaultSeed.enabled` AND `vault.bundled.enabled` —
 without the bundled Vault the Job has nothing to talk to, and BYO
 Vault deployments seed their own per-agent credentials. Mirrors the
-shape of vault-bootstrap-job.yaml (transit engine seeder); both run
-as post-install/post-upgrade hooks so they wait for the Vault
-Service to be reachable.
+shape of vault-bootstrap-job.yaml (transit engine seeder). The bootstrap is a
+main-manifest Job so Identity can become ready while Helm waits; this
+independent lab credential seeder remains a post-install/post-upgrade hook.
 
 The api_key value is opaque to the proxy — it only checks presence,
 not value — so the literal here is a marker. Real agents source
@@ -25,9 +25,8 @@ metadata:
   name: {{ .Release.Name }}-vault-agent-seed
   annotations:
     helm.sh/hook: post-install,post-upgrade
-    # Runs after vault-bootstrap (weight 0) so the transit engine is
-    # already up. Not strictly required (this Job only touches the kv
-    # mount), but keeps logs in a sensible order.
+    # This Job only touches the independent kv mount. The ordinary transit
+    # bootstrap Job has already completed when waited workloads are ready.
     helm.sh/hook-weight: "1"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
   labels:

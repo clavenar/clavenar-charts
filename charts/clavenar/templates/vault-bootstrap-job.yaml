@@ -1,9 +1,12 @@
 {{/*
-Post-install + post-upgrade hook Job. Waits for the bundled Vault
-Service to report ready, enables the transit engine, and creates the
-`clavenar-identity` transit key. All ops are idempotent — re-runs land
-on `already enabled` / `already exists` errors from Vault, which the
-script tolerates explicitly.
+Ordinary release Job. Waits for the bundled Vault Service to report ready,
+enables the transit engine, and creates the `clavenar-identity` transit key.
+It is intentionally not a post-install hook: Helm delays post-install hooks
+until waited workloads are ready, while Identity readiness depends on this
+key. Keeping the Job in the main manifest lets `helm install --wait
+--wait-for-jobs` make progress. Its chart-versioned, revisioned name safely
+reruns the idempotent operations on upgrades or repair attempts without
+patching an immutable Job template.
 
 Required because the bundled Vault subchart deploys dev-mode Vault
 (unsealed, in-memory) but does NOT auto-provision clavenar's transit
@@ -19,11 +22,7 @@ runbook).
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ .Release.Name }}-vault-bootstrap
-  annotations:
-    helm.sh/hook: post-install,post-upgrade
-    helm.sh/hook-weight: "0"
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+  name: {{ include "clavenar.vaultBootstrapJobName" . }}
   labels:
     {{- include "clavenar.labels" (dict "ctx" . "service" "vault-bootstrap") | nindent 4 }}
 spec:

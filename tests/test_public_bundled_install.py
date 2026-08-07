@@ -43,6 +43,7 @@ class PublicBundledInstallTests(unittest.TestCase):
         values = yaml.safe_load(PACKAGED_VALUES.read_text(encoding="utf-8"))
         self.assertTrue(values["nats"]["bundled"]["enabled"])
         self.assertTrue(values["vault"]["bundled"]["enabled"])
+        self.assertFalse(values["vault"]["server"]["authDelegator"]["enabled"])
         self.assertTrue(values["tlsBundle"]["autoMint"])
         self.assertTrue(values["upstreamStub"]["enabled"])
         self.assertFalse(values["alerting"]["enabled"])
@@ -91,6 +92,14 @@ class PublicBundledInstallTests(unittest.TestCase):
             for item in yaml.safe_load_all(result.stdout)
             if isinstance(item, dict) and item.get("kind") == "Deployment"
         ]
+        self.assertNotIn(
+            "ClusterRoleBinding",
+            {
+                item.get("kind")
+                for item in yaml.safe_load_all(result.stdout)
+                if isinstance(item, dict)
+            },
+        )
         components = {
             item["metadata"]["labels"]["app.kubernetes.io/component"]
             for item in documents
@@ -207,9 +216,16 @@ class PublicBundledInstallTests(unittest.TestCase):
             for item in yaml.safe_load_all(result.stdout)
             if isinstance(item, dict)
             and item.get("kind") == "Job"
-            and item.get("metadata", {}).get("name")
-            == "external-install-vault-bootstrap"
+            and item.get("metadata", {}).get("labels", {}).get(
+                "app.kubernetes.io/component"
+            )
+            == "vault-bootstrap"
         )
+        self.assertEqual(
+            "external-install-vault-bootstrap-0-36-10-r1",
+            vault_bootstrap["metadata"]["name"],
+        )
+        self.assertNotIn("annotations", vault_bootstrap["metadata"])
         bootstrap_script = vault_bootstrap["spec"]["template"]["spec"][
             "containers"
         ][0]["args"][0]

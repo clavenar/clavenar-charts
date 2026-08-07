@@ -70,6 +70,12 @@ vault:
     dev:
       enabled: true
       devRootToken: root
+    # The evaluation profile uses static-token Transit access and never enables
+    # Vault's Kubernetes auth method. Avoid its unnecessary cluster-wide
+    # system:auth-delegator binding so the public installer stays namespace
+    # scoped after namespace creation.
+    authDelegator:
+      enabled: false
   # Agent-injector adds a cluster-wide MutatingWebhookConfiguration
   # and an extra Deployment to sidecar-inject Vault secrets into
   # arbitrary pods. We use a static-token Secret instead, so disable

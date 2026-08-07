@@ -259,13 +259,14 @@ sequenceDiagram
     Brain-->>Proxy: TLS handshake proceeds (see flow 3)
 ```
 
-## 7. Install-time hooks — TLS auto-mint then Vault bootstrap
+## 7. Install-time lifecycle — TLS auto-mint then Vault bootstrap
 
 The prerequisite for flows 2 and 3. Under `tlsBundle.autoMint` the chart
 mints the `clavenar-certs` bundle from a `pre-install,pre-upgrade` hook
-Job before any workload pod schedules; under `vault.bundled.enabled` two
-`post-install,post-upgrade` hook Jobs provision the transit key + lab
-agent credential after the release lands. Hook weights order the
+Job before any workload pod schedules. Under `vault.bundled.enabled`, an
+ordinary revisioned Job provisions the transit key concurrently with
+workload startup, and a `post-install,post-upgrade` hook seeds the independent
+lab agent credential after waited workloads are ready. Hook weights order the
 pre-install set — RBAC `-20` (`tls-automint-rbac.yaml`) → script
 ConfigMap `-15` (`tls-automint-script.yaml`) → Job `0`
 (`tls-automint-job.yaml`) — so the ServiceAccount and all three governed
@@ -282,9 +283,9 @@ generation through
 old-leaf/dual-root, new-leaf/dual-root, and new-only phases, waiting for every
 TLS consumer to become Ready at each boundary. Failure restores the prior
 generation, while success retains only the old public CA in a history Secret.
-The Vault Jobs run
-post-install at weights `0` (`vault-bootstrap-job.yaml`) then `1`
-(`vault-seed-job.yaml`).
+The ordinary bootstrap avoids a Helm wait cycle: Identity cannot become ready
+without the transit key, so the key cannot be created by a post-install hook
+that Helm runs only after waited workloads are ready.
 
 ```mermaid
 sequenceDiagram
@@ -329,19 +330,20 @@ sequenceDiagram
     end
     Apply-->>API: Job succeeded, hook-delete-policy reaps SA/Role/ConfigMap/Job
 
-    Note over Helm,API: main release — Deployments, Services, configmap,<br/>vault-token Secret, bundled Vault subchart
+    Note over Helm,API: main release — Deployments, Services, ConfigMaps,<br/>vault-token Secret, bundled Vault, ordinary bootstrap Job
     Helm->>API: POST release manifests
     API->>Vault: bundled Vault StatefulSet schedules
-
-    Note over Helm,VSeed: post-install / post-upgrade hooks, by weight
-    Helm->>API: create vault-bootstrap Job (weight 0)
+    Helm->>API: create revisioned vault-bootstrap Job
     API->>VBoot: start
     VBoot->>Vault: poll vault status until reachable (up to 60x, sleep 2)
     VBoot->>Vault: secrets enable transit (tolerate exists); write transit/keys/clavenar-identity
     VBoot->>Vault: read transit/keys/clavenar-identity (post-condition)
     VBoot-->>API: Job succeeded
 
-    Helm->>API: create vault-agent-seed Job (weight 1)
+    Helm->>API: wait for bootstrap Job and workloads
+
+    Note over Helm,VSeed: post-install / post-upgrade hook
+    Helm->>API: create vault-agent-seed Job
     API->>VSeed: start
     VSeed->>Vault: poll vault status until reachable
     VSeed->>Vault: kv put secret/agents/_legacy_unqualified/agent-001 api_key=stub-key
