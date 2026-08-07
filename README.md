@@ -158,9 +158,9 @@ also exercised by CI as the canonical fail-closed profile.
 
 ```bash
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.36.10 --untar
+  --version 0.36.11 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.36.10/clavenar-images-1.245.16.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.36.11/clavenar-images-1.245.16.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   --wait --wait-for-jobs --timeout 10m \
