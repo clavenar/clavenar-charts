@@ -41,7 +41,14 @@ def value_at(values, path):
 
 
 def condition_enabled(expression, values):
-    return all(bool(value_at(values, part.strip())) for part in expression.split(" and "))
+    def term_enabled(term):
+        term = term.strip()
+        if "=" not in term:
+            return bool(value_at(values, term))
+        path, expected = term.split("=", 1)
+        return str(value_at(values, path.strip())) == expected.strip()
+
+    return all(term_enabled(part) for part in expression.split(" and "))
 
 
 def selector(release, component):
@@ -201,6 +208,10 @@ def expected_policies(matrix, values, release):
                     elif token == "configured-console-operator-peers":
                         sources.extend(
                             value_at(values, "networkPolicy.console.operatorMtls.allowedPeers") or []
+                        )
+                    elif token == "configured-console-passkey-peers":
+                        sources.extend(
+                            value_at(values, "networkPolicy.console.passkey.allowedPeers") or []
                         )
                     elif token == "configured-console-demo-peers":
                         sources.extend(
@@ -537,6 +548,9 @@ def validate_deployment_profile(values, errors):
         "console operator mTLS": value_at(
             values, "services.console.operatorMtls.enabled"
         ) is True,
+        "console operator auth mode": value_at(
+            values, "services.console.auth.mode"
+        ) == "operator-mtls",
         "public operator trust": bool(
             value_at(values, "services.console.operatorMtls.publicTrustSecretName")
         ),
@@ -906,6 +920,7 @@ def validate_console_contract(
         errors.append(f"console Deployment must contain exactly one console container; found {len(containers)}")
         return
     container = containers[0]
+    auth_mode = value_at(values, "services.console.auth.mode")
     operator_enabled = bool(value_at(values, "services.console.operatorMtls.enabled"))
     demo_enabled = bool(value_at(values, "services.console.demo.enabled"))
     tls_secret = value_at(values, "tlsBundle.secretName")
@@ -915,8 +930,13 @@ def validate_console_contract(
         else f"{release}-brain"
     )
 
+    primary_port_name = {
+        "operator-mtls": "operator-mtls",
+        "webauthn": "passkey",
+        "demo-only": "demo",
+    }.get(auth_mode, "invalid")
     expected_ports = {
-        "operator-mtls" if operator_enabled else "demo": 8085,
+        primary_port_name: 8085,
         "diagnostics": 9185,
     }
     if demo_enabled:
@@ -935,6 +955,7 @@ def validate_console_contract(
     env_names = [entry.get("name") for entry in env_entries]
     governed_names = {
         "CLAVENAR_CONSOLE_AUTH",
+        "CLAVENAR_CONSOLE_COOKIE_SECURE",
         "CLAVENAR_CONSOLE_BIND",
         "CLAVENAR_CONSOLE_PORT",
         "CLAVENAR_CONSOLE_DEMO_ADDR",
@@ -960,7 +981,7 @@ def validate_console_contract(
         if entry.get("name") in governed_names
     }
     expected_env = {
-        "CLAVENAR_CONSOLE_AUTH": "operator-mtls" if operator_enabled else "demo-only",
+        "CLAVENAR_CONSOLE_AUTH": auth_mode,
         "CLAVENAR_CONSOLE_BIND": "0.0.0.0",
         "CLAVENAR_CONSOLE_PORT": "8085",
         "CLAVENAR_CONSOLE_DIAGNOSTICS_ADDR": "0.0.0.0:9185",
@@ -983,22 +1004,25 @@ def validate_console_contract(
         if chart_app_version is not None
         else (release_values[0] if len(release_values) == 1 else None)
     )
-    if operator_enabled:
-        expected_env.update({
-            "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH": "/certs/service-console.crt",
-            "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH": "/certs/service-console.key",
-            "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH": "/operator-trust/ca.crt",
-            "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH": "/operator-trust/operators.json",
-            "CLAVENAR_CONSOLE_MUTATION_ORIGINS": ",".join(
-                value_at(values, "services.console.mutationOrigins") or []
-            ),
-        })
+    if auth_mode == "webauthn":
+        expected_env["CLAVENAR_CONSOLE_COOKIE_SECURE"] = "false"
+    if auth_mode != "demo-only":
+        expected_env["CLAVENAR_CONSOLE_MUTATION_ORIGINS"] = ",".join(
+            value_at(values, "services.console.mutationOrigins") or []
+        )
         if value_at(values, "services.assurance.enabled") and tls_secret:
             expected_env["CLAVENAR_ASSURANCE_URL"] = (
                 "https://assurance:8088"
                 if tls_secret and value_at(values, "workloadIdentity.enabled")
                 else f"https://{release}-assurance:8088"
             )
+    if operator_enabled:
+        expected_env.update({
+            "CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH": "/certs/service-console.crt",
+            "CLAVENAR_CONSOLE_OPERATOR_TLS_KEY_PATH": "/certs/service-console.key",
+            "CLAVENAR_CONSOLE_OPERATOR_CLIENT_CA_PATH": "/operator-trust/ca.crt",
+            "CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH": "/operator-trust/operators.json",
+        })
         if demo_enabled:
             expected_env["CLAVENAR_CONSOLE_DEMO_ADDR"] = "0.0.0.0:9085"
     if tls_secret:
@@ -1493,6 +1517,7 @@ def validate(
         values,
         (
             "networkPolicy.console.operatorMtls.allowedPeers",
+            "networkPolicy.console.passkey.allowedPeers",
             "networkPolicy.console.demo.allowedPeers",
             "networkPolicy.ledger.trustedProxy.allowedPeers",
             "networkPolicy.nats.demoMint.allowedPeers",

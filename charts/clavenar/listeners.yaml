@@ -1,7 +1,7 @@
 # Governed listener and Service publication inventory. Keep this file in
 # lockstep with templates and run scripts/check-listener-matrix.py after edits.
 schemaVersion: "1.0"
-reviewedContractSha256: "3ffde74808771ff013034b4032ac3664553de939c639e31f20e0a6a27d57df78"
+reviewedContractSha256: "3ac8f4c25a424c813960aed6faf94c8fc897a13785b79e7472c53ed4f0ae024b"
 ownership:
   core: "clavenar chart templates/services.yaml"
   optional: "clavenar chart optional templates"
@@ -95,7 +95,8 @@ networkPolicies:
     enabledWhen: "services.console.enabled"
     rules:
       - { listenerId: operator-ui, peers: [configured-console-operator-peers], enabledWhen: "services.console.operatorMtls.enabled and networkPolicy.console.operatorMtls.allowedPeers" }
-      - { listenerId: primary-demo, peers: [configured-console-demo-peers], enabledWhen: "networkPolicy.console.demo.allowedPeers", disabledWhen: "services.console.operatorMtls.enabled" }
+      - { listenerId: passkey-ui, peers: [configured-console-passkey-peers], enabledWhen: "services.console.auth.mode=webauthn and networkPolicy.console.passkey.allowedPeers" }
+      - { listenerId: primary-demo, peers: [configured-console-demo-peers], enabledWhen: "services.console.auth.mode=demo-only and networkPolicy.console.demo.allowedPeers" }
       - { listenerId: demo, peers: [configured-console-demo-peers], enabledWhen: "services.console.demo.enabled and networkPolicy.console.demo.allowedPeers" }
       - { listenerId: diagnostics, peers: [prometheus], enabledWhen: "networkPolicy.prometheusNamespaceLabel" }
   - service: exec
@@ -143,7 +144,8 @@ listeners:
   - { service: deep-review, listenerId: operational, owner: core, enabledWhen: "services.deepReview.enabled", bind: "0.0.0.0:8087", containerPort: 8087, servicePort: 8087, servicePublished: true, ingressPaths: ["/", "/health", "/readyz", "/metrics"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; operational endpoints only", authorizedCallers: [kubelet, prometheus], allowedPeers: [prometheus], bodyLimit: "not-applicable (GET-only listener)", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
   - { service: assurance, listenerId: control-mtls, owner: core, enabledWhen: "services.assurance.enabled", bind: "0.0.0.0:8088", containerPort: 8088, servicePort: 8088, servicePublished: true, ingressPaths: ["GET /status", "POST /running", "POST /run-now"], transportProtocol: TCP, applicationProtocol: HTTPS, authentication: "mutual TLS on every route plus exact spiffe://clavenar.local/service/console caller authorization", authorizedCallers: [console], allowedPeers: [console], bodyLimit: "2 MiB Axum default for POST routes", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
   - { service: assurance, listenerId: diagnostics, owner: core, enabledWhen: "services.assurance.enabled", bind: "0.0.0.0:9088", containerPort: 9088, servicePort: 9088, servicePublished: true, ingressPaths: ["GET /health", "GET /readyz"], transportProtocol: TCP, applicationProtocol: HTTP, authentication: "none; side-effect-free operational endpoints only; no status or mutation routes", authorizedCallers: [console, kubelet], allowedPeers: [console], bodyLimit: "not-applicable", rateLimit: "unbounded", hostPublication: "forbidden", externalPublication: "forbidden" }
-  - service: console
+  - &console-operator-listener
+    service: console
     listenerId: operator-ui
     owner: core
     enabledWhen: "services.console.enabled and services.console.operatorMtls.enabled"
@@ -298,12 +300,19 @@ listeners:
     rateLimit: "10 failed authorization attempts per source IP in 60 seconds; bounded failure/throttle metrics"
     hostPublication: "forbidden"
     externalPublication: "operator-controlled end-to-end TLS passthrough or SSH tunnel only; TLS termination and forwarded client-certificate headers are forbidden"
+  - <<: *console-operator-listener
+    listenerId: passkey-ui
+    enabledWhen: "services.console.enabled and services.console.auth.mode=webauthn"
+    applicationProtocol: HTTP
+    authentication: "HIL-controlled WebAuthn sessions; the one lifetime deployment bootstrap creates the durable Admin identity, invitation enrollment creates Approver, credential maintenance preserves the stored role, and anonymous demo access is not installed"
+    authorizedCallers: [controlled-passkey-identities, configured-console-passkey-peers]
+    allowedPeers: [configured-console-passkey-peers]
+    externalPublication: "localhost kubectl port-forward by default; an explicitly selected private tunnel peer may be configured, but public unauthenticated publication is forbidden"
   - &console-demo-listener
     service: console
     listenerId: primary-demo
     owner: core
-    enabledWhen: "services.console.enabled"
-    disabledWhen: "services.console.operatorMtls.enabled"
+    enabledWhen: "services.console.enabled and services.console.auth.mode=demo-only"
     bind: "0.0.0.0:8085"
     containerPort: 8085
     servicePort: 8085
@@ -409,7 +418,8 @@ serviceObjects:
     name: "{release}-console"
     type: ClusterIP
     ports:
-      - { name: demo, port: 8085, targetPort: demo, protocol: TCP, appProtocol: http, disabledWhen: "services.console.operatorMtls.enabled" }
+      - { name: demo, port: 8085, targetPort: demo, protocol: TCP, appProtocol: http, enabledWhen: "services.console.auth.mode=demo-only" }
+      - { name: passkey, port: 8085, targetPort: passkey, protocol: TCP, appProtocol: http, enabledWhen: "services.console.auth.mode=webauthn" }
       - { name: operator-mtls, port: 8085, targetPort: operator-mtls, protocol: TCP, appProtocol: https, enabledWhen: "services.console.operatorMtls.enabled" }
       - { name: demo, port: 9085, targetPort: demo, protocol: TCP, appProtocol: http, enabledWhen: "services.console.demo.enabled" }
       - { name: diagnostics, port: 9185, targetPort: diagnostics, protocol: TCP, appProtocol: http }

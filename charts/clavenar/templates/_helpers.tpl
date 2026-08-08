@@ -389,6 +389,9 @@ per environment variable.
         "CLAVENAR_HIL_SESSION_KEY"
         "CLAVENAR_HIL_BOOTSTRAP_TOKEN"
         "CLAVENAR_HIL_DEPLOYMENT_ID"
+        "CLAVENAR_HIL_RP_ID"
+        "CLAVENAR_HIL_RP_ORIGIN"
+        "CLAVENAR_HIL_COOKIE_SECURE"
         "CLAVENAR_HIL_SIMULATOR_TENANT"
         "CLAVENAR_HIL_WEBAUTHN_TTL_SECS"
         "CLAVENAR_HIL_WEBAUTHN_ATTEMPT_LIMIT"
@@ -451,6 +454,7 @@ per environment variable.
         "NATS_TLS_CA_PATH")
       "console" (list
         "CLAVENAR_CONSOLE_AUTH"
+        "CLAVENAR_CONSOLE_COOKIE_SECURE"
         "CLAVENAR_CONSOLE_BIND"
         "CLAVENAR_CONSOLE_PORT"
         "CLAVENAR_CONSOLE_DEMO_ADDR"
@@ -870,7 +874,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # values instead of accepting extraEnv overrides so the process binds
 # exactly the ports governed by listeners.yaml and NetworkPolicy.
 - name: CLAVENAR_CONSOLE_AUTH
-  value: {{ ternary "operator-mtls" "demo-only" .ctx.Values.services.console.operatorMtls.enabled | quote }}
+  value: {{ .ctx.Values.services.console.auth.mode | quote }}
 - name: CLAVENAR_CONSOLE_BIND
   value: "0.0.0.0"
 - name: CLAVENAR_CONSOLE_PORT
@@ -883,6 +887,10 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "60"
 - name: CLAVENAR_CONSOLE_RELEASE_VERSION
   value: {{ .ctx.Chart.AppVersion | quote }}
+{{- if eq .ctx.Values.services.console.auth.mode "webauthn" }}
+- name: CLAVENAR_CONSOLE_COOKIE_SECURE
+  value: "false"
+{{- end }}
 {{- if .ctx.Values.services.console.operatorMtls.enabled }}
 # TLS terminates inside clavenar-console. The server certificate comes
 # from the workload bundle; client trust and the exact identity/role
@@ -895,12 +903,14 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
   value: "/operator-trust/ca.crt"
 - name: CLAVENAR_CONSOLE_OPERATOR_IDENTITIES_PATH
   value: "/operator-trust/operators.json"
-- name: CLAVENAR_CONSOLE_MUTATION_ORIGINS
-  value: {{ join "," .ctx.Values.services.console.mutationOrigins | quote }}
 {{- if .ctx.Values.services.console.demo.enabled }}
 - name: CLAVENAR_CONSOLE_DEMO_ADDR
   value: "0.0.0.0:{{ .ctx.Values.services.console.demoPort }}"
 {{- end }}
+{{- end }}
+{{- if ne .ctx.Values.services.console.auth.mode "demo-only" }}
+- name: CLAVENAR_CONSOLE_MUTATION_ORIGINS
+  value: {{ join "," .ctx.Values.services.console.mutationOrigins | quote }}
 {{- end }}
 # Console → backend hops (B7 v1.x+2 sessions 5-6). All four hops flip
 # to https when the bundle is mounted: ledger on :8183 (mTLS listener),
@@ -934,7 +944,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_CONSOLE_SIMULATOR_READINESS_URL
   value: {{ .ctx.Values.services.console.simulatorReadinessUrl | quote }}
 {{- end }}
-{{- if and $tlsOn .ctx.Values.services.console.operatorMtls.enabled .ctx.Values.services.assurance.enabled }}
+{{- if and $tlsOn (ne .ctx.Values.services.console.auth.mode "demo-only") .ctx.Values.services.assurance.enabled }}
 - name: CLAVENAR_ASSURANCE_URL
   value: "https://{{ $assuranceHost }}:8088"
 {{- end }}

@@ -130,6 +130,9 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_HIL_DECIDE_TOKEN",
         "CLAVENAR_HIL_SESSION_KEY",
         "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
+        "CLAVENAR_HIL_RP_ID",
+        "CLAVENAR_HIL_RP_ORIGIN",
+        "CLAVENAR_HIL_COOKIE_SECURE",
         "CLAVENAR_HIL_DEPLOYMENT_ID",
         "CLAVENAR_HIL_SIMULATOR_TENANT",
         "CLAVENAR_HIL_NOTIFICATION_MODE",
@@ -174,6 +177,7 @@ GOVERNED_ENV_BY_SERVICE = {
     },
     "console": COMMON_GOVERNED_ENV | {
         "CLAVENAR_CONSOLE_AUTH",
+        "CLAVENAR_CONSOLE_COOKIE_SECURE",
         "CLAVENAR_CONSOLE_BIND",
         "CLAVENAR_CONSOLE_PORT",
         "CLAVENAR_CONSOLE_DEMO_ADDR",
@@ -222,6 +226,7 @@ class ListenerMatrixTest(unittest.TestCase):
             "production": [ROOT / "tests/values-production.yaml"],
             "optional": [ROOT / "tests/values-optional.yaml"],
             "bundled": [ROOT / "tests/values-bundled.yaml"],
+            "passkey": [ROOT / "tests/values-passkey.yaml"],
         }
         cls.rendered = {}
         for name, overlays in cls.scenarios.items():
@@ -497,6 +502,10 @@ class ListenerMatrixTest(unittest.TestCase):
         self.assertEqual(
             "bootstrap-v1",
             generated["metadata"]["annotations"]["clavenar.io/auth-rotation-id"],
+        )
+        self.assertEqual(
+            "keep",
+            generated["metadata"]["annotations"]["helm.sh/resource-policy"],
         )
 
         for deployment in (
@@ -1228,6 +1237,40 @@ class ListenerMatrixTest(unittest.TestCase):
             resource("default", "Service")["spec"]["ports"],
         )
         self.assertEqual([], resource("default", "NetworkPolicy")["spec"]["ingress"])
+
+        passkey_deployment = resource("passkey", "Deployment")
+        passkey_container = passkey_deployment["spec"]["template"]["spec"]["containers"][0]
+        self.assertEqual(
+            {"passkey": 8085, "diagnostics": 9185},
+            {port["name"]: port["containerPort"] for port in passkey_container["ports"]},
+        )
+        passkey_env = {entry["name"]: entry.get("value") for entry in passkey_container["env"]}
+        self.assertEqual("webauthn", passkey_env["CLAVENAR_CONSOLE_AUTH"])
+        self.assertEqual("false", passkey_env["CLAVENAR_CONSOLE_COOKIE_SECURE"])
+        self.assertEqual(
+            "http://localhost:8085",
+            passkey_env["CLAVENAR_CONSOLE_MUTATION_ORIGINS"],
+        )
+        self.assertNotIn("CLAVENAR_CONSOLE_OPERATOR_TLS_CERT_PATH", passkey_env)
+        self.assertNotIn("CLAVENAR_HIL_DECIDE_TOKEN", passkey_env)
+        self.assertEqual(
+            "passkey",
+            resource("passkey", "Service")["spec"]["ports"][0]["name"],
+        )
+        passkey_policy = resource("passkey", "NetworkPolicy")["spec"]["ingress"]
+        self.assertEqual([8085], [rule["ports"][0]["port"] for rule in passkey_policy])
+        hil = next(
+            doc for doc in self.rendered["passkey"]
+            if doc.get("kind") == "Deployment"
+            and doc.get("metadata", {}).get("name") == "smoke-hil"
+        )
+        hil_env = {
+            entry["name"]: entry.get("value")
+            for entry in hil["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual("localhost", hil_env["CLAVENAR_HIL_RP_ID"])
+        self.assertEqual("http://localhost:8085", hil_env["CLAVENAR_HIL_RP_ORIGIN"])
+        self.assertEqual("false", hil_env["CLAVENAR_HIL_COOKIE_SECURE"])
 
         operator_deployment = resource("all-on", "Deployment")
         operator_pod = operator_deployment["spec"]["template"]["spec"]

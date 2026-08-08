@@ -1,0 +1,13 @@
+services:
+  console:
+    auth:
+      mode: webauthn
+    mutationOrigins:
+      - http://localhost:8085
+networkPolicy:
+  console:
+    passkey:
+      allowedPeers:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: private-console-tunnel

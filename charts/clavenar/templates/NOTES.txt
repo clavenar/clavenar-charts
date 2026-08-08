@@ -48,6 +48,17 @@ The separate curated demo listener is enabled on plain HTTP port 9085:
 
   kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-console 9085:9085
 {{- end }}
+{{- else if eq .Values.services.console.auth.mode "webauthn" }}
+
+Console passkey authentication is enabled on plain HTTP port 8085 for an
+exact localhost port-forward. Browsers treat localhost as a secure WebAuthn
+context; do not publish this HTTP listener on another hostname:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-console 8085:8085
+
+Open http://localhost:8085 after an Admin has consumed the deployment's
+one-use bootstrap authority. The existing-cluster installer prints the exact
+first-Admin setup URL without placing its token in the install receipt.
 {{- else }}
 
 Console is in the safe demo-only posture on plain HTTP port 8085. A

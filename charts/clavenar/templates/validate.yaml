@@ -177,6 +177,7 @@
 {{- fail "services.brain.auxBodyLimitBytes must be between 1 and 1048576" }}
 {{- end }}
 {{- $console := .Values.services.console }}
+{{- $consoleAuth := $console.auth.mode }}
 {{- $operatorMtls := $console.operatorMtls.enabled }}
 {{- $operatorTrust := trim $console.operatorMtls.publicTrustSecretName }}
 {{- $ledger := .Values.services.ledger }}
@@ -311,6 +312,9 @@
 {{- if not $operatorMtls }}
 {{- fail "deploymentProfile=production requires services.console.operatorMtls.enabled=true" }}
 {{- end }}
+{{- if ne $consoleAuth "operator-mtls" }}
+{{- fail "deploymentProfile=production requires services.console.auth.mode=operator-mtls" }}
+{{- end }}
 {{- if empty $operatorTrust }}
 {{- fail "deploymentProfile=production requires services.console.operatorMtls.publicTrustSecretName" }}
 {{- end }}
@@ -336,8 +340,8 @@
 {{- fail "deploymentProfile=production requires exactly one positive website selector in networkPolicy.ledger.trustedProxy.allowedPeers" }}
 {{- end }}
 {{- end }}
-{{- if and (not $console.enabled) (or $operatorMtls $console.demo.enabled) }}
-{{- fail "services.console.operatorMtls.enabled and services.console.demo.enabled require services.console.enabled=true" }}
+{{- if and (not $console.enabled) (or (ne $consoleAuth "demo-only") $operatorMtls $console.demo.enabled) }}
+{{- fail "non-demo Console auth and listener options require services.console.enabled=true" }}
 {{- end }}
 {{- if ne (int $console.port) 8085 }}
 {{- fail "services.console.port is governed and must remain 8085" }}
@@ -348,8 +352,17 @@
 {{- if ne (int $console.diagnosticsPort) 9185 }}
 {{- fail "services.console.diagnosticsPort is governed and must remain 9185" }}
 {{- end }}
-{{- if and $console.demo.enabled (not $operatorMtls) }}
-{{- fail "services.console.demo.enabled=true requires services.console.operatorMtls.enabled=true; demo-only mode already serves the curated demo router on port 8085" }}
+{{- if and $operatorMtls (ne $consoleAuth "operator-mtls") }}
+{{- fail "services.console.operatorMtls.enabled=true requires services.console.auth.mode=operator-mtls" }}
+{{- end }}
+{{- if and (eq $consoleAuth "operator-mtls") (not $operatorMtls) }}
+{{- fail "services.console.auth.mode=operator-mtls requires services.console.operatorMtls.enabled=true" }}
+{{- end }}
+{{- if and $console.demo.enabled (ne $consoleAuth "operator-mtls") }}
+{{- fail "services.console.demo.enabled=true requires services.console.auth.mode=operator-mtls; demo-only mode already serves the curated demo router on port 8085" }}
+{{- end }}
+{{- if and (eq $consoleAuth "webauthn") (not (has "http://localhost:8085" $console.mutationOrigins)) }}
+{{- fail "services.console.auth.mode=webauthn requires the exact http://localhost:8085 mutation origin" }}
 {{- end }}
 {{- if $operatorMtls }}
 {{- if empty $operatorTrust }}
@@ -374,8 +387,8 @@
 {{- fail "services.console.operatorMtls.publicTrustSecretName is set while operatorMtls.enabled=false; set both values together" }}
 {{- end }}
 {{- range $index, $origin := $console.mutationOrigins }}
-{{- if not (regexMatch "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$" $origin) }}
-{{- fail (printf "services.console.mutationOrigins[%d] must be an exact HTTPS origin without path, query, fragment, wildcard, or credentials" $index) }}
+{{- if not (or (eq $origin "http://localhost:8085") (regexMatch "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$" $origin)) }}
+{{- fail (printf "services.console.mutationOrigins[%d] must be an exact HTTPS origin or the governed http://localhost:8085 WebAuthn origin" $index) }}
 {{- end }}
 {{- end }}
 {{- if ne (len $console.mutationOrigins) (len (uniq $console.mutationOrigins)) }}
@@ -422,17 +435,22 @@
 {{- fail "services.assurance.runTimeoutSecs must be at least services.assurance.publishTimeoutSecs" }}
 {{- end }}
 {{- $operatorPeers := .Values.networkPolicy.console.operatorMtls.allowedPeers }}
+{{- $passkeyPeers := .Values.networkPolicy.console.passkey.allowedPeers }}
 {{- $demoPeers := .Values.networkPolicy.console.demo.allowedPeers }}
+{{- if and (ne $consoleAuth "webauthn") (not (empty $passkeyPeers)) }}
+{{- fail "networkPolicy.console.passkey.allowedPeers is non-empty while services.console.auth.mode is not webauthn" }}
+{{- end }}
 {{- if and (not $operatorMtls) (not (empty $operatorPeers)) }}
 {{- fail "networkPolicy.console.operatorMtls.allowedPeers is non-empty while operatorMtls.enabled=false" }}
 {{- end }}
-{{- if and $operatorMtls (not $console.demo.enabled) (not (empty $demoPeers)) }}
+{{- if and (ne $consoleAuth "demo-only") (not $console.demo.enabled) (not (empty $demoPeers)) }}
 {{- fail "networkPolicy.console.demo.allowedPeers is non-empty while the operator profile's separate demo listener is disabled" }}
 {{- end }}
-{{- if and (not $console.enabled) (or (not (empty $operatorPeers)) (not (empty $demoPeers))) }}
+{{- if and (not $console.enabled) (or (not (empty $passkeyPeers)) (not (empty $operatorPeers)) (not (empty $demoPeers))) }}
 {{- fail "console NetworkPolicy peers require services.console.enabled=true" }}
 {{- end }}
 {{- $consolePeerClasses := dict
+      "passkey" $passkeyPeers
       "operatorMtls" $operatorPeers
       "demo" $demoPeers -}}
 {{- range $class, $peers := $consolePeerClasses }}

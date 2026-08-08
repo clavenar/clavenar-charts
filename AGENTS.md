@@ -17,7 +17,7 @@ helm lint charts/clavenar
 python3 scripts/check_dependency_readiness.py --source-root . --require-source
 python3 scripts/check-nats-authorization.py
 
-# render across the six value sets CI checks, then kubeconform each:
+# render across the seven value sets CI checks, then kubeconform each:
 helm template smoke charts/clavenar > /tmp/default.yaml
 helm template smoke charts/clavenar -f tests/values-all-on.yaml > /tmp/all-on.yaml
 helm template smoke charts/clavenar --set persistence.ledger.enabled=false \
@@ -27,8 +27,9 @@ helm template smoke charts/clavenar --set persistence.ledger.enabled=false \
 helm template smoke charts/clavenar -f tests/values-bundled.yaml > /tmp/bundled.yaml
 helm template smoke charts/clavenar -f tests/values-optional.yaml > /tmp/optional.yaml
 helm template smoke charts/clavenar -f tests/values-production.yaml > /tmp/production.yaml
+helm template smoke charts/clavenar -f tests/values-passkey.yaml > /tmp/passkey.yaml
 
-for f in /tmp/{default,all-on,postgres,bundled,optional,production}.yaml; do
+for f in /tmp/{default,all-on,postgres,bundled,optional,production,passkey}.yaml; do
   kubeconform -summary -strict -ignore-missing-schemas -kubernetes-version 1.30.0 "$f"
 done
 python3 scripts/check-listener-matrix.py --manifest /tmp/default.yaml
@@ -83,7 +84,7 @@ diagnostics only under mTLS; no provider routes) ·
 policy-engine 8082 (9082) · ledger 8083 plain + 8183 mTLS · hil 8084 (9084) ·
 identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 mTLS
 control + 9088 plain diagnostics · console
-8085 primary (demo-only by default; native operator mTLS when enabled) + 9085
+8085 primary (demo-only, WebAuthn passkey, or native operator mTLS) + 9085
 optional demo + 9185 diagnostics ·
 upstream-stub 9000 · exec 9001 mutual-TLS authority + 9002 unpublished plain
 health.
@@ -162,7 +163,7 @@ health.
   helper `fail`s the render otherwise (plaintext server + TLS-only clients =
   `InvalidContentType` crash). Mirror `tests/values-bundled.yaml`.
 - **NetworkPolicy** defaults on and is destination/port-specific. Proxy is
-  open to arbitrary sources only on 8443; console operator and demo trust
+  open to arbitrary sources only on 8443; console passkey, operator, and demo trust
   classes default denied until their independent `allowedPeers` lists supply
   explicit selectors. The separately deployed demo-mint may reach bundled
   NATS `:4222` only through its canonical external-namespace selector; it never

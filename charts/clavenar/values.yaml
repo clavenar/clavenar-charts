@@ -767,7 +767,7 @@ services:
     metrics:
       enabled: false
 
-  # Operator console. The safe chart default is `demo-only`: the primary
+  # Operator console. The safe raw-chart default is `demo-only`: the primary
   # port serves the curated demo router. A valid signed demo cookie is
   # a prefix-scoped demo Viewer and can never create operator or Admin
   # authority. Enabling operatorMtls converts that
@@ -783,9 +783,10 @@ services:
       digest: ""
       tag: ""
     # Primary listener. In the default demo-only posture this is plain
-    # HTTP with the curated demo surface. With operatorMtls.enabled=true
-    # it is HTTPS with mandatory operator client certificates and the
-    # complete role-gated operator router.
+    # HTTP with the curated demo surface. In `webauthn` mode it serves the
+    # complete role-gated router on the exact localhost WebAuthn origin. In
+    # `operator-mtls` mode it is HTTPS with mandatory operator client
+    # certificates.
     port: 8085
     # Optional second plain-HTTP demo listener. It is meaningful only
     # beside the operator-mTLS primary listener, so the chart rejects
@@ -798,6 +799,14 @@ services:
     # makes Console report the explicit `simulator: skipped` Helm check.
     simulatorReadinessUrl: ""
     serviceType: ClusterIP
+    auth:
+      # `demo-only` keeps the raw chart useful for evaluation. Customer
+      # installation overlays select `webauthn`, which exposes the full
+      # role-gated Console over a localhost port-forward and creates the first
+      # Admin through HIL's one lifetime deployment bootstrap. `operator-mtls`
+      # is the explicit hardened alternative and must agree with
+      # operatorMtls.enabled below.
+      mode: demo-only
     operatorMtls:
       # Disabled by default so a fresh install needs no operator PKI and
       # cannot accidentally mint synthetic Admin authority. Enable only
@@ -809,9 +818,10 @@ services:
       # leaf SHA-256 fingerprint + SPIFFE URI to viewer/approver/admin.
       # No operator CA or leaf private key belongs in this Secret.
       publicTrustSecretName: ""
-    # Exact HTTPS browser origins allowed to submit simulator/assurance
-    # mutations. Required when operator mTLS wires the assurance backend;
-    # each value is compared as a complete Origin, never by suffix/prefix.
+    # Exact browser origins allowed to submit simulator/assurance mutations.
+    # HTTPS is required except for the single WebAuthn port-forward origin
+    # http://localhost:8085. Each value is compared as a complete Origin,
+    # never by suffix/prefix.
     mutationOrigins: []
     demo:
       # Adds the curated demo router on demoPort while operator mTLS owns
@@ -1067,6 +1077,11 @@ networkPolicy:
   # also use non-empty matchLabels. Expressions, empty selectors, and
   # ipBlock peers are rejected because they can admit arbitrary pods.
   console:
+    passkey:
+      # Optional private ingress or tunnel helper for the full WebAuthn
+      # Console. `kubectl port-forward` remains the standard customer path and
+      # does not require a pod selector here.
+      allowedPeers: []
     operatorMtls:
       # TLS-passthrough private ingress, SSH-tunnel helper, or other
       # explicitly selected operator access pod. TLS must terminate in

@@ -8,6 +8,7 @@
 {{- $natsDemoMintPeers := .Values.networkPolicy.nats.demoMint.allowedPeers }}
 {{- $simulatorPeers := .Values.networkPolicy.simulator.allowedPeers }}
 {{- $demoResetPeers := .Values.networkPolicy.demoReset.allowedPeers }}
+{{- $consoleAuth := .Values.services.console.auth.mode }}
 {{- $callers := dict
       "policyEngine" (list "proxy" "console")
       "ledger" (list "console" "deepReview")
@@ -79,7 +80,13 @@ spec:
       ports:
         - { protocol: TCP, port: {{ $cfg.port }} }
     {{- end }}
-    {{- if and (eq $name "console") (not $cfg.operatorMtls.enabled) (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) }}
+    {{- if and (eq $name "console") (eq $consoleAuth "webauthn") (not (empty $ctx.Values.networkPolicy.console.passkey.allowedPeers)) }}
+    - from:
+        {{- toYaml $ctx.Values.networkPolicy.console.passkey.allowedPeers | nindent 8 }}
+      ports:
+        - { protocol: TCP, port: {{ $cfg.port }} }
+    {{- end }}
+    {{- if and (eq $name "console") (eq $consoleAuth "demo-only") (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) }}
     - from:
         {{- toYaml $ctx.Values.networkPolicy.console.demo.allowedPeers | nindent 8 }}
       ports:
@@ -149,9 +156,10 @@ spec:
         - { protocol: TCP, port: {{ include "clavenar.metricsPort" (dict "ctx" $ctx "svcCfg" $cfg) }} }
     {{- end }}
     {{- $hasOperatorRule := and (eq $name "console") $cfg.operatorMtls.enabled (not (empty $ctx.Values.networkPolicy.console.operatorMtls.allowedPeers)) -}}
-    {{- $hasPrimaryDemoRule := and (eq $name "console") (not $cfg.operatorMtls.enabled) (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) -}}
+    {{- $hasPasskeyRule := and (eq $name "console") (eq $consoleAuth "webauthn") (not (empty $ctx.Values.networkPolicy.console.passkey.allowedPeers)) -}}
+    {{- $hasPrimaryDemoRule := and (eq $name "console") (eq $consoleAuth "demo-only") (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) -}}
     {{- $hasSecondaryDemoRule := and (eq $name "console") $cfg.demo.enabled (not (empty $ctx.Values.networkPolicy.console.demo.allowedPeers)) -}}
-    {{- if and (empty $rules) (not $hasOperatorRule) (not $hasPrimaryDemoRule) (not $hasSecondaryDemoRule) (not (and $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel)) }} []{{- end }}
+    {{- if and (empty $rules) (not $hasOperatorRule) (not $hasPasskeyRule) (not $hasPrimaryDemoRule) (not $hasSecondaryDemoRule) (not (and $metrics.enabled $ctx.Values.networkPolicy.prometheusNamespaceLabel)) }} []{{- end }}
 {{ end }}
 {{- end }}
 

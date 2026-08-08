@@ -87,6 +87,7 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
   --set authSecrets.rotationId=prod-20260715-01 \
   --set tlsBundle.secretName=clavenar-certs \
   --set tlsBundle.autoMint=false \
+  --set services.console.auth.mode=operator-mtls \
   --set services.console.operatorMtls.enabled=true \
   --set services.console.operatorMtls.publicTrustSecretName=clavenar-operator-trust \
   --set services.console.mutationOrigins[0]=https://console.example.com \
@@ -148,11 +149,11 @@ recovery, and runtime behavior in the target cluster.
 | Vault deployment | Subchart `hashicorp/vault` in **dev mode** (in-memory, root token) | External, operator-managed |
 | Transit engine | Auto-provisioned by post-install Job with an Ed25519 key for signing and JWKS | Operator runs `vault secrets enable transit && vault write transit/keys/<name> type=ed25519` |
 | mTLS bundle | Auto-minted by pre-install Job (self-signed CA) | Operator pre-populates Secret with managed-PKI certs |
-| HIL and Brain cache keys | Chart creates and upgrade-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret containing all governed keys |
+| HIL and Brain cache keys | Chart creates and upgrade/uninstall-preserves `<release>-shared-tokens` | Set `authSecrets.existingSecretName` to an operator/secret-store-managed Secret containing all governed keys |
 | HIL exact-payload encryption key | Packaged evaluation values generate and upgrade-preserve the key in `<release>-shared-tokens`; only HIL receives its mode-0440 file projection | Operator or secret-store controller owns the dedicated 32-byte key and its rotation; production forbids chart management |
 | Identity verification trust | Packaged public OIDC JWKS and attestation anchors only; no private signing authority | Operator-owned public JWKS and attestation-anchor Secret; production forbids packaged evaluation trust |
 | Identity authority DNS | Stable `identity` ExternalName alias matches renewed workload-SVID certificates across release names | The same alias is required while managed workload renewal is enabled |
-| Console identity | Safe `demo-only` mode; optional signed prefix-scoped demo Viewer, never operator/Admin authority | Optional native operator mTLS using a dedicated public CA + exact identity registry Secret |
+| Console identity | Raw-chart default is safe `demo-only`; the public customer installer selects full `webauthn` and one-use Admin passkey enrollment | Native operator mTLS using a dedicated public CA + exact identity registry Secret |
 | Upstream MCP target | `clavenar-upstream-stub` (echo MCP) bundled when `upstreamStub.enabled=true`, auto-wired into the proxy | Operator sets `services.proxy.extraEnv` `CLAVENAR_UPSTREAM_URL` at a real MCP server |
 | Execution gateway | `clavenar-exec` deployed when `exec.enabled=true`. Sits between proxy and upstream-stub; exposes `execute_command` plus six governed file/fetch tools. Process calls select only the immutable structured allowlist; no shell string exists, and every call lands in the ledger | Evaluation-only; exact digest or unique non-`latest` local-build tag, with digest taking precedence; production rejects opt-in |
 | Agent Vault credential | Stub `secret/data/agents/_legacy_unqualified/agent-001` seeded by post-install Job when `agentVaultSeed.enabled=true` | Operator seeds tenant-qualified per-agent entries against their own Vault |
@@ -849,7 +850,7 @@ not an authorization source:
 
 | Listener | Enabled when | Service | Authentication and surface |
 |---|---|---|---|
-| Primary `:8085` | Always | Published | Default: plain HTTP curated demo-only router with no operator roles. With `operatorMtls.enabled`: native HTTPS, required operator client certificate, exact fingerprint + SPIFFE registry match, and role-gated operator router. |
+| Primary `:8085` | Always | Published | `auth.mode=demo-only`: curated demo router with no operator roles. `webauthn`: full role-gated Console over an exact localhost HTTP port-forward, with durable Admin/Approver passkeys. `operator-mtls`: native HTTPS, required client certificate, and exact fingerprint + SPIFFE registry match. |
 | Demo `:9085` | `operatorMtls.enabled && demo.enabled` | Published | Plain HTTP curated demo router. Operator cookies/state are stripped; it cannot reach operator-only routes. |
 | Diagnostics `:9185` | Always | Internal readiness | Plain HTTP `/health`, `/readyz`, and `/metrics` only. Kubelet probes, reviewed dependency gates, and Prometheus annotations target this ClusterIP port. |
 
@@ -887,6 +888,8 @@ services:
     requireTrustedProxy: true
     trustedProxySpiffe: spiffe://clavenar.local/service/website
   console:
+    auth:
+      mode: operator-mtls
     operatorMtls:
       enabled: true
       publicTrustSecretName: clavenar-operator-trust

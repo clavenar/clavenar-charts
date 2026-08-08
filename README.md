@@ -46,12 +46,14 @@ The default Proxy PVC retains the durable server-execution intent, exact
 result, and forensic outbox across pod restarts. Because that store is SQLite,
 the chart keeps Proxy at one replica while `persistence.proxy.enabled=true`.
 
-The console defaults to a curated `demo-only` router with no operator or
+The raw chart defaults to a curated `demo-only` router with no operator or
 Admin authority; a valid demo cookie carries only a prefix-scoped demo
-Viewer. Its optional operator path terminates mTLS
-inside the console process on `:8085`, maps only exact registered operator
-certificates to roles, and keeps demo (`:9085`) and diagnostics (`:9185`)
-on separate listeners and NetworkPolicy trust classes.
+Viewer. Customer installation selects the full `webauthn` router on `:8085`
+for localhost port-forward access and one-use Admin passkey enrollment. The
+hardened alternative terminates operator mTLS inside the console process,
+maps only exact registered certificates to roles, and keeps demo (`:9085`)
+and diagnostics (`:9185`) on separate listeners and NetworkPolicy trust
+classes.
 
 Assurance control is separately fail-closed: `:8088` requires workload mTLS
 and the exact console SPIFFE identity, while plain `:9088` exposes only
@@ -78,7 +80,7 @@ console, HIL, and ledger as documented in the chart README.
 HIL's session and decision credentials are always rendered into Deployments as
 Kubernetes `secretKeyRef`s, never literal values. Brain receives its cache-HMAC
 key only as a mode-0440 Secret file and refuses to bind without it. By default
-the chart manages the upgrade-stable `<release>-shared-tokens` Secret; production operators can
+the chart manages the upgrade- and uninstall-stable `<release>-shared-tokens` Secret; production operators can
 set `authSecrets.existingSecretName` to a Secret reconciled by their own secret
 manager instead. `authSecrets.rotationId` is the non-secret rollout generation:
 the same value preserves chart-managed keys, while a new value rotates those

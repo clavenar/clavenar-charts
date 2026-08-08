@@ -14,6 +14,8 @@ inside the range is the iterated value.
 {{- end }}
 {{- $persist := index $.Values.persistence $name | default dict }}
 {{- $operatorMtls := and (eq $name "console") (dig "operatorMtls" "enabled" false $cfg) }}
+{{- $consoleAuth := dig "auth" "mode" "demo-only" $.Values.services.console }}
+{{- $consolePasskey := and (eq $name "console") (eq $consoleAuth "webauthn") }}
 {{- $consoleDemo := and (eq $name "console") (dig "demo" "enabled" false $cfg) }}
 {{- $mountsCapability := and (not (empty $.Values.tlsBundle.secretName)) (has $name (list "ledger" "policyEngine" "hil" "identity")) }}
 {{- $mountsAttestationContract := has $name (list "proxy" "policyEngine" "identity") }}
@@ -233,6 +235,10 @@ spec:
             - name: operator-mtls
               containerPort: {{ $cfg.port }}
               protocol: TCP
+            {{- else if $consolePasskey }}
+            - name: passkey
+              containerPort: {{ $cfg.port }}
+              protocol: TCP
             {{- else }}
             - name: demo
               containerPort: {{ $cfg.port }}
@@ -328,6 +334,17 @@ spec:
                   key: hil-bootstrap-token
             - name: CLAVENAR_HIL_DEPLOYMENT_ID
               value: {{ include "clavenar.fullname" $ | quote }}
+            {{- if eq $consoleAuth "webauthn" }}
+            # Browser ceremonies terminate on the localhost port-forward.
+            # WebAuthn binds the exact browser origin even though Console→HIL
+            # remains protected independently by workload mTLS.
+            - name: CLAVENAR_HIL_RP_ID
+              value: "localhost"
+            - name: CLAVENAR_HIL_RP_ORIGIN
+              value: "http://localhost:8085"
+            - name: CLAVENAR_HIL_COOKIE_SECURE
+              value: "false"
+            {{- end }}
             - name: CLAVENAR_HIL_SIMULATOR_TENANT
               value: {{ $cfg.simulatorTenant | quote }}
             # Durable WebAuthn ceremony bounds. Keep the four dimensions
@@ -766,6 +783,12 @@ spec:
       protocol: TCP
       appProtocol: https
       name: operator-mtls
+    {{- else if $consolePasskey }}
+    - port: {{ $cfg.port }}
+      targetPort: passkey
+      protocol: TCP
+      appProtocol: http
+      name: passkey
     {{- else }}
     - port: {{ $cfg.port }}
       targetPort: demo

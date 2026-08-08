@@ -10,6 +10,8 @@ tlsBundle:
   secretName: optional-workload-tls
 services:
   console:
+    auth:
+      mode: operator-mtls
     mutationOrigins:
       - https://console.example.test
     operatorMtls:

@@ -564,6 +564,9 @@
                         "CLAVENAR_HIL_DECIDE_TOKEN",
                         "CLAVENAR_HIL_SESSION_KEY",
                         "CLAVENAR_HIL_BOOTSTRAP_TOKEN",
+                        "CLAVENAR_HIL_RP_ID",
+                        "CLAVENAR_HIL_RP_ORIGIN",
+                        "CLAVENAR_HIL_COOKIE_SECURE",
                         "CLAVENAR_HIL_DEPLOYMENT_ID",
                         "CLAVENAR_HIL_SIMULATOR_TENANT",
                         "CLAVENAR_HIL_WEBAUTHN_TTL_SECS",
@@ -863,6 +866,7 @@
             "port",
             "demoPort",
             "diagnosticsPort",
+            "auth",
             "operatorMtls",
             "mutationOrigins",
             "demo",
@@ -879,6 +883,14 @@
               "type": "string",
               "pattern": "^$|^https?://[^\\s]+/readyz$"
             },
+            "auth": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode"],
+              "properties": {
+                "mode": { "enum": ["demo-only", "webauthn", "operator-mtls"] }
+              }
+            },
             "operatorMtls": {
               "type": "object",
               "additionalProperties": false,
@@ -893,7 +905,7 @@
               "uniqueItems": true,
               "items": {
                 "type": "string",
-                "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$"
+                "pattern": "^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$|^http://localhost:8085$"
               }
             },
             "demo": {
@@ -937,6 +949,7 @@
                         "NATS_URL",
                         "CLAVENAR_GRACEFUL_DRAIN_SECS",
                         "CLAVENAR_CONSOLE_AUTH",
+                        "CLAVENAR_CONSOLE_COOKIE_SECURE",
                         "CLAVENAR_CONSOLE_BIND",
                         "CLAVENAR_CONSOLE_PORT",
                         "CLAVENAR_CONSOLE_DEMO_ADDR",
@@ -1251,8 +1264,9 @@
         "console": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["operatorMtls", "demo"],
+          "required": ["passkey", "operatorMtls", "demo"],
           "properties": {
+            "passkey": { "$ref": "#/definitions/consolePeerClass" },
             "operatorMtls": { "$ref": "#/definitions/consolePeerClass" },
             "demo": { "$ref": "#/definitions/consolePeerClass" }
           }

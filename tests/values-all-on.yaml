@@ -14,6 +14,8 @@ services:
     auxTimeoutMillis: 5000
     auxBodyLimitBytes: 16384
   console:
+    auth:
+      mode: operator-mtls
     mutationOrigins:
       - https://console.example.test
     operatorMtls:
