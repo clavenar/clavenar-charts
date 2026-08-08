@@ -25,6 +25,26 @@ def documents(output: str) -> list[dict]:
 
 
 class PolicyPersistenceTests(unittest.TestCase):
+    def test_every_chart_created_claim_is_retained_on_uninstall(self) -> None:
+        for values in (None, ROOT / "tests" / "values-optional.yaml"):
+            arguments = () if values is None else ("--values", str(values))
+            result = render(*arguments)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            claims = [
+                item
+                for item in documents(result.stdout)
+                if item.get("kind") == "PersistentVolumeClaim"
+            ]
+            self.assertTrue(claims)
+            for claim in claims:
+                with self.subTest(values=values, claim=claim["metadata"]["name"]):
+                    self.assertEqual(
+                        "keep",
+                        claim["metadata"].get("annotations", {}).get(
+                            "helm.sh/resource-policy"
+                        ),
+                    )
+
     def test_default_claim_mount_and_database_path_are_exact(self) -> None:
         result = render()
         self.assertEqual(result.returncode, 0, result.stderr)

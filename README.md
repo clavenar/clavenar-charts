@@ -158,20 +158,26 @@ also exercised by CI as the canonical fail-closed profile.
 
 ```bash
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.36.12 --untar
+  --version 0.37.0 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.36.12/clavenar-images-1.245.17.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.37.0/clavenar-images-1.246.0.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   --wait --wait-for-jobs --timeout 10m \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.245.17.yaml
+  -f ./clavenar-images-1.246.0.yaml
 ```
 
 This evaluation-only path bundles NATS, dev-mode Vault, and auto-minted
 workload TLS. The published values file disables the separately built optional
 execution gateway, so every referenced Clavenar image belongs to the exact
 protected public release.
+
+Chart-created PVCs carry Helm's `keep` resource policy. A Helm uninstall
+therefore removes the release workloads but retains persistent data and the
+namespace. The checksum-verifying `https://clavenar.com/uninstall.sh` wrapper
+adds ownership checks and requires a separate, explicit confirmation before it
+deletes retained data.
 
 The selected authentication Secret must already contain `hil-session-key` and
 `hil-decide-token`. Omit `authSecrets.existingSecretName` to retain the

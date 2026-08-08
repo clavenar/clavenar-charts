@@ -828,10 +828,8 @@ metadata:
   name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-data
   labels:
     {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
-  {{- if eq $name "policyEngine" }}
   annotations:
     helm.sh/resource-policy: keep
-  {{- end }}
 spec:
   accessModes:
     - {{ $persist.accessMode | default "ReadWriteOnce" }}
@@ -850,6 +848,8 @@ metadata:
   name: {{ include "clavenar.serviceFullname" (dict "ctx" $ "service" $name) }}-workload-svid
   labels:
     {{- include "clavenar.labels" (dict "ctx" $ "service" $name) | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
 spec:
   accessModes:
     - {{ $.Values.workloadIdentity.accessMode | default "ReadWriteOnce" }}
