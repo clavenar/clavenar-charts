@@ -160,14 +160,14 @@ also exercised by CI as the canonical fail-closed profile.
 
 ```bash
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.37.0 --untar
+  --version 0.38.0 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.37.0/clavenar-images-1.246.0.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.38.0/clavenar-images-1.247.0.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   --wait --wait-for-jobs --timeout 10m \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.246.0.yaml
+  -f ./clavenar-images-1.247.0.yaml
 ```
 
 This evaluation-only path bundles NATS, dev-mode Vault, and auto-minted
