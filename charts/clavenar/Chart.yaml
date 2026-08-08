@@ -15,7 +15,7 @@ description: |
   the clavenar services in a single `helm install`. Images are pulled
   from ghcr.io/clavenar by default.
 type: application
-version: 0.36.11
+version: 0.36.12
 annotations:
   clavenar.com/license: Apache-2.0
   clavenar.com/vendor: Vanteguard Labs
