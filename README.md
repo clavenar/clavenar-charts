@@ -175,7 +175,7 @@ protected public release.
 
 Chart-created PVCs carry Helm's `keep` resource policy. A Helm uninstall
 therefore removes the release workloads but retains persistent data and the
-namespace. The checksum-verifying `https://clavenar.com/uninstall.sh` wrapper
+namespace. The checksum-verifying `https://clavenar.ai/uninstall.sh` wrapper
 adds ownership checks and requires a separate, explicit confirmation before it
 deletes retained data.
 
