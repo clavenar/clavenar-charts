@@ -39,18 +39,18 @@ cluster; **not** for production.
 
 The published OCI chart packages the byte-identical values file. A clean
 external install uses the chart and protected digest values from release
-`v0.38.3`:
+`v0.38.4`:
 
 ```bash
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.38.3 --untar
+  --version 0.38.4 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.38.3/clavenar-images-1.249.3.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.38.4/clavenar-images-1.249.4.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   --wait --wait-for-jobs --timeout 10m \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.249.3.yaml
+  -f ./clavenar-images-1.249.4.yaml
 ```
 
 Every PVC created directly by the chart is annotated with
