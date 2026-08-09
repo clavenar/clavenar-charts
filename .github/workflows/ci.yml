@@ -113,9 +113,10 @@ jobs:
       # kubeconform validates the rendered manifests against the
       # upstream k8s schemas — catches typos like `protcol` or
       # missing required fields without a live cluster.
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: '1.24.13'
+          cache: false
       - name: install kubeconform
         run: go install github.com/yannh/kubeconform/cmd/kubeconform@v0.8.0
       - name: kubeconform — default
