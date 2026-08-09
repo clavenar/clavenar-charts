@@ -222,7 +222,7 @@ class PublicBundledInstallTests(unittest.TestCase):
             == "vault-bootstrap"
         )
         self.assertEqual(
-            "external-install-vault-bootstrap-0-38-2-r1",
+            "external-install-vault-bootstrap-0-38-3-r1",
             vault_bootstrap["metadata"]["name"],
         )
         self.assertNotIn("annotations", vault_bootstrap["metadata"])
