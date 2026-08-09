@@ -14,7 +14,7 @@ This is a Helm/YAML chart — no compiled code. The CI matrix
 ```bash
 helm dep update charts/clavenar            # materialize locked subcharts (gitignored)
 helm lint charts/clavenar
-python3 scripts/check_dependency_readiness.py --source-root . --require-source
+python3 scripts/check_dependency_readiness.py --source-root .. --require-source
 python3 scripts/check-nats-authorization.py
 
 # render across the seven value sets CI checks, then kubeconform each:
