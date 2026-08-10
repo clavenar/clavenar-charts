@@ -69,6 +69,7 @@ GOVERNED_ENV_BY_SERVICE = {
         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS",
         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS",
         "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS",
+        "CLAVENAR_PROXY_TLS_DIR",
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",
@@ -283,6 +284,19 @@ class ListenerMatrixTest(unittest.TestCase):
         )
         self.assertNotEqual(0, incomplete.returncode)
         self.assertIn("requires tlsBundle.secretName", incomplete.stderr)
+
+    def test_proxy_managed_workload_identity_uses_projected_tls_directory(self):
+        proxy = next(
+            doc
+            for doc in self.rendered["all-on"]
+            if doc.get("kind") == "Deployment"
+            and doc["metadata"]["name"] == "smoke-proxy"
+        )
+        env = {
+            item["name"]: item.get("value")
+            for item in proxy["spec"]["template"]["spec"]["containers"][0]["env"]
+        }
+        self.assertEqual("/certs", env["CLAVENAR_PROXY_TLS_DIR"])
 
     def test_exec_is_excluded_from_production_and_opt_in_is_exact_mtls(self):
         for profile in ("default", "production"):

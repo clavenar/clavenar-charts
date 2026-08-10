@@ -420,6 +420,7 @@
                         "CLAVENAR_PROXY_GRANT_JWKS_REFRESH_SECS",
                         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS",
                         "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS",
+                        "CLAVENAR_PROXY_TLS_DIR",
                         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH",
                         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH",
                         "CLAVENAR_PROXY_OUTBOUND_CA_PATH",

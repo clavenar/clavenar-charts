@@ -322,6 +322,7 @@ per environment variable.
         "CLAVENAR_PROXY_GRANT_JWKS_MAX_STALENESS_SECS"
         "CLAVENAR_PROXY_GRANT_JWKS_FETCH_TIMEOUT_SECS"
         "CLAVENAR_PROXY_SERVER_EXECUTION_DB"
+        "CLAVENAR_PROXY_TLS_DIR"
         "CLAVENAR_PROXY_OUTBOUND_CERT_PATH"
         "CLAVENAR_PROXY_OUTBOUND_KEY_PATH"
         "CLAVENAR_PROXY_OUTBOUND_CA_PATH"
@@ -787,6 +788,8 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 # Outbound mTLS (B7 v1.x+2 sessions 3-6) — service-proxy cert covers
 # brain, policy, hil, identity, ledger, and the HIL poll / exact-receipt
 # paths. One bundle, five downstream listeners.
+- name: CLAVENAR_PROXY_TLS_DIR
+  value: {{ $mount | quote }}
 - name: CLAVENAR_PROXY_OUTBOUND_CERT_PATH
   value: "{{ $mount }}/service-proxy.crt"
 - name: CLAVENAR_PROXY_OUTBOUND_KEY_PATH
