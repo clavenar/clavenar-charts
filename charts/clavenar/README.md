@@ -45,12 +45,12 @@ external install uses the chart and protected digest values from release
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
   --version 0.39.0 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.39.0/clavenar-images-1.250.0.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.39.0/clavenar-images-1.250.1.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   --wait --wait-for-jobs --timeout 10m \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.250.0.yaml
+  -f ./clavenar-images-1.250.1.yaml
 ```
 
 Every PVC created directly by the chart is annotated with
