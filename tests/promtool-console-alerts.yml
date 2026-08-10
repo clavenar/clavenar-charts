@@ -91,3 +91,47 @@ tests:
                 from ClusterIP to NodePort or LoadBalancer. Revert the Service and
                 verify TLS passthrough plus the exact operator NetworkPolicy before
                 restoring access.
+
+  - name: brain fallback alerts retain bounded route labels
+    interval: 1m
+    input_series:
+      - series: 'clavenar_brain_provider_fallback_total{workload="narrate_decision",provider="ollama-local",model="llama3.2:1b",outcome="attempted",reason="connect"}'
+        values: '0+1x5'
+      - series: 'clavenar_brain_provider_fallback_total{workload="classifier.fast",provider="openai-alternate",model="gpt-4o-mini",outcome="exhausted",reason="rate_limited"}'
+        values: '0 1+0x4'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: BrainProviderFallbackActive
+        exp_alerts:
+          - exp_labels:
+              component: brain
+              model: llama3.2:1b
+              outcome: attempted
+              provider: ollama-local
+              reason: connect
+              severity: warning
+              workload: narrate_decision
+            exp_annotations:
+              summary: Brain provider fallback is active
+              description: |
+                A logical workload selected or completed a fallback at least three
+                times in fifteen minutes. The route is serving traffic, but the
+                primary target is not healthy; inspect its bounded reason label.
+      - eval_time: 4m
+        alertname: BrainProviderFallbackStopped
+        exp_alerts:
+          - exp_labels:
+              component: brain
+              model: gpt-4o-mini
+              outcome: exhausted
+              provider: openai-alternate
+              reason: rate_limited
+              severity: critical
+              workload: classifier.fast
+            exp_annotations:
+              summary: Brain provider fallback stopped fail-closed
+              description: |
+                A configured fallback route was blocked, exhausted, or stopped on
+                a non-replay-safe failure. Security detectors remain fail-closed.
+                Restore the prior Secret/routing revision or repair the named
+                provider target before retrying.

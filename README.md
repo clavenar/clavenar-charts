@@ -78,6 +78,19 @@ API-key providers receive credentials only through exact Kubernetes
 `secretKeyRef` projections; inline provider keys are rejected. The generated
 routing ConfigMap conforms to `clavenar.brain-provider-routing/v2`, while
 advanced multi-target routing can mount an operator-owned ConfigMap.
+`providerRouting.rotationId` is a non-secret rollout generation: update the
+referenced Secret or external ConfigMap first, advance the identifier, and
+wait for Brain readiness. Authentication, parse, and ambiguous transport
+failures never cross to a fallback. Rollback restores the previous Secret and
+routing document together, advances the generation again, and keeps the prior
+revision until the primary route and readiness recover.
+
+The bundled Brain dashboard separates attempts and p95 duration by bounded
+`workload`, provider alias, model, and outcome, and shows fallback decisions
+by bounded reason. Critical rules page on sustained route failure or a
+fail-closed fallback stop; warnings cover repeated fallback use and p95 above
+30 seconds. Prompt text, response text, credential material, arbitrary error
+strings, and endpoint URLs never become metric labels.
 
 The chart does not auto-mint a demo-session signing key or token issuer. A
 fresh install therefore serves the anonymous `/demo` preview safely, while

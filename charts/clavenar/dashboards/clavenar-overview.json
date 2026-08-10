@@ -112,12 +112,12 @@
       "targets": [
         {
           "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
-          "expr": "sum by (detector, outcome) (rate(clavenar_brain_requests_total{outcome!=\"success\"}[5m]))",
-          "legendFormat": "brain {{detector}} / {{outcome}}",
+          "expr": "sum by (workload, provider, model, outcome) (rate(clavenar_brain_provider_attempts_total{outcome!=\"success\"}[5m]))",
+          "legendFormat": "brain {{workload}} / {{provider}} / {{model}} / {{outcome}}",
           "refId": "A"
         }
       ],
-      "title": "Brain detector errors by outcome (last 5m)",
+      "title": "Brain provider route errors by outcome (last 5m)",
       "type": "timeseries"
     },
     {

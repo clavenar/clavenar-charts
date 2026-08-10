@@ -1,6 +1,6 @@
 {
   "annotations": {"list": []},
-  "description": "Brain provider spend: token rate by (provider, model, kind), estimated $/hr, cache hit rate. Spend uses clavenar_brain_cost_estimated_usd_micros_total (USD * 1e6); panels divide by 1e6 in expr.",
+  "description": "Brain provider operations by bounded logical workload, provider, model, outcome, fallback reason, latency, token rate, and estimated spend. Spend uses clavenar_brain_cost_estimated_usd_micros_total (USD * 1e6); panels divide by 1e6 in expr.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -162,6 +162,75 @@
         }
       ],
       "title": "Brain provider error rate by outcome",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10},
+          "unit": "reqps"
+        }
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 21},
+      "id": 7,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (workload, provider, model, outcome) (rate(clavenar_brain_provider_attempts_total[5m]))",
+          "legendFormat": "{{workload}} / {{provider}} / {{model}} / {{outcome}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider attempts by workload × target × outcome",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "line", "lineWidth": 2, "fillOpacity": 10},
+          "unit": "s"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 29},
+      "id": 8,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "histogram_quantile(0.95, sum by (le, workload, provider, model) (rate(clavenar_brain_provider_attempt_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{workload}} / {{provider}} / {{model}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider attempt p95 latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"drawStyle": "bars", "lineWidth": 1, "fillOpacity": 70},
+          "unit": "short"
+        }
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 29},
+      "id": 9,
+      "options": {"legend": {"displayMode": "table", "placement": "right"}},
+      "targets": [
+        {
+          "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+          "expr": "sum by (workload, provider, model, outcome, reason) (increase(clavenar_brain_provider_fallback_total[15m]))",
+          "legendFormat": "{{workload}} / {{provider}} / {{model}} / {{outcome}} / {{reason}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Fallback decisions and reasons (15m)",
       "type": "timeseries"
     }
   ],

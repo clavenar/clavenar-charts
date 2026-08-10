@@ -263,9 +263,85 @@ groups:
             (transport_error/parse_error/empty). Likely an upstream
             LLM provider outage or expired credentials.
 
+      - alert: BrainProviderRouteFailureRateHigh
+        expr: |
+          sum by (workload, provider, model) (
+            rate(clavenar_brain_provider_attempts_total{outcome!="success"}[5m])
+          )
+          /
+          sum by (workload, provider, model) (
+            rate(clavenar_brain_provider_attempts_total[5m])
+          )
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: brain
+        annotations:
+          summary: "Brain provider route failure rate > 5%"
+          description: |
+            A bounded logical workload/provider/model route has failed more
+            than 5% of attempts for five minutes. Inspect the outcome split,
+            credential freshness, endpoint health, and the fallback panel
+            before changing routing.
+
+      - alert: BrainProviderFallbackStopped
+        expr: |
+          sum by (workload, provider, model, outcome, reason) (
+            increase(clavenar_brain_provider_fallback_total{
+              outcome=~"blocked|exhausted|failed_closed"
+            }[10m])
+          ) > 0
+        labels:
+          severity: critical
+          component: brain
+        annotations:
+          summary: "Brain provider fallback stopped fail-closed"
+          description: |
+            A configured fallback route was blocked, exhausted, or stopped on
+            a non-replay-safe failure. Security detectors remain fail-closed.
+            Restore the prior Secret/routing revision or repair the named
+            provider target before retrying.
+
   - name: clavenar.warning
     interval: 1m
     rules:
+      - alert: BrainProviderFallbackActive
+        expr: |
+          sum by (workload, provider, model, outcome, reason) (
+            increase(clavenar_brain_provider_fallback_total{
+              outcome=~"attempted|succeeded"
+            }[15m])
+          ) >= 3
+        labels:
+          severity: warning
+          component: brain
+        annotations:
+          summary: "Brain provider fallback is active"
+          description: |
+            A logical workload selected or completed a fallback at least three
+            times in fifteen minutes. The route is serving traffic, but the
+            primary target is not healthy; inspect its bounded reason label.
+
+      - alert: BrainProviderLatencyP95High
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le, workload, provider, model) (
+              rate(clavenar_brain_provider_attempt_duration_seconds_bucket[5m])
+            )
+          ) > 30
+        for: 10m
+        labels:
+          severity: warning
+          component: brain
+        annotations:
+          summary: "Brain provider route p95 latency > 30s"
+          description: |
+            A logical workload/provider/model route has exceeded the published
+            30-second qualification latency threshold for ten minutes. Check
+            provider saturation and model placement before increasing limits.
+
       - alert: BrainCostRunaway
         expr: |
           (sum(rate(clavenar_brain_cost_estimated_usd_micros_total[5m])) * 3600)
