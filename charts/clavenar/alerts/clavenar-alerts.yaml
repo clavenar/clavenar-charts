@@ -42,9 +42,10 @@ groups:
           description: |
             clavenar_brain_mock_mode=1 means every detector returns the
             heuristic fallback verdict — no LLM dispatch happens. In prod
-            this almost certainly means the API key env var was lost on
-            redeploy. Fix CLAVENAR_BRAIN_MOCK_MODE=false +
-            CLAVENAR_BRAIN_ANTHROPIC_API_KEY then restart brain.
+            this means the deployed provider routing selected mock mode.
+            Select the intended live provider/model configuration, verify its
+            referenced Kubernetes Secret or ambient cloud identity, advance
+            providerRouting.rotationId, and restart Brain.
 
       - alert: ProxyDown
         expr: up{job="proxy"} == 0

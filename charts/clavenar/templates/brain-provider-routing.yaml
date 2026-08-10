@@ -1,0 +1,50 @@
+{{- $brain := .Values.services.brain -}}
+{{- if $brain.enabled -}}
+{{- $routing := $brain.providerRouting -}}
+{{- $embedding := $brain.embedding -}}
+{{- $credentials := $brain.providerCredentials -}}
+{{- $external := eq $routing.provider "external" -}}
+{{- if and $external (empty $routing.existingConfigMapName) -}}
+{{- fail "services.brain.providerRouting.existingConfigMapName is required when provider is external" -}}
+{{- end -}}
+{{- if and (not $external) (not (empty $routing.existingConfigMapName)) -}}
+{{- fail "services.brain.providerRouting.existingConfigMapName is allowed only when provider is external" -}}
+{{- end -}}
+{{- if and (eq $routing.provider "vertex") (empty $routing.vertexProject) -}}
+{{- fail "services.brain.providerRouting.vertexProject is required for vertex" -}}
+{{- end -}}
+{{- if has $routing.provider (list "anthropic" "openai" "google") -}}
+{{- $reference := index $credentials $routing.provider -}}
+{{- if empty $reference.secretName -}}
+{{- fail (printf "services.brain.providerCredentials.%s.secretName is required for managed %s generation" $routing.provider $routing.provider) -}}
+{{- end -}}
+{{- end -}}
+{{- if ne $embedding.provider "disabled" -}}
+{{- if empty $embedding.model -}}
+{{- fail "services.brain.embedding.model is required when embeddings are enabled" -}}
+{{- end -}}
+{{- if lt (int $embedding.dimensions) 1 -}}
+{{- fail "services.brain.embedding.dimensions must be positive when embeddings are enabled" -}}
+{{- end -}}
+{{- if has $embedding.provider (list "voyage" "openai") -}}
+{{- $reference := index $credentials $embedding.provider -}}
+{{- if empty $reference.secretName -}}
+{{- fail (printf "services.brain.providerCredentials.%s.secretName is required for %s embeddings" $embedding.provider $embedding.provider) -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+{{- if not $external }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "clavenar.fullname" . }}-brain-provider-routing
+  labels:
+    {{- include "clavenar.labels" (dict "ctx" . "service" "brain") | nindent 4 }}
+  annotations:
+    clavenar.io/brain-provider-routing-contract: "clavenar.brain-provider-routing/v2"
+    clavenar.io/brain-provider-routing-schema-sha256: {{ printf "sha256:%s" (.Files.Get "files/brain-provider-routing-v2.schema.json" | sha256sum) | quote }}
+data:
+  models.yaml: |-
+{{ include "clavenar.brainManagedRouting" . | nindent 4 }}
+{{- end }}
+{{- end }}

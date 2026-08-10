@@ -791,6 +791,9 @@
             "auxSpendBudgetMicroUsdPerHour",
             "auxTimeoutMillis",
             "auxBodyLimitBytes",
+            "providerRouting",
+            "providerCredentials",
+            "embedding",
             "extraEnv"
           ],
           "properties": {
@@ -826,6 +829,134 @@
               "minimum": 1,
               "maximum": 1048576
             },
+            "providerRouting": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "fastModel",
+                "deepModel",
+                "baseUrl",
+                "timeoutMillis",
+                "awsRegion",
+                "vertexProject",
+                "vertexLocation",
+                "existingConfigMapName",
+                "existingConfigMapKey",
+                "rotationId"
+              ],
+              "properties": {
+                "provider": {
+                  "enum": [
+                    "mock",
+                    "anthropic",
+                    "openai",
+                    "google",
+                    "bedrock",
+                    "vertex",
+                    "ollama",
+                    "external"
+                  ]
+                },
+                "fastModel": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+                },
+                "deepModel": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+                },
+                "baseUrl": {
+                  "type": "string",
+                  "pattern": "^$|^https?://[^\\s@/?#]+(?::[0-9]{1,5})?(?:/[^\\s?#]*)?$"
+                },
+                "timeoutMillis": {
+                  "type": "integer",
+                  "minimum": 100,
+                  "maximum": 120000
+                },
+                "awsRegion": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]+$"
+                },
+                "vertexProject": {
+                  "type": "string",
+                  "pattern": "^$|^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+                },
+                "vertexLocation": {
+                  "type": "string",
+                  "maxLength": 32,
+                  "pattern": "^[a-z]+-[a-z]+[0-9]$"
+                },
+                "existingConfigMapName": {
+                  "type": "string",
+                  "maxLength": 253,
+                  "pattern": "^$|^[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?$"
+                },
+                "existingConfigMapKey": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9._-]+$"
+                },
+                "rotationId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+                }
+              }
+            },
+            "providerCredentials": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["anthropic", "openai", "google", "voyage"],
+              "properties": {
+                "anthropic": { "$ref": "#/definitions/brainProviderSecretRef" },
+                "openai": { "$ref": "#/definitions/brainProviderSecretRef" },
+                "google": { "$ref": "#/definitions/brainProviderSecretRef" },
+                "voyage": { "$ref": "#/definitions/brainProviderSecretRef" }
+              }
+            },
+            "embedding": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "model",
+                "dimensions",
+                "baseUrl",
+                "timeoutSeconds",
+                "maxConcurrency"
+              ],
+              "properties": {
+                "provider": {
+                  "enum": ["disabled", "voyage", "openai", "ollama"]
+                },
+                "model": {
+                  "type": "string",
+                  "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+                },
+                "dimensions": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8192
+                },
+                "baseUrl": {
+                  "type": "string",
+                  "pattern": "^$|^https?://[^\\s@/?#]+(?::[0-9]{1,5})?/?$"
+                },
+                "timeoutSeconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 300
+                },
+                "maxConcurrency": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1024
+                }
+              }
+            },
             "extraEnv": {
               "type": "array",
               "items": {
@@ -850,7 +981,21 @@
                         "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS",
                         "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES",
                         "CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE",
-                        "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY"
+                        "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY",
+                        "CLAVENAR_BRAIN_MODELS_FILE",
+                        "CLAVENAR_BRAIN_MOCK_MODE",
+                        "CLAVENAR_BRAIN_ANTHROPIC_API_KEY",
+                        "CLAVENAR_BRAIN_OPENAI_API_KEY",
+                        "CLAVENAR_BRAIN_GOOGLE_API_KEY",
+                        "CLAVENAR_BRAIN_EMBEDDING_API_KEY",
+                        "CLAVENAR_BRAIN_EMBEDDING_PROVIDER",
+                        "CLAVENAR_BRAIN_EMBEDDING_MODEL",
+                        "CLAVENAR_BRAIN_EMBEDDING_DIMENSIONS",
+                        "CLAVENAR_BRAIN_EMBEDDING_BASE_URL",
+                        "CLAVENAR_BRAIN_EMBEDDING_TIMEOUT_SECS",
+                        "CLAVENAR_BRAIN_EMBEDDING_MAX_CONCURRENCY",
+                        "ANTHROPIC_API_KEY",
+                        "VOYAGE_API_KEY"
                       ]
                     }
                   }
@@ -1684,6 +1829,24 @@
             }
           },
           "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "brainProviderSecretRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretName", "secretKey"],
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "maxLength": 253,
+          "pattern": "^$|^[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?$"
+        },
+        "secretKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[A-Za-z0-9._-]+$"
         }
       }
     },

@@ -72,6 +72,13 @@ and a 5-second whole-provider deadline. Policy and console always receive the
 HTTPS application URL; rejected or unavailable auxiliary calls fail soft at
 those consumers.
 
+Brain generation and embeddings use separate provider-neutral chart values.
+The default is credential-free mock generation with embeddings disabled. Live
+API-key providers receive credentials only through exact Kubernetes
+`secretKeyRef` projections; inline provider keys are rejected. The generated
+routing ConfigMap conforms to `clavenar.brain-provider-routing/v2`, while
+advanced multi-target routing can mount an operator-owned ConfigMap.
+
 The chart does not auto-mint a demo-session signing key or token issuer. A
 fresh install therefore serves the anonymous `/demo` preview safely, while
 signed demo routes stay closed until an operator supplies one dedicated key to

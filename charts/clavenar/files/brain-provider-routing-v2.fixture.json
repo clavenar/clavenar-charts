@@ -1,0 +1,167 @@
+{
+  "contract": "clavenar.brain-provider-routing/v2",
+  "schemaVersion": 2,
+  "credentials": {
+    "anthropic-key": {
+      "source": "environment",
+      "variable": "CLAVENAR_BRAIN_ANTHROPIC_API_KEY"
+    },
+    "openai-key": {
+      "source": "environment",
+      "variable": "CLAVENAR_BRAIN_OPENAI_API_KEY"
+    },
+    "google-key": {
+      "source": "environment",
+      "variable": "CLAVENAR_BRAIN_GOOGLE_API_KEY"
+    },
+    "aws-runtime": {
+      "source": "aws_default_chain"
+    },
+    "gcp-runtime": {
+      "source": "google_application_default"
+    },
+    "local-runtime": {
+      "source": "none"
+    }
+  },
+  "providers": {
+    "anthropic-primary": {
+      "kind": "anthropic",
+      "credential": "anthropic-key",
+      "timeoutMs": 30000
+    },
+    "openai-primary": {
+      "kind": "openai",
+      "credential": "openai-key",
+      "timeoutMs": 30000
+    },
+    "google-primary": {
+      "kind": "google",
+      "credential": "google-key",
+      "timeoutMs": 30000
+    },
+    "bedrock-primary": {
+      "kind": "bedrock",
+      "credential": "aws-runtime",
+      "timeoutMs": 30000,
+      "region": "us-east-1"
+    },
+    "vertex-primary": {
+      "kind": "vertex",
+      "credential": "gcp-runtime",
+      "timeoutMs": 30000,
+      "project": "clavenar-model-runtime",
+      "location": "us-central1"
+    },
+    "ollama-local": {
+      "kind": "ollama",
+      "credential": "local-runtime",
+      "timeoutMs": 30000,
+      "baseUrl": "http://ollama:11434"
+    }
+  },
+  "models": {
+    "anthropic-fast": {
+      "provider": "anthropic-primary",
+      "model": "claude-haiku-4-5",
+      "requiredCapabilities": ["prompted_json_text"]
+    },
+    "anthropic-deep": {
+      "provider": "anthropic-primary",
+      "model": "claude-opus-4-7",
+      "requiredCapabilities": ["prompted_json_text"]
+    },
+    "openai-fast": {
+      "provider": "openai-primary",
+      "model": "gpt-4o-mini",
+      "requiredCapabilities": ["prompted_json_text"]
+    },
+    "google-fast": {
+      "provider": "google-primary",
+      "model": "gemini-2.0-flash",
+      "requiredCapabilities": ["prompted_json_text"]
+    },
+    "bedrock-fast": {
+      "provider": "bedrock-primary",
+      "model": "anthropic.claude-3-5-haiku-20241022-v1:0",
+      "requiredCapabilities": ["prompted_json_text"]
+    },
+    "vertex-fast": {
+      "provider": "vertex-primary",
+      "model": "gemini-2.0-flash",
+      "requiredCapabilities": ["prompted_json_text"]
+    },
+    "ollama-fast": {
+      "provider": "ollama-local",
+      "model": "llama3.2",
+      "requiredCapabilities": ["prompted_json_text"]
+    }
+  },
+  "workloads": {
+    "classifier": {
+      "fast": {
+        "primary": "anthropic-fast",
+        "fallback": {
+          "policy": "transient_only",
+          "models": ["openai-fast", "ollama-fast"]
+        }
+      },
+      "deep": {
+        "primary": "anthropic-deep",
+        "fallback": {
+          "policy": "disabled",
+          "models": []
+        }
+      }
+    },
+    "pii": {
+      "primary": "anthropic-fast",
+      "fallback": {
+        "policy": "disabled",
+        "models": []
+      }
+    },
+    "injection": {
+      "primary": "google-fast",
+      "fallback": {
+        "policy": "transient_only",
+        "models": ["vertex-fast"]
+      }
+    },
+    "maliciousCode": {
+      "primary": "bedrock-fast",
+      "fallback": {
+        "policy": "disabled",
+        "models": []
+      }
+    },
+    "compromisedPackage": {
+      "primary": "ollama-fast",
+      "fallback": {
+        "policy": "disabled",
+        "models": []
+      }
+    },
+    "explainPattern": {
+      "primary": "openai-fast",
+      "fallback": {
+        "policy": "disabled",
+        "models": []
+      }
+    },
+    "scanResponse": {
+      "primary": "anthropic-fast",
+      "fallback": {
+        "policy": "disabled",
+        "models": []
+      }
+    },
+    "narrateDecision": {
+      "primary": "anthropic-fast",
+      "fallback": {
+        "policy": "disabled",
+        "models": []
+      }
+    }
+  }
+}

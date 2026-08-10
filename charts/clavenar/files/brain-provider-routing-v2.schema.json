@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://clavenar.ai/contracts/brain-provider-routing-v2.schema.json",
+  "title": "Clavenar Brain provider routing configuration v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract",
+    "schemaVersion",
+    "credentials",
+    "providers",
+    "models",
+    "workloads"
+  ],
+  "properties": {
+    "contract": {"const": "clavenar.brain-provider-routing/v2"},
+    "schemaVersion": {"const": 2},
+    "credentials": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/alias"},
+      "additionalProperties": {"$ref": "#/$defs/credential"}
+    },
+    "providers": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/alias"},
+      "additionalProperties": {"$ref": "#/$defs/provider"}
+    },
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"$ref": "#/$defs/alias"},
+      "additionalProperties": {"$ref": "#/$defs/model"}
+    },
+    "workloads": {"$ref": "#/$defs/workloads"}
+  },
+  "$defs": {
+    "alias": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "credentialReference": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "providerReference": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "modelReference": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "environmentCredential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "variable"],
+      "properties": {
+        "source": {"const": "environment"},
+        "variable": {
+          "type": "string",
+          "pattern": "^CLAVENAR_BRAIN_[A-Z][A-Z0-9_]{0,95}$"
+        }
+      }
+    },
+    "awsDefaultChainCredential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {"const": "aws_default_chain"}
+      }
+    },
+    "googleApplicationDefaultCredential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {"const": "google_application_default"}
+      }
+    },
+    "noCredential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source"],
+      "properties": {
+        "source": {"const": "none"}
+      }
+    },
+    "credential": {
+      "oneOf": [
+        {"$ref": "#/$defs/environmentCredential"},
+        {"$ref": "#/$defs/awsDefaultChainCredential"},
+        {"$ref": "#/$defs/googleApplicationDefaultCredential"},
+        {"$ref": "#/$defs/noCredential"}
+      ]
+    },
+    "timeoutMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 120000
+    },
+    "baseUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https?://",
+      "maxLength": 2048
+    },
+    "apiKeyProvider": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "credential", "timeoutMs"],
+          "properties": {
+            "kind": {"const": "anthropic"},
+            "credential": {"$ref": "#/$defs/credentialReference"},
+            "timeoutMs": {"$ref": "#/$defs/timeoutMs"},
+            "baseUrl": {"$ref": "#/$defs/baseUrl"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "credential", "timeoutMs"],
+          "properties": {
+            "kind": {"const": "openai"},
+            "credential": {"$ref": "#/$defs/credentialReference"},
+            "timeoutMs": {"$ref": "#/$defs/timeoutMs"},
+            "baseUrl": {"$ref": "#/$defs/baseUrl"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "credential", "timeoutMs"],
+          "properties": {
+            "kind": {"const": "google"},
+            "credential": {"$ref": "#/$defs/credentialReference"},
+            "timeoutMs": {"$ref": "#/$defs/timeoutMs"},
+            "baseUrl": {"$ref": "#/$defs/baseUrl"}
+          }
+        }
+      ]
+    },
+    "bedrockProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "credential", "timeoutMs", "region"],
+      "properties": {
+        "kind": {"const": "bedrock"},
+        "credential": {"$ref": "#/$defs/credentialReference"},
+        "timeoutMs": {"$ref": "#/$defs/timeoutMs"},
+        "region": {
+          "type": "string",
+          "pattern": "^[a-z]{2}(?:-gov)?-[a-z]+-[0-9]+$",
+          "maxLength": 32
+        }
+      }
+    },
+    "vertexProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "credential",
+        "timeoutMs",
+        "project",
+        "location"
+      ],
+      "properties": {
+        "kind": {"const": "vertex"},
+        "credential": {"$ref": "#/$defs/credentialReference"},
+        "timeoutMs": {"$ref": "#/$defs/timeoutMs"},
+        "project": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{4,28}[a-z0-9]$"
+        },
+        "location": {
+          "type": "string",
+          "pattern": "^[a-z]+-[a-z]+[0-9]$",
+          "maxLength": 32
+        }
+      }
+    },
+    "ollamaProvider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "credential", "timeoutMs", "baseUrl"],
+      "properties": {
+        "kind": {"const": "ollama"},
+        "credential": {"$ref": "#/$defs/credentialReference"},
+        "timeoutMs": {"$ref": "#/$defs/timeoutMs"},
+        "baseUrl": {"$ref": "#/$defs/baseUrl"}
+      }
+    },
+    "provider": {
+      "oneOf": [
+        {"$ref": "#/$defs/apiKeyProvider"},
+        {"$ref": "#/$defs/bedrockProvider"},
+        {"$ref": "#/$defs/vertexProvider"},
+        {"$ref": "#/$defs/ollamaProvider"}
+      ]
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "model", "requiredCapabilities"],
+      "properties": {
+        "provider": {"$ref": "#/$defs/providerReference"},
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^[^\\s]+$"
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "requiredCapabilities": {
+          "const": ["prompted_json_text"]
+        }
+      }
+    },
+    "disabledFallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "models"],
+      "properties": {
+        "policy": {"const": "disabled"},
+        "models": {
+          "type": "array",
+          "maxItems": 0
+        }
+      }
+    },
+    "transientFallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "models"],
+      "properties": {
+        "policy": {"const": "transient_only"},
+        "models": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/modelReference"}
+        }
+      }
+    },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "fallback"],
+      "properties": {
+        "primary": {"$ref": "#/$defs/modelReference"},
+        "fallback": {
+          "oneOf": [
+            {"$ref": "#/$defs/disabledFallback"},
+            {"$ref": "#/$defs/transientFallback"}
+          ]
+        }
+      }
+    },
+    "classifierWorkloads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fast", "deep"],
+      "properties": {
+        "fast": {"$ref": "#/$defs/assignment"},
+        "deep": {"$ref": "#/$defs/assignment"}
+      }
+    },
+    "workloads": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classifier",
+        "pii",
+        "injection",
+        "maliciousCode",
+        "compromisedPackage"
+      ],
+      "properties": {
+        "classifier": {"$ref": "#/$defs/classifierWorkloads"},
+        "pii": {"$ref": "#/$defs/assignment"},
+        "injection": {"$ref": "#/$defs/assignment"},
+        "maliciousCode": {"$ref": "#/$defs/assignment"},
+        "compromisedPackage": {"$ref": "#/$defs/assignment"},
+        "explainPattern": {"$ref": "#/$defs/assignment"},
+        "scanResponse": {"$ref": "#/$defs/assignment"},
+        "narrateDecision": {"$ref": "#/$defs/assignment"}
+      }
+    }
+  }
+}

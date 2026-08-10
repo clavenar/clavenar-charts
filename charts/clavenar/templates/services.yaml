@@ -25,6 +25,9 @@ inside the range is the iterated value.
 {{- $mountsTpm2AttestationTrust := and (eq $name "identity") (not (empty $.Values.tpm2AttestationTrust.secretName)) }}
 {{- $mountsIdentityCapabilities := and (eq $name "identity") (not (empty $.Values.identityCapabilities.existingConfigMapName)) }}
 {{- $mountsBrainCacheKey := eq $name "brain" }}
+{{- $mountsBrainProviderRouting := eq $name "brain" }}
+{{- $brainProviderRoutingExternal := and $mountsBrainProviderRouting (eq $.Values.services.brain.providerRouting.provider "external") }}
+{{- $brainProviderRoutingConfigMap := ternary $.Values.services.brain.providerRouting.existingConfigMapName (printf "%s-brain-provider-routing" (include "clavenar.fullname" $)) $brainProviderRoutingExternal }}
 {{- $mountsHilPayloadKey := eq $name "hil" }}
 {{- $mountsHilNotificationToken := and (eq $name "hil") (not (empty $cfg.notifications.webhook.tokenSecretName)) }}
 {{- $vaultTokenSecret := include "clavenar.vaultTokenSecretName" $ }}
@@ -129,6 +132,12 @@ spec:
         checksum/tenant-route-authorization: {{ $.Files.Get "files/tenant-route-authorization-v1.fixture.json" | sha256sum }}
         checksum/tenant-lifecycle-saga: {{ $.Files.Get "files/tenant-lifecycle-saga-v1.fixture.json" | sha256sum }}
         checksum/distributed-control-resilience: {{ $.Files.Get "files/distributed-control-resilience-v1.fixture.json" | sha256sum }}
+        {{- end }}
+        {{- if $mountsBrainProviderRouting }}
+        clavenar.io/brain-provider-rotation-id: {{ $.Values.services.brain.providerRouting.rotationId | quote }}
+        {{- if not $brainProviderRoutingExternal }}
+        checksum/brain-provider-routing: {{ include "clavenar.brainManagedRouting" $ | sha256sum }}
+        {{- end }}
         {{- end }}
         {{- if $mountsTsaTrust }}
         checksum/tsa-ca: {{ $.Files.Get "files/tsa/freetsa-ca.pem" | sha256sum }}
@@ -415,7 +424,7 @@ spec:
             {{- include "clavenar.probe" (dict "ctx" $ "svcCfg" $cfg "kind" "readiness") | nindent 12 }}
           resources:
             {{- toYaml $cfg.resources | nindent 12 }}
-          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsIdentityCapabilities $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumeMounts) 0) }}
+          {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsFederatedIdentityContract $mountsControlState $mountsAttestationTrust $mountsIdentityCapabilities $mountsBrainCacheKey $mountsBrainProviderRouting $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumeMounts) 0) }}
           volumeMounts:
             {{- if $persist.enabled }}
             - name: data
@@ -480,6 +489,12 @@ spec:
               subPath: brain-cache-hmac-key
               readOnly: true
             {{- end }}
+            {{- if $mountsBrainProviderRouting }}
+            - name: brain-provider-routing
+              mountPath: /etc/clavenar-brain/models.yaml
+              subPath: models.yaml
+              readOnly: true
+            {{- end }}
             {{- if $mountsHilPayloadKey }}
             - name: {{ include "clavenar.hilPayloadKeyVolume" $ }}
               mountPath: {{ include "clavenar.hilPayloadKeyFile" $ }}
@@ -513,7 +528,7 @@ spec:
             {{- toYaml . | nindent 12 }}
             {{- end }}
           {{- end }}
-      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsIdentityCapabilities $mountsBrainCacheKey $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumes) 0) }}
+      {{- if or $persist.enabled $mountsCert $managedWorkloadIdentity $mountsOperatorTrust $mountsCapability $mountsAttestationContract $mountsControlState $mountsAttestationTrust $mountsIdentityCapabilities $mountsBrainCacheKey $mountsBrainProviderRouting $mountsHilPayloadKey $mountsHilNotificationToken $mountsVaultToken $mountsTsaTrust $mountsPostgresCa (gt (len $extraVolumes) 0) }}
       volumes:
         {{- if $persist.enabled }}
         - name: data
@@ -710,6 +725,14 @@ spec:
             items:
               - key: brain-cache-hmac-key
                 path: brain-cache-hmac-key
+        {{- end }}
+        {{- if $mountsBrainProviderRouting }}
+        - name: brain-provider-routing
+          configMap:
+            name: {{ $brainProviderRoutingConfigMap }}
+            items:
+              - key: {{ $.Values.services.brain.providerRouting.existingConfigMapKey }}
+                path: models.yaml
         {{- end }}
         {{- if $mountsHilPayloadKey }}
         - name: {{ include "clavenar.hilPayloadKeyVolume" $ }}

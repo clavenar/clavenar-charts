@@ -472,6 +472,43 @@ services:
     auxSpendBudgetMicroUsdPerHour: 5000000
     auxTimeoutMillis: 5000       # valid range 1..30000
     auxBodyLimitBytes: 16384     # valid range 1..1048576
+    # Provider routing contains no credential bytes. `mock` is the
+    # credential-free deterministic default; hosted providers must reference
+    # an existing Secret through providerCredentials below. `external` mounts
+    # an operator-owned v2 models file instead of generating the single-target
+    # routing file.
+    providerRouting:
+      provider: mock             # mock, anthropic, openai, google, bedrock, vertex, ollama, external
+      fastModel: claude-haiku-4-5
+      deepModel: claude-opus-4-7
+      baseUrl: ""                 # optional HTTPS override; Ollama also permits HTTP
+      timeoutMillis: 30000       # valid range 100..120000
+      awsRegion: us-east-1       # required for bedrock
+      vertexProject: ""          # required for vertex
+      vertexLocation: us-central1
+      existingConfigMapName: ""  # required only for provider: external
+      existingConfigMapKey: models.yaml
+      # Advance after changing an external ConfigMap or referenced provider
+      # Secret so the Brain Deployment rolls without exposing secret bytes.
+      rotationId: initial-v1
+    # Static, least-privilege environment projections. Set only the providers
+    # selected by managed routing/embeddings, or those referenced by an
+    # external routing ConfigMap. Inline API-key values are rejected through
+    # extraEnv.
+    providerCredentials:
+      anthropic: { secretName: "", secretKey: anthropic-api-key }
+      openai: { secretName: "", secretKey: openai-api-key }
+      google: { secretName: "", secretKey: google-api-key }
+      voyage: { secretName: "", secretKey: voyage-api-key }
+    # Embeddings are configured independently from generation and never fall
+    # back. Hosted providers use the matching providerCredentials entry.
+    embedding:
+      provider: disabled         # disabled, voyage, openai, ollama
+      model: ""
+      dimensions: 0              # required when enabled; valid range 1..8192
+      baseUrl: ""                 # optional HTTP(S) origin override; no path
+      timeoutSeconds: 30         # valid range 1..300
+      maxConcurrency: 8          # valid range 1..1024
     serviceType: ClusterIP
     resources:
       requests: { cpu: 100m, memory: 128Mi }
@@ -480,11 +517,9 @@ services:
       type: httpGet
       health: /health
       ready: /readyz
-    # mock-key keeps the chart usable out-of-box; prod overrides via
-    # --set or secretKeyRef.
-    extraEnv:
-      - name: ANTHROPIC_API_KEY
-        value: mock-key
+    # Provider, model, and credential environment variables are chart-owned;
+    # extraEnv remains available only for unrelated Brain settings.
+    extraEnv: []
     metrics:
       enabled: true
 

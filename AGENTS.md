@@ -59,6 +59,7 @@ charts/clavenar/
     _helpers.tpl        # serviceFullname, imageRef, natsUrl, backendEnvs, probe/metrics helpers — the load-bearing logic
     NOTES.txt           # post-install kebab-name/port-forward cheat-sheet
     services.yaml       # the 9 Deployments + Services
+    brain-provider-routing.yaml # generated provider-neutral v2 routing ConfigMap
     configmap.yaml workload-capability-bundle.yaml attestation-verifier-contract.yaml
     dependency-readiness-contract.yaml structured-execution-contract.yaml
     execution-ceilings-contract.yaml outbound-resolution-pinning-contract.yaml
@@ -135,6 +136,13 @@ health.
   `/readyz`, and `/metrics`. Policy-engine and console dial HTTPS `:8081`, and
   `CLAVENAR_BRAIN_ALLOWED_CALLERS` remains the inspect/scan prefix boundary —
   do not add policy-engine merely to make explain work.
+- **Brain provider credentials are Secret references only.** Managed
+  generation renders one `clavenar.brain-provider-routing/v2` ConfigMap and
+  independently configures embeddings. Hosted keys enter only through the
+  selected `providerCredentials.*` `secretKeyRef`; provider/model variables
+  and legacy inline API-key `extraEnv` entries are chart-governed and rejected.
+  `mock` is the credential-free default. External multi-target routing mounts
+  an operator ConfigMap and rolls through `providerRouting.rotationId`.
 - **Public readiness owns startup ordering.** The byte-identical
   `dependency-readiness-v1` contract drives distinct `/health` liveness and
   `/readyz` readiness probes, bounded 2-second/30-attempt init gates, runtime

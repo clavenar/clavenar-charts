@@ -346,7 +346,21 @@ per environment variable.
         "CLAVENAR_BRAIN_AUX_TIMEOUT_MILLIS"
         "CLAVENAR_BRAIN_AUX_BODY_LIMIT_BYTES"
         "CLAVENAR_BRAIN_CACHE_HMAC_KEY_FILE"
-        "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY")
+        "CLAVENAR_BRAIN_REQUIRE_CACHE_HMAC_KEY"
+        "CLAVENAR_BRAIN_MODELS_FILE"
+        "CLAVENAR_BRAIN_MOCK_MODE"
+        "CLAVENAR_BRAIN_ANTHROPIC_API_KEY"
+        "CLAVENAR_BRAIN_OPENAI_API_KEY"
+        "CLAVENAR_BRAIN_GOOGLE_API_KEY"
+        "CLAVENAR_BRAIN_EMBEDDING_API_KEY"
+        "CLAVENAR_BRAIN_EMBEDDING_PROVIDER"
+        "CLAVENAR_BRAIN_EMBEDDING_MODEL"
+        "CLAVENAR_BRAIN_EMBEDDING_DIMENSIONS"
+        "CLAVENAR_BRAIN_EMBEDDING_BASE_URL"
+        "CLAVENAR_BRAIN_EMBEDDING_TIMEOUT_SECS"
+        "CLAVENAR_BRAIN_EMBEDDING_MAX_CONCURRENCY"
+        "ANTHROPIC_API_KEY"
+        "VOYAGE_API_KEY")
       "policyEngine" (list
         "CLAVENAR_POLICY_DB"
         "CLAVENAR_POLICY_ENGINE_BRAIN_URL"
@@ -514,6 +528,95 @@ per environment variable.
 {{- fail (printf "services.%s.extraEnv[%d].name=%s duplicates a chart-governed environment variable" $service $index $name) -}}
 {{- end -}}
 {{- end -}}
+{{- end -}}
+
+{{/*
+Render the provider-neutral v2 routing document for the opinionated
+single-provider Helm path. Credentials remain environment references; the
+Deployment projects their values only from Kubernetes Secrets.
+*/}}
+{{- define "clavenar.brainManagedRouting" -}}
+{{- $routing := .Values.services.brain.providerRouting -}}
+{{- $selected := $routing.provider -}}
+{{- $kind := $selected -}}
+{{- if eq $selected "mock" -}}
+{{- $kind = "anthropic" -}}
+{{- end -}}
+contract: clavenar.brain-provider-routing/v2
+schemaVersion: 2
+credentials:
+  managed-credential:
+{{- if has $kind (list "anthropic" "openai" "google") }}
+    source: environment
+{{- if eq $kind "anthropic" }}
+    variable: CLAVENAR_BRAIN_ANTHROPIC_API_KEY
+{{- else if eq $kind "openai" }}
+    variable: CLAVENAR_BRAIN_OPENAI_API_KEY
+{{- else }}
+    variable: CLAVENAR_BRAIN_GOOGLE_API_KEY
+{{- end }}
+{{- else if eq $kind "bedrock" }}
+    source: aws_default_chain
+{{- else if eq $kind "vertex" }}
+    source: google_application_default
+{{- else }}
+    source: none
+{{- end }}
+providers:
+  managed-provider:
+    kind: {{ $kind }}
+    credential: managed-credential
+    timeoutMs: {{ $routing.timeoutMillis }}
+{{- if and (not (empty $routing.baseUrl)) (has $kind (list "anthropic" "openai" "google" "ollama")) }}
+    baseUrl: {{ $routing.baseUrl | quote }}
+{{- else if eq $kind "ollama" }}
+    baseUrl: "http://ollama:11434"
+{{- end }}
+{{- if eq $kind "bedrock" }}
+    region: {{ $routing.awsRegion | quote }}
+{{- end }}
+{{- if eq $kind "vertex" }}
+    project: {{ $routing.vertexProject | quote }}
+    location: {{ $routing.vertexLocation | quote }}
+{{- end }}
+models:
+  managed-fast:
+    provider: managed-provider
+    model: {{ $routing.fastModel | quote }}
+    requiredCapabilities: [prompted_json_text]
+  managed-deep:
+    provider: managed-provider
+    model: {{ $routing.deepModel | quote }}
+    requiredCapabilities: [prompted_json_text]
+workloads:
+  classifier:
+    fast:
+      primary: managed-fast
+      fallback: { policy: disabled, models: [] }
+    deep:
+      primary: managed-deep
+      fallback: { policy: disabled, models: [] }
+  pii:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
+  injection:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
+  maliciousCode:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
+  compromisedPackage:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
+  explainPattern:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
+  scanResponse:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
+  narrateDecision:
+    primary: managed-fast
+    fallback: { policy: disabled, models: [] }
 {{- end -}}
 
 {{/* Shared NATS + drain-cap envs, then per-component back-end URLs,
@@ -697,6 +800,66 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 {{- end }}
 {{- end }}
 {{- if eq $name "brain" }}
+# Provider routing is mounted as a non-secret v2 document. Secret values enter
+# only through exact secretKeyRef projections selected below.
+- name: CLAVENAR_BRAIN_MODELS_FILE
+  value: "/etc/clavenar-brain/models.yaml"
+{{- $routing := .ctx.Values.services.brain.providerRouting }}
+{{- $embedding := .ctx.Values.services.brain.embedding }}
+{{- $providerCredentials := .ctx.Values.services.brain.providerCredentials }}
+{{- $externalRouting := eq $routing.provider "external" }}
+{{- if eq $routing.provider "mock" }}
+- name: CLAVENAR_BRAIN_MOCK_MODE
+  value: "true"
+{{- end }}
+{{- if or (eq $routing.provider "anthropic") (and $externalRouting (not (empty $providerCredentials.anthropic.secretName))) }}
+- name: CLAVENAR_BRAIN_ANTHROPIC_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $providerCredentials.anthropic.secretName }}
+      key: {{ $providerCredentials.anthropic.secretKey }}
+{{- end }}
+{{- if or (eq $routing.provider "openai") (and $externalRouting (not (empty $providerCredentials.openai.secretName))) }}
+- name: CLAVENAR_BRAIN_OPENAI_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $providerCredentials.openai.secretName }}
+      key: {{ $providerCredentials.openai.secretKey }}
+{{- end }}
+{{- if or (eq $routing.provider "google") (and $externalRouting (not (empty $providerCredentials.google.secretName))) }}
+- name: CLAVENAR_BRAIN_GOOGLE_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $providerCredentials.google.secretName }}
+      key: {{ $providerCredentials.google.secretKey }}
+{{- end }}
+- name: CLAVENAR_BRAIN_EMBEDDING_PROVIDER
+  value: {{ $embedding.provider | quote }}
+{{- if ne $embedding.provider "disabled" }}
+- name: CLAVENAR_BRAIN_EMBEDDING_MODEL
+  value: {{ $embedding.model | quote }}
+- name: CLAVENAR_BRAIN_EMBEDDING_DIMENSIONS
+  value: {{ printf "%d" (int $embedding.dimensions) | quote }}
+- name: CLAVENAR_BRAIN_EMBEDDING_TIMEOUT_SECS
+  value: {{ printf "%d" (int $embedding.timeoutSeconds) | quote }}
+- name: CLAVENAR_BRAIN_EMBEDDING_MAX_CONCURRENCY
+  value: {{ printf "%d" (int $embedding.maxConcurrency) | quote }}
+{{- if not (empty $embedding.baseUrl) }}
+- name: CLAVENAR_BRAIN_EMBEDDING_BASE_URL
+  value: {{ $embedding.baseUrl | quote }}
+{{- else if eq $embedding.provider "ollama" }}
+- name: CLAVENAR_BRAIN_EMBEDDING_BASE_URL
+  value: "http://ollama:11434"
+{{- end }}
+{{- if has $embedding.provider (list "voyage" "openai") }}
+{{- $embeddingCredential := index $providerCredentials $embedding.provider }}
+- name: CLAVENAR_BRAIN_EMBEDDING_API_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ $embeddingCredential.secretName }}
+      key: {{ $embeddingCredential.secretKey }}
+{{- end }}
+{{- end }}
 # Brain auxiliary provider operations are a strict chart-owned contract.
 # The process validates every value before binding. Exact caller identities
 # are single complete SPIFFE URIs; they never inherit the broader inspect

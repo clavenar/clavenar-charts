@@ -94,9 +94,11 @@ helm install my-clavenar . --namespace clavenar --create-namespace \
   --set services.ledger.requireTrustedProxy=true \
   --set services.ledger.trustedProxySpiffe=spiffe://clavenar.local/service/website \
   -f ../../tests/values-production.yaml \
-  --set services.brain.extraEnv[0].name=ANTHROPIC_API_KEY \
-  --set services.brain.extraEnv[0].valueFrom.secretKeyRef.name=anthropic \
-  --set services.brain.extraEnv[0].valueFrom.secretKeyRef.key=key
+  --set services.brain.providerRouting.provider=anthropic \
+  --set services.brain.providerRouting.fastModel=claude-haiku-4-5 \
+  --set services.brain.providerRouting.deepModel=claude-opus-4-7 \
+  --set services.brain.providerCredentials.anthropic.secretName=anthropic \
+  --set services.brain.providerCredentials.anthropic.secretKey=key
 ```
 
 Prefer copying `tests/values-production.yaml` and changing its Secret names,
@@ -109,6 +111,8 @@ boundaries are present together:
   tag or the frozen chart `appVersion`;
 - `authSecrets.existingSecretName` selects operator-managed HIL credentials;
 - `authSecrets.rotationId` selects an explicit non-secret credential generation;
+- Brain generation and embeddings select non-secret provider/model settings
+  independently and project only the selected existing Secret keys;
 - `attestationTrustAnchors.secretName` selects the public Kubernetes Ed25519
   verifier keys (the cluster signing private key is never mounted);
 - optional `tpm2AttestationTrust.secretName` selects a public pinned-AK
@@ -424,6 +428,47 @@ bytes. Operators must separately prove old HIL, OIDC, and demo tokens are
 rejected after readiness, and must recover forward rather than restoring a
 superseded generation.
 
+### Brain provider routing
+
+The credential-free default is deterministic Brain mock mode. For live
+generation, select one managed provider and its fast/deep models, then point
+the matching `services.brain.providerCredentials` entry at an existing Secret.
+Embedding selection is independent:
+
+```yaml
+services:
+  brain:
+    providerRouting:
+      provider: openai
+      fastModel: gpt-4o-mini
+      deepModel: gpt-4o
+    providerCredentials:
+      openai:
+        secretName: customer-brain-generation
+        secretKey: api-key
+      voyage:
+        secretName: customer-brain-embeddings
+        secretKey: api-key
+    embedding:
+      provider: voyage
+      model: voyage-3
+      dimensions: 1024
+```
+
+Managed generation supports Anthropic, OpenAI, Google AI, Bedrock, Vertex AI,
+and Ollama. Hosted API-key providers require only their selected Secret
+reference. Bedrock uses the AWS default credential chain, Vertex uses Google
+Application Default Credentials, and Ollama uses no credential. Embeddings
+support disabled, Voyage, OpenAI, or Ollama and never fall back.
+
+Set `providerRouting.provider: external` plus
+`existingConfigMapName`/`existingConfigMapKey` to mount an operator-owned
+`clavenar.brain-provider-routing/v2` document for multi-target fallback. Only
+configured Secret references are projected. Inline provider keys through
+`extraEnv` are rejected. Advance `providerRouting.rotationId` after changing
+an external routing ConfigMap or provider Secret so Brain rolls without
+placing secret bytes in Helm state.
+
 ### Lab agent (interactive Claude Code in-cluster)
 
 After the chart is up, an optional scaffold under `clavenar-charts/lab/`
@@ -684,7 +729,23 @@ services:
     auxSpendBudgetMicroUsdPerHour: 5000000
     auxTimeoutMillis: 5000           # valid range 1..30000
     auxBodyLimitBytes: 16384         # valid range 1..1048576
-    extraEnv: [{name: ANTHROPIC_API_KEY, value: mock-key}]
+    providerRouting:
+      provider: mock                 # credential-free default
+      fastModel: claude-haiku-4-5
+      deepModel: claude-opus-4-7
+      existingConfigMapName: ""      # provider: external only
+      existingConfigMapKey: models.yaml
+      rotationId: initial-v1
+    providerCredentials:
+      anthropic: {secretName: "", secretKey: anthropic-api-key}
+      openai: {secretName: "", secretKey: openai-api-key}
+      google: {secretName: "", secretKey: google-api-key}
+      voyage: {secretName: "", secretKey: voyage-api-key}
+    embedding:
+      provider: disabled
+      model: ""
+      dimensions: 0
+    extraEnv: []                     # provider variables are governed
   policyEngine: { ... }
   ledger:
     replicas: 1                    # fixed for SQLite and staged PostgreSQL
