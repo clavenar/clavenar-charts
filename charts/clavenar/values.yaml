@@ -481,6 +481,8 @@ services:
       provider: mock             # mock, anthropic, openai, google, bedrock, vertex, ollama, external
       fastModel: claude-haiku-4-5
       deepModel: claude-opus-4-7
+      # Lowest-cost current hosted choice: provider google with both models
+      # set to gemini-3.5-flash-lite and providerCredentials.google selected.
       baseUrl: ""                 # optional HTTPS override; Ollama also permits HTTP
       timeoutMillis: 30000       # valid range 100..120000
       awsRegion: us-east-1       # required for bedrock

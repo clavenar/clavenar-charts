@@ -39,18 +39,18 @@ cluster; **not** for production.
 
 The published OCI chart packages the byte-identical values file. A clean
 external install uses the chart and protected digest values from release
-`v0.39.0`:
+`v0.39.1`:
 
 ```bash
 helm pull oci://ghcr.io/clavenar/charts/clavenar \
-  --version 0.39.0 --untar
+  --version 0.39.1 --untar
 curl -fsSLO \
-  https://github.com/clavenar/clavenar-charts/releases/download/v0.39.0/clavenar-images-1.250.1.yaml
+  https://github.com/clavenar/clavenar-charts/releases/download/v0.39.1/clavenar-images-1.250.2.yaml
 helm install my-clavenar ./clavenar \
   --namespace clavenar --create-namespace \
   --wait --wait-for-jobs --timeout 10m \
   -f ./clavenar/examples/values-bundled.yaml \
-  -f ./clavenar-images-1.250.1.yaml
+  -f ./clavenar-images-1.250.2.yaml
 ```
 
 Every PVC created directly by the chart is annotated with
@@ -433,19 +433,37 @@ superseded generation.
 The credential-free default is deterministic Brain mock mode. For live
 generation, select one managed provider and its fast/deep models, then point
 the matching `services.brain.providerCredentials` entry at an existing Secret.
-Embedding selection is independent:
+The lowest-cost current hosted option is Google AI's
+`gemini-3.5-flash-lite`; store its API key without putting it in values or
+shell arguments:
+
+```bash
+kubectl create namespace clavenar --dry-run=client --output=yaml | \
+  kubectl apply --server-side \
+    --field-manager=clavenar-provider-bootstrap -f -
+
+printf %s "$CLAVENAR_BRAIN_GOOGLE_API_KEY" | \
+  kubectl --namespace clavenar create secret generic customer-brain-generation \
+    --from-file=google-api-key=/dev/stdin \
+    --dry-run=client --output=yaml | \
+  kubectl apply --server-side \
+    --field-manager=clavenar-provider-secret -f -
+```
+
+Then select the provider through non-secret values. Embedding selection is
+independent:
 
 ```yaml
 services:
   brain:
     providerRouting:
-      provider: openai
-      fastModel: gpt-4o-mini
-      deepModel: gpt-4o
+      provider: google
+      fastModel: gemini-3.5-flash-lite
+      deepModel: gemini-3.5-flash-lite
     providerCredentials:
-      openai:
+      google:
         secretName: customer-brain-generation
-        secretKey: api-key
+        secretKey: google-api-key
       voyage:
         secretName: customer-brain-embeddings
         secretKey: api-key
