@@ -10,10 +10,68 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ProtectedImageValuesTests(unittest.TestCase):
+    def test_release_metadata_accepts_dev_rc_and_rejects_invalid_identity(
+        self,
+    ) -> None:
+        result = subprocess.run(
+            [
+                "helm",
+                "template",
+                "dev",
+                str(ROOT / "charts/clavenar"),
+                "--set-string",
+                "stackRelease=1.250.2rc3",
+            ],
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        documents = [
+            document
+            for document in yaml.safe_load_all(result.stdout)
+            if isinstance(document, dict)
+        ]
+        console = next(
+            document
+            for document in documents
+            if document.get("kind") == "Deployment"
+            and document.get("metadata", {}).get("name") == "dev-console"
+        )
+        console_env = {
+            entry["name"]: entry.get("value")
+            for entry in console["spec"]["template"]["spec"]["containers"][0][
+                "env"
+            ]
+        }
+        self.assertEqual(
+            "1.250.2rc3", console_env["CLAVENAR_CONSOLE_RELEASE_VERSION"]
+        )
+        self.assertEqual(
+            "1.250.2rc3",
+            console["metadata"]["labels"]["app.kubernetes.io/version"],
+        )
+
+        invalid = subprocess.run(
+            [
+                "helm",
+                "template",
+                "dev",
+                str(ROOT / "charts/clavenar"),
+                "--set-string",
+                "stackRelease=1.250",
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(0, invalid.returncode)
+        self.assertIn("stackRelease", invalid.stderr)
+
     def test_every_governed_chart_image_accepts_an_exact_digest(self) -> None:
         values = yaml.safe_load(
             (ROOT / "charts/clavenar/values.yaml").read_text(encoding="utf-8")
         )
+        self.assertEqual("", values["stackRelease"])
         services = {
             "proxy",
             "brain",
@@ -130,6 +188,48 @@ class ProtectedImageValuesTests(unittest.TestCase):
         }
         self.assertEqual(9, len(images))
         self.assertTrue(all("@sha256:" in image for image in images))
+
+        console = next(
+            document
+            for document in documents
+            if document.get("kind") == "Deployment"
+            and document.get("metadata", {}).get("name") == "production-console"
+        )
+        console_env = {
+            entry["name"]: entry.get("value")
+            for entry in console["spec"]["template"]["spec"]["containers"][0][
+                "env"
+            ]
+        }
+        self.assertEqual(
+            values["stackRelease"],
+            console_env["CLAVENAR_CONSOLE_RELEASE_VERSION"],
+        )
+        self.assertEqual(
+            values["stackRelease"],
+            console["metadata"]["labels"]["app.kubernetes.io/version"],
+        )
+
+        missing_release = subprocess.run(
+            [
+                "helm",
+                "template",
+                "production",
+                str(ROOT / "charts/clavenar"),
+                "-f",
+                str(values_path),
+                "--set-string",
+                "stackRelease=",
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        self.assertNotEqual(0, missing_release.returncode)
+        self.assertIn(
+            "stackRelease is required when protected service image digests are configured",
+            missing_release.stderr,
+        )
 
         mutations = {
             "missing": "",

@@ -2,11 +2,15 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "title": "Clavenar Helm values",
   "type": "object",
-  "required": ["deploymentProfile"],
+  "required": ["deploymentProfile", "stackRelease"],
   "properties": {
     "deploymentProfile": {
       "type": "string",
       "enum": ["evaluation", "production"]
+    },
+    "stackRelease": {
+      "type": "string",
+      "pattern": "^$|^[0-9]+\\.[0-9]+\\.[0-9]+(?:rc[1-9][0-9]*|[-+][0-9A-Za-z.-]+)?$"
     },
     "identityAlias": {
       "type": "object",

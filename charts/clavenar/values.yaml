@@ -9,6 +9,13 @@
 # workload over its mTLS listener. See tests/values-production.yaml.
 deploymentProfile: evaluation
 
+# Exact product-stack release represented by a protected digest values file.
+# Protected publication sets this alongside every immutable image digest. The
+# chart refuses digest-bound renders without it instead of misreporting the
+# frozen legacy appVersion. Empty is supported only by the legacy tag-based
+# chart path, where Chart.appVersion remains the fallback.
+stackRelease: ""
+
 # Historical signing-key and RFC 3161 verification for Ledger. It activates
 # when workload TLS is configured: Ledger fetches the complete bounded-fresh
 # signing-key lineage from Identity over exact workload mTLS and re-verifies

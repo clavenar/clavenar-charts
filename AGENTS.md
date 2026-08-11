@@ -110,9 +110,11 @@ health.
   `services.<svc>.image.tag → .Values.imageTag → .Chart.AppVersion` fallback.
   Production refuses every enabled core service without a digest and also
   requires one for the curated upstream when enabled. Publication emits an
-  exact digest values file; use it for any supported install. Root `VERSION`
-  and `appVersion` remain frozen at the last legacy image set. The local
-  publisher is a fail-closed tombstone; protected releases
+  exact digest values file; use it for any supported install. That file also
+  carries the exact `stackRelease`, which owns Console `/version.json` and
+  `app.kubernetes.io/version`; digest-bound renders fail if it is absent.
+  Root `VERSION` and `appVersion` remain frozen at the last legacy image set.
+  The local publisher is a fail-closed tombstone; protected releases
   stage digest-only component artifacts and one signed stack-BOM reference
   from clavenar-e2e.
   The evaluation-only Exec workload accepts `exec.image.tag` for unique local

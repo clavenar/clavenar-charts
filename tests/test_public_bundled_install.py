@@ -57,7 +57,8 @@ class PublicBundledInstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             image_values = Path(work) / "images.yaml"
             image_values.write_text(
-                "services:\n"
+                'stackRelease: "1.250.2"\n'
+                + "services:\n"
                 + "".join(
                     f"  {key}:\n"
                     f"    image:\n"
@@ -105,6 +106,23 @@ class PublicBundledInstallTests(unittest.TestCase):
             for item in documents
         }
         self.assertEqual(GOVERNED_COMPONENTS, components)
+        console = next(
+            item
+            for item in documents
+            if item["metadata"]["name"] == "external-install-console"
+        )
+        console_env = {
+            entry["name"]: entry.get("value")
+            for entry in console["spec"]["template"]["spec"]["containers"][0][
+                "env"
+            ]
+        }
+        self.assertEqual(
+            "1.250.2", console_env["CLAVENAR_CONSOLE_RELEASE_VERSION"]
+        )
+        self.assertEqual(
+            "1.250.2", console["metadata"]["labels"]["app.kubernetes.io/version"]
+        )
         shared_secret = next(
             item
             for item in yaml.safe_load_all(result.stdout)

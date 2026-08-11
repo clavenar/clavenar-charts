@@ -13,6 +13,29 @@ Helpers for the Clavenar chart. Image-tag fallback chain:
 {{- end -}}
 {{- end -}}
 
+{{/* Resolve the product-stack identity independently of the chart package.
+Protected digest values must carry their exact stack release; silently falling
+back to the frozen legacy appVersion would make the Console and Kubernetes
+labels misreport the running release. Tag-based local installs retain the
+historical fallback. */}}
+{{- define "clavenar.stackRelease" -}}
+{{- $configured := default "" .Values.stackRelease | toString | trim -}}
+{{- $digestBound := false -}}
+{{- range $service := .Values.services -}}
+{{- if not (empty (default "" $service.image.digest)) -}}
+{{- $digestBound = true -}}
+{{- end -}}
+{{- end -}}
+{{- if and (empty $configured) $digestBound -}}
+{{- fail "stackRelease is required when protected service image digests are configured" -}}
+{{- end -}}
+{{- $version := default .Chart.AppVersion $configured | toString | trim -}}
+{{- if not (regexMatch "^[0-9]+\\.[0-9]+\\.[0-9]+(?:rc[1-9][0-9]*|[-+][0-9A-Za-z.-]+)?$" $version) -}}
+{{- fail (printf "stackRelease must be an exact release version, got %q" $version) -}}
+{{- end -}}
+{{- $version -}}
+{{- end -}}
+
 {{/* Content-address immutable workload policy so kubelet never reuses a
 stale projection after Helm replaces the bundle. */}}
 {{- define "clavenar.workloadCapabilityConfigMapName" -}}
@@ -128,7 +151,7 @@ app.kubernetes.io/component: {{ .service | kebabcase }}
 helm.sh/chart: {{ printf "%s-%s" .ctx.Chart.Name .ctx.Chart.Version | replace "+" "_" }}
 {{ include "clavenar.selectorLabels" . }}
 app.kubernetes.io/managed-by: {{ .ctx.Release.Service }}
-app.kubernetes.io/version: {{ .ctx.Chart.AppVersion | quote }}
+app.kubernetes.io/version: {{ include "clavenar.stackRelease" .ctx | replace "+" "_" | quote }}
 {{- end -}}
 
 {{/* Resolve the image reference for a service. */}}
@@ -1052,7 +1075,7 @@ Identity → CA dir (cert mount lives at tlsBundle.mountPath, fixed /certs) */}}
 - name: CLAVENAR_CONSOLE_AUTH_RATE_LIMIT_WINDOW_SECS
   value: "60"
 - name: CLAVENAR_CONSOLE_RELEASE_VERSION
-  value: {{ .ctx.Chart.AppVersion | quote }}
+  value: {{ include "clavenar.stackRelease" .ctx | quote }}
 {{- if eq .ctx.Values.services.console.auth.mode "webauthn" }}
 - name: CLAVENAR_CONSOLE_COOKIE_SECURE
   value: "false"

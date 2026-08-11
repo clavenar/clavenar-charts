@@ -999,10 +999,15 @@ def validate_console_contract(
             "console must carry exactly one chart-governed "
             "CLAVENAR_CONSOLE_RELEASE_VERSION entry"
         )
+    configured_release = value_at(values, "stackRelease")
     expected_env["CLAVENAR_CONSOLE_RELEASE_VERSION"] = (
-        str(chart_app_version)
-        if chart_app_version is not None
-        else (release_values[0] if len(release_values) == 1 else None)
+        str(configured_release).strip()
+        if configured_release
+        else (
+            str(chart_app_version)
+            if chart_app_version is not None
+            else (release_values[0] if len(release_values) == 1 else None)
+        )
     )
     if auth_mode == "webauthn":
         expected_env["CLAVENAR_CONSOLE_COOKIE_SECURE"] = "false"

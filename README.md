@@ -259,16 +259,18 @@ reference.
 
 After acceptance, **Protected public distribution** publishes this exact chart
 and a matching `clavenar-images-<stack-version>.yaml` values file. The values
-file contains all ten unique immutable image digests from the signed 11-subject
-graph (Simulator and upstream-stub intentionally share one image). The chart,
-values file, and exact images are anonymously readable; supported installs use
-the versioned OCI chart plus its matching digest values file.
+file contains the exact `stackRelease` plus all ten unique immutable image
+digests from the signed 11-subject graph (Simulator and upstream-stub
+intentionally share one image). The chart, values file, and exact images are
+anonymously readable; supported installs use the versioned OCI chart plus its
+matching digest values file.
 
 `VERSION` and `Chart.appVersion` remain frozen at the last legacy chart image
 set for tag-only compatibility. Supported publication, install, upgrade,
 rollback, and recovery consume exact digests from the signed BOM through the
-release-specific values file. Do not advance either value merely because a
-protected artifact graph was staged.
+release-specific values file, whose `stackRelease` drives runtime release
+metadata. Do not advance either legacy value merely because a protected
+artifact graph was staged.
 
 Images are built for `linux/amd64` only in v1; multi-arch via
 `docker buildx` is a deferred follow-up.

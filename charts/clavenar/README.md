@@ -109,6 +109,8 @@ boundaries are present together:
 - every enabled governed service has an exact `image.digest`; an enabled
   curated upstream has one too, so production never falls back to a mutable
   tag or the frozen chart `appVersion`;
+- `stackRelease` names the exact product release represented by those digests
+  and drives the Console release marker plus Kubernetes application labels;
 - `authSecrets.existingSecretName` selects operator-managed HIL credentials;
 - `authSecrets.rotationId` selects an explicit non-secret credential generation;
 - Brain generation and embeddings select non-secret provider/model settings
@@ -704,6 +706,7 @@ The top-level shape is:
 
 ```yaml
 deploymentProfile: evaluation             # evaluation | production
+stackRelease: ""                           # protected values pin the exact stack release
 
 ledgerCryptographicVerification:
   enabled: true                            # workload TLS also requires signed regulatory bundles
@@ -947,7 +950,8 @@ identity/role header fails closed. The bootstrap is an R1 operator path,
 not customer-facing production authentication.
 
 `GET /version.json` is the only release endpoint on the operator and demo
-listeners. The chart pins its value to `Chart.appVersion`; console `extraEnv`
+listeners. Protected digest values pin it to `stackRelease`; the frozen
+`Chart.appVersion` is only the legacy tag-based fallback. Console `extraEnv`
 cannot replace that release marker or any listener/authentication setting.
 
 Example hardened values (the referenced Secrets must already exist):
