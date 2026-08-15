@@ -57,7 +57,7 @@ class PublicBundledInstallTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as work:
             image_values = Path(work) / "images.yaml"
             image_values.write_text(
-                'stackRelease: "1.250.3"\n'
+                'stackRelease: "1.250.4"\n'
                 + "services:\n"
                 + "".join(
                     f"  {key}:\n"
@@ -118,10 +118,10 @@ class PublicBundledInstallTests(unittest.TestCase):
             ]
         }
         self.assertEqual(
-            "1.250.3", console_env["CLAVENAR_CONSOLE_RELEASE_VERSION"]
+            "1.250.4", console_env["CLAVENAR_CONSOLE_RELEASE_VERSION"]
         )
         self.assertEqual(
-            "1.250.3", console["metadata"]["labels"]["app.kubernetes.io/version"]
+            "1.250.4", console["metadata"]["labels"]["app.kubernetes.io/version"]
         )
         shared_secret = next(
             item
@@ -240,7 +240,7 @@ class PublicBundledInstallTests(unittest.TestCase):
             == "vault-bootstrap"
         )
         self.assertEqual(
-            "external-install-vault-bootstrap-0-39-2-r1",
+            "external-install-vault-bootstrap-1-0-0-r1",
             vault_bootstrap["metadata"]["name"],
         )
         self.assertNotIn("annotations", vault_bootstrap["metadata"])

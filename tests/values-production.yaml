@@ -3,7 +3,7 @@
 # namespace; the chart never mints production trust. Keep that namespace
 # distinct from both the Helm release and Prometheus namespaces.
 deploymentProfile: production
-stackRelease: "1.250.3"
+stackRelease: "1.250.4"
 proxyAlias:
   enabled: true
 identityAlias:

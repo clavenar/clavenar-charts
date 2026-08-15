@@ -30,9 +30,9 @@ class ActiveAgentMeterChartTests(unittest.TestCase):
         self.assertIn("checksum/active-agent-meter-fixture", template)
         self.assertIn("files/active-agent-meter-v1.fixture.json", template)
 
-    def test_chart_minor_version_is_bumped(self) -> None:
+    def test_chart_version_is_bumped(self) -> None:
         chart = (CHART / "Chart.yaml").read_text()
-        self.assertIn("version: 0.39.2", chart)
+        self.assertIn("version: 1.0.0", chart)
 
 
 if __name__ == "__main__":

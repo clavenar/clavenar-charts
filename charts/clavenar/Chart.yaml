@@ -15,13 +15,13 @@ description: |
   the clavenar services in a single `helm install`. Images are pulled
   from ghcr.io/clavenar by default.
 type: application
-version: 0.39.2
+version: 1.0.0
 annotations:
   clavenar.com/license: Apache-2.0
   clavenar.com/vendor: Vanteguard Labs
-# Frozen last legacy semantic image set. The direct image publisher is disabled;
-# WP-14.5 will replace tag fallback with signed stack-BOM digest inputs.
-appVersion: "0.1.12"
+# Baseline semantic image set. The direct image publisher is disabled; WP-14.5
+# will replace tag fallback with signed stack-BOM digest inputs.
+appVersion: "1.0.0"
 dependencies:
   - name: nats
     version: "1.2.5"
