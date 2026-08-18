@@ -17,7 +17,8 @@ helm lint charts/clavenar
 python3 scripts/check_dependency_readiness.py --source-root .. --require-source
 python3 scripts/check-nats-authorization.py
 
-# render across the seven value sets CI checks, then kubeconform each:
+# render all governed value sets (the workflow manifests plus the passkey
+# fixture exercised by the Python suite), then kubeconform each locally:
 helm template smoke charts/clavenar > /tmp/default.yaml
 helm template smoke charts/clavenar -f tests/values-all-on.yaml > /tmp/all-on.yaml
 helm template smoke charts/clavenar --set persistence.ledger.enabled=false \
@@ -44,6 +45,8 @@ Prometheus rules must pass both syntax validation and the executable console
 alert fixture:
 ```bash
 repo_root="$(git rev-parse --show-toplevel)"
+docker run --rm --entrypoint=/bin/promtool -v "$repo_root:/workspace:ro" -w /workspace \
+  prom/prometheus:v2.55.0 check rules charts/clavenar/alerts/clavenar-alerts.yaml
 docker run --rm --entrypoint=/bin/promtool -v "$repo_root:/workspace:ro" -w /workspace \
   prom/prometheus:v2.55.0 test rules tests/promtool-console-alerts.yml
 ```
