@@ -80,11 +80,11 @@ lab/                        # optional in-cluster Claude Code agent pod (proxy�
 docs/SEQUENCES.md           # seven flow diagrams + the render decision tree
 ```
 Service ports (container; Service names are `<release>-<service>`):
-proxy 8443 (mTLS `/`, `/health`, `/readyz`, `/mcp`, `/tool/{name}`; the only
-Service-published port) / 8080 (plain HTTP `/`, `/health`, `/readyz`, `/metrics`
-for kubelet and Prometheus) · brain 8081 (workload-mTLS application; exact
-policy-engine explain and console narrate/model callers) / 9081 (plain
-diagnostics only under mTLS; no provider routes) ·
+proxy 8443 (mTLS `/`, `/health`, `/readyz`, `/mcp`, `/tool/{name}`) / 8080
+(plain HTTP `/`, `/health`, `/readyz`, `/metrics` for kubelet and Prometheus;
+both ports are published by the ClusterIP Service) · brain 8081
+(workload-mTLS application; exact policy-engine explain and console
+narrate/model callers) / 9081 (plain diagnostics only; no provider routes) ·
 policy-engine 8082 (9082) · ledger 8083 plain + 8183 mTLS · hil 8084 (9084) ·
 identity 8086 plain + 8186 mTLS · deep-review 8087 · assurance 8088 mTLS
 control + 9088 plain diagnostics · console
