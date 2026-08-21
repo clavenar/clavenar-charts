@@ -14,7 +14,9 @@ This is a Helm/YAML chart — no compiled code. The CI matrix
 ```bash
 helm dep update charts/clavenar            # materialize locked subcharts (gitignored)
 helm lint charts/clavenar
-python3 scripts/check_dependency_readiness.py --source-root .. --require-source
+python3 scripts/check_dependency_readiness.py --source-root . --require-source
+# CI checkouts clavenar-specs into ./clavenar-specs. In a sibling workspace
+# (../clavenar-specs) pass --source-root .. instead.
 python3 scripts/check-nats-authorization.py
 
 # render all governed value sets (the workflow manifests plus the passkey
