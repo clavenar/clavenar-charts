@@ -12,7 +12,9 @@ them. (Pure-Terraform AWS/GCP/Azure modules are roadmap, not in-repo today.)
 This is a Helm/YAML chart — no compiled code. The CI matrix
 (`.github/workflows/ci.yml`) is the source of truth:
 ```bash
-helm dep update charts/clavenar            # materialize locked subcharts (gitignored)
+helm dependency build charts/clavenar      # replay Chart.lock for ordinary validation
+# Intentional dependency-version changes only; this can rewrite Chart.lock:
+helm dependency update charts/clavenar
 helm lint charts/clavenar
 python3 scripts/check_dependency_readiness.py --source-root . --require-source
 # CI checkouts clavenar-specs into ./clavenar-specs. In a sibling workspace
@@ -52,7 +54,10 @@ docker run --rm --entrypoint=/bin/promtool -v "$repo_root:/workspace:ro" -w /wor
 docker run --rm --entrypoint=/bin/promtool -v "$repo_root:/workspace:ro" -w /workspace \
   prom/prometheus:v2.55.0 test rules tests/promtool-console-alerts.yml
 ```
-Run: Helm chart, no binary — `helm install <release> charts/clavenar -n clavenar --create-namespace`. All Services are ClusterIP; port-forward to reach them.
+Run: Helm chart, no binary. `helm install <release> charts/clavenar -n
+clavenar --create-namespace` mutates the selected Kubernetes cluster and must
+only run against an explicitly authorized context. All Services are ClusterIP;
+port-forward to reach them.
 
 ## Layout
 ```
@@ -204,6 +209,7 @@ health.
 - Commit subjects must start with a lowercase letter.
 
 ## Pointers
-README.md · charts/clavenar/README.md (quickstart + values reference) ·
-SECURITY.md · docs/SEQUENCES.md (render/apply + mTLS wiring flows) ·
-lab/README.md (in-cluster agent demo).
+
+[README](README.md) · [chart quickstart and values](charts/clavenar/README.md) ·
+[security policy](SECURITY.md) · [render/apply and mTLS flows](docs/SEQUENCES.md) ·
+[in-cluster agent demo](lab/README.md).
